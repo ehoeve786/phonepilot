@@ -34,10 +34,11 @@ internal fun DoctorCard(
             capabilities.forEach { status ->
                 Column {
                     Text(capabilityLabel(status.capability), style = MaterialTheme.typography.bodyMedium)
+                    // map is inline, so the composable label lookup is allowed inside it; joinToString is not.
                     val backends =
-                        status.backends.joinToString("  ") { backend ->
-                            (if (backend.available) "✓ " else "✗ ") + backendLabel(backend.backendId)
-                        }
+                        status.backends
+                            .map { backend -> (if (backend.available) "✓ " else "✗ ") + backendLabel(backend.backendId) }
+                            .joinToString("  ")
                     Text(backends, style = MaterialTheme.typography.bodySmall)
                     if (status.active == null) {
                         Text(
