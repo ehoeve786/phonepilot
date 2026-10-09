@@ -16,6 +16,17 @@ android {
         buildConfig = true
     }
 
+    // Every CI runner would otherwise make its own debug key, and Android refuses to update an app
+    // signed with a different key. This key is public and signs debug builds only.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     packaging {
         resources {
             // Duplicate metadata from the Ktor and MCP SDK jars.
