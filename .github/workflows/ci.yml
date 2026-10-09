@@ -39,13 +39,21 @@ jobs:
         run: ./gradlew ktlintCheck
 
       - name: Unit tests
-        run: ./gradlew :core:model:test :core:common:test :app:testOssDebugUnitTest :app:testProDebugUnitTest :app:testPlayDebugUnitTest
+        run: ./gradlew test
 
       - name: Android lint
         run: ./gradlew :app:lintOssDebug
 
       - name: Assemble every flavor
         run: ./gradlew :app:assembleDebug
+
+      - name: Upload the oss debug APK for on-device checks
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocketpilot-oss-debug
+          path: app/build/outputs/apk/oss/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload lint and test reports
         if: failure()

@@ -2,49 +2,162 @@ package app.pocketpilot.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.R
 import app.pocketpilot.core.model.PolicyProfile
+import app.pocketpilot.server.http.ServerState
 
-/** M1 placeholder: proves the app shell, theme, DI and flavor wiring all work. */
+/** M2 home: start and stop the local MCP server and connect Claude Code with the local token. */
 @Composable
 fun HomeScreen(
     policyProfile: PolicyProfile,
     versionName: String,
+    serverState: ServerState,
+    token: String,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onRotateToken: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(modifier = modifier.fillMaxSize()) { padding ->
         Column(
-            modifier = Modifier.padding(padding).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier =
+                Modifier
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
             Text(stringResource(R.string.home_tagline), style = MaterialTheme.typography.bodyLarge)
             Text(
                 stringResource(R.string.home_build, policyProfile.flavor.name.lowercase(), versionName),
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
             )
-            Text(
-                stringResource(
-                    if (policyProfile.shellExecAvailable) R.string.home_shell_available else R.string.home_shell_unavailable,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            ServerCard(serverState, onStart, onStop)
+            TokenCard(token, onRotateToken)
+            ConnectCard(serverState, token)
         }
     }
 }
 
+@Composable
+private fun ServerCard(
+    state: ServerState,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.server_title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                when (state) {
+                    ServerState.Stopped -> stringResource(R.string.server_stopped)
+                    is ServerState.Running -> stringResource(R.string.server_running, state.url)
+                    is ServerState.Failed -> stringResource(R.string.server_failed, state.reason)
+                },
+            )
+            if (state is ServerState.Running) {
+                OutlinedButton(onClick = onStop) { Text(stringResource(R.string.server_stop)) }
+            } else {
+                Button(onClick = onStart) { Text(stringResource(R.string.server_start)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TokenCard(
+    token: String,
+    onRotateToken: () -> Unit,
+) {
+    var visible by rememberSaveable { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.token_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.token_explainer), style = MaterialTheme.typography.bodySmall)
+            Text(
+                if (visible) token else "•".repeat(MASKED_LENGTH),
+                fontFamily = FontFamily.Monospace,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { visible = !visible }) {
+                    Text(stringResource(if (visible) R.string.token_hide else R.string.token_show))
+                }
+                TextButton(onClick = { clipboard.setText(AnnotatedString(token)) }) { Text(stringResource(R.string.token_copy)) }
+                TextButton(onClick = onRotateToken) { Text(stringResource(R.string.token_rotate)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectCard(
+    state: ServerState,
+    token: String,
+) {
+    val clipboard = LocalClipboardManager.current
+    val url = (state as? ServerState.Running)?.url ?: "http://127.0.0.1:8765/mcp"
+    val command = claudeCodeCommand(url, token)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.connect_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.connect_explainer), style = MaterialTheme.typography.bodySmall)
+            Text(
+                claudeCodeCommand(url, "<token>"),
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            TextButton(onClick = { clipboard.setText(AnnotatedString(command)) }) { Text(stringResource(R.string.connect_copy)) }
+        }
+    }
+}
+
+/** The command that registers this phone's server with Claude Code. */
+internal fun claudeCodeCommand(
+    url: String,
+    token: String,
+): String = "claude mcp add --transport http pocketpilot $url --header \"Authorization: Bearer $token\""
+
+private const val MASKED_LENGTH = 24
+
 @Preview
 @Composable
 private fun HomeScreenPreview() {
-    PocketPilotTheme { HomeScreen(policyProfile = PolicyProfile.OSS, versionName = "0.1.0") }
+    PocketPilotTheme {
+        HomeScreen(
+            policyProfile = PolicyProfile.OSS,
+            versionName = "0.1.0",
+            serverState = ServerState.Running(8765),
+            token = "pp_example",
+            onStart = {},
+            onStop = {},
+            onRotateToken = {},
+        )
+    }
 }
