@@ -29,7 +29,7 @@ abstract class AndroidLibraryConventionPlugin : Plugin<Project> {
                     .lowercase() + "_"
             }
             dependencies {
-                "testImplementation"(libs.lib("kotlin-test"))
+                "testImplementation"(libs.lib("kotlin-test-junit"))
                 "testImplementation"(libs.lib("junit"))
             }
         }
