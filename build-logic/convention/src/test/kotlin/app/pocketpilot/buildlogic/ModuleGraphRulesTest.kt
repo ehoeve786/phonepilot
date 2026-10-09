@@ -60,6 +60,11 @@ class ModuleGraphRulesTest {
     }
 
     @Test
+    fun `a module's own test variants are ignored`() {
+        assertEquals(emptyList(), violations(":app" to ":app", configuration = "ossDebugUnitTestCompileClasspath"))
+    }
+
+    @Test
     fun `nothing depends on the app`() {
         assertTrue(violations(":feature:home" to ":app").isNotEmpty())
     }

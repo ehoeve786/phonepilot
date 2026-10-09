@@ -20,6 +20,8 @@ object ModuleGraphRules {
     fun violations(edges: Iterable<ModuleEdge>): List<String> =
         edges
             .distinct()
+            // AGP wires each module's test variants to the module itself; that is not a real edge.
+            .filter { it.from != it.to }
             .flatMap(::check)
             .distinct()
             .sorted()
