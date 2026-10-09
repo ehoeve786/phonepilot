@@ -31,8 +31,15 @@ rootProject.name = "pocketpilot"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 include(":app")
+include(":capability:api")
+include(":capability:device")
+include(":core:audit")
 include(":core:common")
 include(":core:model")
+include(":core:orchestrator")
+include(":core:tools")
+include(":server:http")
+include(":server:mcp")
 
 // Closed Pro modules live in a private repository mounted at pro/ as a Git submodule.
 // The public tree must build without it, so pro/ is only included when it is checked out.

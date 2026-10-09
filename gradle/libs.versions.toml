@@ -8,9 +8,12 @@ androidxActivity = "1.9.3"
 androidxComposeBom = "2025.09.00"
 androidxCore = "1.15.0"
 androidxLifecycle = "2.10.0"
-kotlinxCoroutines = "1.10.2"
-kotlinxSerializationJson = "1.8.0"
+kotlinxCoroutines = "1.11.0"
+kotlinxSerializationJson = "1.11.0"
 junit4 = "4.13.2"
+# The MCP SDK pins the Ktor line; keep ktor equal to the SDK's Ktor dependency.
+mcpKotlinSdk = "0.15.0"
+ktor = "3.5.1"
 ktlintGradle = "14.2.0"
 ktlint = "1.8.0"
 
@@ -33,6 +36,8 @@ kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.re
 kotlin-test-junit = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit", version.ref = "kotlin" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+mcp-kotlin-sdk-server = { group = "io.modelcontextprotocol", name = "kotlin-sdk-server", version.ref = "mcpKotlinSdk" }
+ktor-server-cio = { group = "io.ktor", name = "ktor-server-cio", version.ref = "ktor" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 
 # Dependencies of the included build-logic build

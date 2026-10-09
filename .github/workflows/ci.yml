@@ -39,7 +39,7 @@ jobs:
         run: ./gradlew ktlintCheck
 
       - name: Unit tests
-        run: ./gradlew :core:model:test :core:common:test :app:testOssDebugUnitTest :app:testProDebugUnitTest :app:testPlayDebugUnitTest
+        run: ./gradlew test
 
       - name: Android lint
         run: ./gradlew :app:lintOssDebug

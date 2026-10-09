@@ -15,11 +15,32 @@ android {
     buildFeatures {
         buildConfig = true
     }
+
+    packaging {
+        resources {
+            // Duplicate metadata from the Ktor and MCP SDK jars.
+            excludes +=
+                setOf(
+                    "/META-INF/{AL2.0,LGPL2.1}",
+                    "/META-INF/INDEX.LIST",
+                    "/META-INF/io.netty.versions.properties",
+                    "/META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+                    "/META-INF/DEPENDENCIES",
+                )
+        }
+    }
 }
 
 dependencies {
+    implementation(projects.capability.api)
+    implementation(projects.capability.device)
+    implementation(projects.core.audit)
     implementation(projects.core.common)
     implementation(projects.core.model)
+    implementation(projects.core.orchestrator)
+    implementation(projects.core.tools)
+    implementation(projects.server.http)
+    implementation(projects.server.mcp)
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)

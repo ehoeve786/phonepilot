@@ -3,6 +3,26 @@
     <string name="app_name">PocketPilot</string>
     <string name="home_tagline">Your phone, ready for any AI.</string>
     <string name="home_build">%1$s build · version %2$s</string>
-    <string name="home_shell_available">Raw shell tool: available in this build</string>
-    <string name="home_shell_unavailable">Raw shell tool: not in this build</string>
+
+    <string name="server_title">MCP server</string>
+    <string name="server_stopped">Stopped</string>
+    <string name="server_running">Running at %1$s</string>
+    <string name="server_failed">Could not start: %1$s</string>
+    <string name="server_start">Start server</string>
+    <string name="server_stop">Stop server</string>
+
+    <string name="token_title">Local token</string>
+    <string name="token_explainer">Apps on this phone, such as Claude Code in Termux, connect with this token. Keep it private.</string>
+    <string name="token_show">Show</string>
+    <string name="token_hide">Hide</string>
+    <string name="token_copy">Copy token</string>
+    <string name="token_rotate">New token</string>
+    <string name="connect_title">Connect Claude Code</string>
+    <string name="connect_explainer">Run this in Termux on this phone:</string>
+    <string name="connect_copy">Copy command</string>
+
+    <string name="notification_channel">MCP server</string>
+    <string name="notification_title">PocketPilot server is on</string>
+    <string name="notification_text">Listening on %1$s</string>
+    <string name="notification_stop">Stop</string>
 </resources>
