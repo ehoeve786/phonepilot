@@ -33,4 +33,21 @@
     <string name="notification_title">PocketPilot server is on</string>
     <string name="notification_text">Listening on %1$s</string>
     <string name="notification_stop">Stop</string>
+    <string name="doctor_title">Doctor</string>
+    <string name="doctor_none">Nothing can do this yet. Turn on Accessibility or start Shizuku.</string>
+    <string name="doctor_shizuku_title">Shizuku</string>
+    <string name="shizuku_not_running">Not running. Install Shizuku and start it with Wireless debugging to give PocketPilot input, screenshots and screen reading without Accessibility.</string>
+    <string name="shizuku_unsupported">This Shizuku is too old. Update it to version 11 or later.</string>
+    <string name="shizuku_permission_needed">Running, but PocketPilot is not allowed yet.</string>
+    <string name="shizuku_connecting">Connecting…</string>
+    <string name="shizuku_connected">Connected</string>
+    <string name="shizuku_grant">Allow in Shizuku</string>
+    <string name="capability_read_ui">Read the screen</string>
+    <string name="capability_inject_input">Tap, swipe and type</string>
+    <string name="capability_capture_screen">Screenshots</string>
+    <string name="capability_launch_apps">Open apps</string>
+    <string name="capability_other">Other</string>
+    <string name="backend_accessibility">Accessibility</string>
+    <string name="backend_shizuku">Shizuku</string>
+    <string name="backend_package_manager">Android</string>
 </resources>

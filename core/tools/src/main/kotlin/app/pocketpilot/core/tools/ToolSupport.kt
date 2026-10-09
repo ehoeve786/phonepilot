@@ -6,6 +6,7 @@ import app.pocketpilot.capability.api.screen.Target
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import app.pocketpilot.core.model.ToolResult
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -61,10 +62,17 @@ internal suspend fun afterAction(
     withSnapshot: Boolean,
 ): ToolResult {
     if (!withSnapshot || !reader.available.value) return ToolResult.success(summary)
-    reader.awaitIdle()
+    // Give the app a moment to react, then wait for a longer quiet spell than the 300 ms idle default:
+    // pages that load in steps (Samsung Settings) pause briefly between steps.
+    delay(REACTION_MS)
+    reader.awaitIdle(quietMs = SETTLE_QUIET_MS, timeoutMs = SETTLE_TIMEOUT_MS)
     val snapshot = reader.snapshot()
     return ToolResult.success("$summary\nScreen now:\n${snapshot.toJson()}")
 }
+
+private const val REACTION_MS = 150L
+private const val SETTLE_QUIET_MS = 600L
+private const val SETTLE_TIMEOUT_MS = 4_000L
 
 /** JSON Schema fragments shared by the ui.* tools. */
 internal object SchemaParts {

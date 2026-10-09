@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction
+import app.pocketpilot.capability.api.BackendIds
 import app.pocketpilot.capability.api.screen.GlobalAction
 import app.pocketpilot.capability.api.screen.InputController
 import app.pocketpilot.capability.api.screen.Key
@@ -16,6 +17,7 @@ import app.pocketpilot.capability.api.screen.Target
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -27,6 +29,9 @@ import kotlin.coroutines.resumeWithException
 class A11yInputController(
     private val reader: A11yScreenReader,
 ) : InputController {
+    override val backendId: String = BackendIds.ACCESSIBILITY
+    override val available: StateFlow<Boolean> = A11yBridge.connected
+
     override suspend fun tap(target: Target) {
         val service = A11yBridge.require()
         when (target) {

@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 internal class FakeReader(
     var snapshot: Snapshot = settingsSnapshot(),
 ) : ScreenReader {
+    override val backendId = "fake"
     override val available = MutableStateFlow(true)
     var foregroundApp: ForegroundApp? = ForegroundApp("com.android.settings", "SettingsActivity")
     var snapshots = 0
@@ -31,6 +32,10 @@ internal class FakeReader(
 
     override suspend fun foreground() = foregroundApp
 
+    override fun bounds(target: Target.OnElement): Bounds = snapshot.element(target.elementId)!!.bounds
+
+    override fun owns(snapshotId: String) = snapshotId == snapshot.id
+
     override suspend fun awaitIdle(
         quietMs: Long,
         timeoutMs: Long,
@@ -40,6 +45,8 @@ internal class FakeReader(
 }
 
 internal class FakeInput : InputController {
+    override val backendId = "fake"
+    override val available = MutableStateFlow(true)
     val calls = mutableListOf<String>()
 
     override suspend fun tap(target: Target) {
@@ -91,6 +98,8 @@ internal class FakeInput : InputController {
 internal class FakeApps(
     private val reader: FakeReader,
 ) : AppController {
+    override val backendId = "fake"
+    override val available = MutableStateFlow(true)
     val launched = mutableListOf<String>()
     val apps =
         listOf(

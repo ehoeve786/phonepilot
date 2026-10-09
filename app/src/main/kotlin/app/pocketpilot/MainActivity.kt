@@ -12,7 +12,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.pocketpilot.capability.api.screen.ScreenReader
+import app.pocketpilot.capability.accessibility.A11yBridge
+import app.pocketpilot.capability.shizuku.ShizukuConnection
+import app.pocketpilot.core.capabilities.CapabilityGraph
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.server.LocalTokenStore
 import app.pocketpilot.server.PocketPilotService
@@ -30,7 +32,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var tokens: LocalTokenStore
 
-    @Inject lateinit var screenReader: ScreenReader
+    @Inject lateinit var capabilityGraph: CapabilityGraph
+
+    @Inject lateinit var shizuku: ShizukuConnection
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,7 +51,9 @@ class MainActivity : ComponentActivity() {
                     policyProfile = policyProfile,
                     versionName = BuildConfig.VERSION_NAME,
                     serverState = server.serverState.collectAsStateWithLifecycle().value,
-                    accessibilityOn = screenReader.available.collectAsStateWithLifecycle().value,
+                    accessibilityOn = A11yBridge.connected.collectAsStateWithLifecycle().value,
+                    capabilities = capabilityGraph.state.collectAsStateWithLifecycle().value,
+                    shizukuState = shizuku.state.collectAsStateWithLifecycle().value,
                     token = tokens.token.collectAsStateWithLifecycle().value,
                     onStart = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -62,6 +68,7 @@ class MainActivity : ComponentActivity() {
                     onOpenAppInfo = {
                         startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
                     },
+                    onGrantShizuku = shizuku::requestPermission,
                 )
             }
         }
