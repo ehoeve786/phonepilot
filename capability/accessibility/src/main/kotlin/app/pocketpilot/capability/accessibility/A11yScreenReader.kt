@@ -11,6 +11,7 @@ import app.pocketpilot.capability.api.screen.ForegroundApp
 import app.pocketpilot.capability.api.screen.RawNode
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.api.screen.ScreenSize
+import app.pocketpilot.capability.api.screen.Snapshot
 import app.pocketpilot.capability.api.screen.SnapshotBuilder
 import app.pocketpilot.capability.api.screen.SnapshotCache
 import app.pocketpilot.capability.api.screen.SnapshotOptions
