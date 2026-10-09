@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Lint, tests, module graph, all flavors
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Module graph rules
+        run: ./gradlew checkModuleGraph
+
+      - name: Build logic tests
+        run: ./gradlew -p build-logic :convention:test
+
+      - name: ktlint
+        run: ./gradlew ktlintCheck
+
+      - name: Unit tests
+        run: ./gradlew :core:model:test :core:common:test :app:testOssDebugUnitTest :app:testProDebugUnitTest :app:testPlayDebugUnitTest
+
+      - name: Android lint
+        run: ./gradlew :app:lintOssDebug
+
+      - name: Assemble every flavor
+        run: ./gradlew :app:assembleDebug
+
+      - name: Upload lint and test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            **/build/reports/
+            **/build/test-results/
