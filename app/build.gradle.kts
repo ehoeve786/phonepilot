@@ -32,10 +32,14 @@ android {
 }
 
 dependencies {
+    implementation(projects.capability.accessibility)
     implementation(projects.capability.api)
+    implementation(projects.capability.apps)
     implementation(projects.capability.device)
+    implementation(projects.capability.screencapture)
     implementation(projects.core.audit)
     implementation(projects.core.common)
+    implementation(projects.core.imaging)
     implementation(projects.core.model)
     implementation(projects.core.orchestrator)
     implementation(projects.core.tools)

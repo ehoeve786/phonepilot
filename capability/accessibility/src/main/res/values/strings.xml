@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capability_accessibility_label">PocketPilot</string>
+    <string name="capability_accessibility_description">Lets AI apps you connect to PocketPilot read the screen, tap, swipe and type on this phone. PocketPilot only acts when a connected app asks it to, and every action is logged.</string>
+</resources>

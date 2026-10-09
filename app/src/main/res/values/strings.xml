@@ -11,6 +11,14 @@
     <string name="server_start">Start server</string>
     <string name="server_stop">Stop server</string>
 
+    <string name="accessibility_title">Screen access</string>
+    <string name="accessibility_on">On. Connected apps can read the screen, tap and type.</string>
+    <string name="accessibility_off">Off. Connected apps can\'t see or touch the screen yet.</string>
+    <string name="accessibility_explainer">Turn on PocketPilot under Installed apps (or Downloaded apps) in Accessibility settings.</string>
+    <string name="accessibility_open_settings">Open Accessibility settings</string>
+    <string name="accessibility_restricted">If Android says the setting is restricted, open App info, tap the ⋮ menu, choose Allow restricted settings, then try again.</string>
+    <string name="accessibility_open_app_info">Open App info</string>
+
     <string name="token_title">Local token</string>
     <string name="token_explainer">Apps on this phone, such as Claude Code in Termux, connect with this token. Keep it private.</string>
     <string name="token_show">Show</string>

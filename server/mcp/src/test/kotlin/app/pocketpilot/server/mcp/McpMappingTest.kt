@@ -45,6 +45,9 @@ class McpMappingTest {
         assertEquals(true, result.isError)
         assertEquals("DEVICE_BUSY", result.structuredContent!!["code"]!!.jsonPrimitive.content)
         assertEquals("Retry in 30 s", result.structuredContent!!["recoveryHint"]!!.jsonPrimitive.content)
-        assertTrue((result.content.single() as TextContent).text.contains("Another client"))
+        val text = (result.content.single() as TextContent).text
+        assertTrue(text.startsWith("Another client holds the phone"))
+        assertTrue(text.contains("Error code: DEVICE_BUSY"))
+        assertTrue(text.contains("What to do: Retry in 30 s"))
     }
 }

@@ -1,14 +1,18 @@
 package app.pocketpilot
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.server.LocalTokenStore
 import app.pocketpilot.server.PocketPilotService
@@ -26,6 +30,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var tokens: LocalTokenStore
 
+    @Inject lateinit var screenReader: ScreenReader
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -41,6 +47,7 @@ class MainActivity : ComponentActivity() {
                     policyProfile = policyProfile,
                     versionName = BuildConfig.VERSION_NAME,
                     serverState = server.serverState.collectAsStateWithLifecycle().value,
+                    accessibilityOn = screenReader.available.collectAsStateWithLifecycle().value,
                     token = tokens.token.collectAsStateWithLifecycle().value,
                     onStart = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -51,6 +58,10 @@ class MainActivity : ComponentActivity() {
                     },
                     onStop = { PocketPilotService.stop(this) },
                     onRotateToken = tokens::rotate,
+                    onOpenAccessibilitySettings = { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+                    onOpenAppInfo = {
+                        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+                    },
                 )
             }
         }
