@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PocketPilot</string>
+    <string name="home_tagline">Your phone, ready for any AI.</string>
+    <string name="home_build">%1$s build · version %2$s</string>
+    <string name="home_shell_available">Raw shell tool: available in this build</string>
+    <string name="home_shell_unavailable">Raw shell tool: not in this build</string>
+</resources>
