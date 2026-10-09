@@ -215,7 +215,7 @@ private fun HomeScreenPreview() {
         HomeScreen(
             policyProfile = PolicyProfile.OSS,
             versionName = "0.1.0",
-            serverState = ServerState.Running(8765),
+            serverState = ServerState.Running(8765, 8766),
             accessibilityOn = false,
             capabilities = emptyList(),
             shizukuState = ShizukuState.NOT_RUNNING,
