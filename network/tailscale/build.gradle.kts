@@ -1,10 +1,11 @@
+import javax.inject.Inject
+
 plugins {
     alias(libs.plugins.pocketpilot.android.library)
 }
 
 android {
     namespace = "app.pocketpilot.network.tailscale"
-    sourceSets.getByName("main").jniLibs.srcDir("build/gomobile/jni")
 }
 
 // The embedded Tailscale node is Go (tsnet), bound to Java with gomobile. Building it needs Go,
@@ -12,7 +13,7 @@ android {
 // section 2), unpacked into a classes jar and native libraries.
 val goSources = layout.projectDirectory.dir("go")
 val gomobileAar = layout.buildDirectory.file("gomobile/ppnet.aar")
-val gomobileOut = layout.buildDirectory.dir("gomobile")
+val gomobileClasses = layout.buildDirectory.file("gomobile/classes/classes.jar")
 
 val gomobileBind =
     tasks.register<Exec>("gomobileBind") {
@@ -38,17 +39,54 @@ val gomobileBind =
         )
     }
 
-val unpackGomobileAar =
-    tasks.register<Copy>("unpackGomobileAar") {
-        from(zipTree(gomobileAar).matching { include("classes.jar", "jni/**") })
-        into(gomobileOut)
+val unpackGomobileClasses =
+    tasks.register<Copy>("unpackGomobileClasses") {
+        from(zipTree(gomobileAar).matching { include("classes.jar") })
+        into(layout.buildDirectory.dir("gomobile/classes"))
         dependsOn(gomobileBind)
     }
 
-tasks.named("preBuild") { dependsOn(unpackGomobileAar) }
+/** Extracts the AAR's `jni/<abi>/` libraries into a directory AGP takes as generated jniLibs. */
+abstract class UnpackGomobileJni : DefaultTask() {
+    @get:InputFile
+    abstract val aar: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val jniLibs: DirectoryProperty
+
+    @get:Inject
+    abstract val files: FileSystemOperations
+
+    @get:Inject
+    abstract val archives: ArchiveOperations
+
+    @TaskAction
+    fun unpack() {
+        files.sync {
+            from(archives.zipTree(aar)) {
+                include("jni/**")
+                eachFile { path = path.removePrefix("jni/") }
+            }
+            includeEmptyDirs = false
+            into(jniLibs)
+        }
+    }
+}
+
+val unpackGomobileJni =
+    tasks.register<UnpackGomobileJni>("unpackGomobileJni") {
+        aar.set(gomobileAar)
+        dependsOn(gomobileBind)
+    }
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.jniLibs?.addGeneratedSourceDirectory(unpackGomobileJni, UnpackGomobileJni::jniLibs)
+    }
+}
 
 dependencies {
     api(projects.network.api)
-    implementation(files(gomobileOut.map { it.file("classes.jar") }).builtBy(unpackGomobileAar))
+    implementation(files(gomobileClasses).builtBy(unpackGomobileClasses))
     implementation(libs.kotlinx.coroutines.core)
 }
