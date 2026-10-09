@@ -4,10 +4,6 @@ plugins {
 }
 
 dependencies {
-    api(projects.core.orchestrator)
     api(projects.capability.api)
-    api(projects.core.imaging)
     implementation(libs.kotlinx.serialization.json)
-
-    testImplementation(libs.kotlinx.coroutines.test)
 }
