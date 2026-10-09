@@ -31,11 +31,24 @@ import app.pocketpilot.R
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.capabilities.CapabilityStatus
 import app.pocketpilot.core.model.PolicyProfile
+import app.pocketpilot.feature.clients.ClientRow
+import app.pocketpilot.feature.clients.ClientsCard
+import app.pocketpilot.network.api.NetworkState
+import app.pocketpilot.network.api.PublicAccessState
 import app.pocketpilot.server.http.ServerState
+
+/** What the remote access card can ask for. */
+data class RemoteActions(
+    val turnOn: () -> Unit,
+    val turnOff: () -> Unit,
+    val signIn: (String) -> Unit,
+    val signOut: () -> Unit,
+    val setPublic: (Boolean) -> Unit,
+)
 
 /**
  * Home: start and stop the local MCP server, turn on the Accessibility service, see which backends
- * work in Doctor, and connect Claude Code with the local token.
+ * work in Doctor, set up remote access and connected apps, and connect Claude Code with the local token.
  */
 @Composable
 fun HomeScreen(
@@ -45,6 +58,9 @@ fun HomeScreen(
     accessibilityOn: Boolean,
     capabilities: List<CapabilityStatus>,
     shizukuState: ShizukuState,
+    remoteState: NetworkState,
+    publicState: PublicAccessState,
+    clients: List<ClientRow>,
     token: String,
     onStart: () -> Unit,
     onStop: () -> Unit,
@@ -52,6 +68,9 @@ fun HomeScreen(
     onOpenAccessibilitySettings: () -> Unit,
     onOpenAppInfo: () -> Unit,
     onGrantShizuku: () -> Unit,
+    remoteActions: RemoteActions,
+    onRevokeClient: (String) -> Unit,
+    onKillSwitch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(modifier = modifier.fillMaxSize()) { padding ->
@@ -72,6 +91,16 @@ fun HomeScreen(
             ServerCard(serverState, onStart, onStop)
             AccessibilityCard(accessibilityOn, onOpenAccessibilitySettings, onOpenAppInfo)
             DoctorCard(capabilities, shizukuState, onGrantShizuku)
+            RemoteAccessCard(
+                state = remoteState,
+                public = publicState,
+                onTurnOn = remoteActions.turnOn,
+                onTurnOff = remoteActions.turnOff,
+                onSignIn = remoteActions.signIn,
+                onSignOut = remoteActions.signOut,
+                onPublicChange = remoteActions.setPublic,
+            )
+            ClientsCard(clients, onRevokeClient, onKillSwitch)
             TokenCard(token, onRotateToken)
             ConnectCard(serverState, token)
         }
@@ -190,6 +219,9 @@ private fun HomeScreenPreview() {
             accessibilityOn = false,
             capabilities = emptyList(),
             shizukuState = ShizukuState.NOT_RUNNING,
+            remoteState = NetworkState.Stopped,
+            publicState = PublicAccessState(enabled = false),
+            clients = emptyList(),
             token = "pp_example",
             onStart = {},
             onStop = {},
@@ -197,6 +229,9 @@ private fun HomeScreenPreview() {
             onOpenAccessibilitySettings = {},
             onOpenAppInfo = {},
             onGrantShizuku = {},
+            remoteActions = RemoteActions({}, {}, {}, {}, {}),
+            onRevokeClient = {},
+            onKillSwitch = {},
         )
     }
 }

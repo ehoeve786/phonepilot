@@ -16,11 +16,15 @@ import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.shizuku.ShizukuConnection
 import app.pocketpilot.core.capabilities.CapabilityGraph
 import app.pocketpilot.core.model.PolicyProfile
+import app.pocketpilot.feature.clients.ClientRow
+import app.pocketpilot.network.tailscale.TailscaleProvider
 import app.pocketpilot.server.LocalTokenStore
 import app.pocketpilot.server.PocketPilotService
 import app.pocketpilot.server.http.McpHttpServer
+import app.pocketpilot.server.oauth.AuthorizationServer
 import app.pocketpilot.ui.HomeScreen
 import app.pocketpilot.ui.PocketPilotTheme
+import app.pocketpilot.ui.RemoteActions
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -35,6 +39,10 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var capabilityGraph: CapabilityGraph
 
     @Inject lateinit var shizuku: ShizukuConnection
+
+    @Inject lateinit var tailscale: TailscaleProvider
+
+    @Inject lateinit var oauth: AuthorizationServer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +62,18 @@ class MainActivity : ComponentActivity() {
                     accessibilityOn = A11yBridge.connected.collectAsStateWithLifecycle().value,
                     capabilities = capabilityGraph.state.collectAsStateWithLifecycle().value,
                     shizukuState = shizuku.state.collectAsStateWithLifecycle().value,
+                    remoteState = tailscale.state.collectAsStateWithLifecycle().value,
+                    publicState = tailscale.publicState.collectAsStateWithLifecycle().value,
+                    clients =
+                        oauth.clients.collectAsStateWithLifecycle().value.map { client ->
+                            ClientRow(
+                                client.id,
+                                client.name,
+                                client.redirectHost,
+                                client.scopes.map { it.value }.sorted(),
+                                client.lastUsedAtMillis,
+                            )
+                        },
                     token = tokens.token.collectAsStateWithLifecycle().value,
                     onStart = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -69,6 +89,22 @@ class MainActivity : ComponentActivity() {
                         startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
                     },
                     onGrantShizuku = shizuku::requestPermission,
+                    remoteActions =
+                        RemoteActions(
+                            turnOn = {
+                                tailscale.start()
+                                PocketPilotService.start(this)
+                            },
+                            turnOff = tailscale::stop,
+                            signIn = { url -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+                            signOut = tailscale::logout,
+                            setPublic = tailscale::setPublic,
+                        ),
+                    onRevokeClient = oauth::revokeClient,
+                    onKillSwitch = {
+                        oauth.revokeAll()
+                        tailscale.setPublic(false)
+                    },
                 )
             }
         }

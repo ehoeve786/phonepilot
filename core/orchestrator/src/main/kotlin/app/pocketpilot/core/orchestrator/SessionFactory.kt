@@ -7,7 +7,7 @@ import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.SessionId
 import app.pocketpilot.core.model.SessionKind
 
-/** Creates sessions with fresh ULIDs. OAuth clients and their consented scopes arrive in M5. */
+/** Creates sessions with fresh ULIDs. */
 class SessionFactory(
     private val clock: Clock = Clock.System,
     private val ids: UlidGenerator = UlidGenerator(clock),
@@ -22,6 +22,19 @@ class SessionFactory(
             kind = SessionKind.MCP_CLIENT,
             principal = LOCAL_PRINCIPAL,
             grantedScopes = Scope.KNOWN - setOf(Scope.SHELL_EXEC, Scope.TERMUX_RUN),
+            createdAtMillis = clock.nowMillis(),
+        )
+
+    /** A session for an OAuth client, holding the scopes the owner granted it. */
+    fun clientSession(
+        clientName: String,
+        grantedScopes: Set<Scope>,
+    ): Session =
+        Session(
+            id = SessionId(ids.next()),
+            kind = SessionKind.MCP_CLIENT,
+            principal = clientName,
+            grantedScopes = grantedScopes,
             createdAtMillis = clock.nowMillis(),
         )
 

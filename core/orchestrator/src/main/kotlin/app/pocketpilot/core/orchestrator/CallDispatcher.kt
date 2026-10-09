@@ -12,6 +12,8 @@ import app.pocketpilot.core.model.ToolCall
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import app.pocketpilot.core.model.ToolResult
+import app.pocketpilot.core.policy.Decision
+import app.pocketpilot.core.policy.PolicyEngine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -19,14 +21,16 @@ import kotlinx.serialization.json.JsonObject
 
 /**
  * The single entry point for every tool call, from MCP clients, the agent and plugins alike. It runs
- * the call lifecycle from spec section 4: look up, check scopes, validate arguments, execute with a
- * timeout, and write one audit event whatever the outcome.
+ * the call lifecycle from spec section 4: look up, check scopes, validate arguments, ask the policy
+ * engine, execute with a timeout, check the policy again, and write one audit event whatever the
+ * outcome.
  *
- * Not yet here: the policy engine's confirmations and app policies (M5) and the device lease (M3).
+ * Not yet here: the device lease.
  */
 class CallDispatcher(
     private val registry: ToolRegistry,
     private val auditSink: AuditSink,
+    private val policy: PolicyEngine? = null,
     private val clock: Clock = Clock.System,
     private val ids: UlidGenerator = UlidGenerator(clock),
     private val redactor: Redactor = Redactor(),
@@ -88,6 +92,12 @@ class CallDispatcher(
                 AuditDecision.DENY
         }
 
+        policy?.before(session, handler.spec)?.let { decision ->
+            if (decision is Decision.Deny) {
+                return ToolResult.error(decision.code, decision.message, decision.hint) to AuditDecision.DENY
+            }
+        }
+
         val result =
             try {
                 withTimeout(handler.timeoutMs) { handler.execute(call, session) }
@@ -104,6 +114,10 @@ class CallDispatcher(
             } catch (e: Exception) {
                 ToolResult.error(ToolErrorCode.INTERNAL_ERROR, "${call.tool} failed: ${e.message ?: e::class.simpleName}")
             }
+        val after = policy?.after(handler.spec)
+        if (after is Decision.Deny) {
+            return ToolResult.error(after.code, after.message, after.hint) to AuditDecision.DENY
+        }
         return result to AuditDecision.ALLOW
     }
 }

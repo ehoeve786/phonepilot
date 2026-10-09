@@ -2,6 +2,7 @@ package app.pocketpilot.di
 
 import android.content.Context
 import app.pocketpilot.BuildConfig
+import app.pocketpilot.approvals.ApprovalCenter
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.accessibility.A11yInputController
 import app.pocketpilot.capability.accessibility.A11yScreenCapturer
@@ -33,6 +34,8 @@ import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.SessionFactory
 import app.pocketpilot.core.orchestrator.ToolHandler
 import app.pocketpilot.core.orchestrator.ToolRegistry
+import app.pocketpilot.core.policy.AppPolicy
+import app.pocketpilot.core.policy.PolicyEngine
 import app.pocketpilot.core.tools.AppCurrentTool
 import app.pocketpilot.core.tools.AppLaunchTool
 import app.pocketpilot.core.tools.AppListTool
@@ -49,9 +52,13 @@ import app.pocketpilot.core.tools.UiPressKeyTool
 import app.pocketpilot.core.tools.UiSwipeTool
 import app.pocketpilot.core.tools.UiTapTool
 import app.pocketpilot.core.tools.UiTypeTextTool
+import app.pocketpilot.network.api.NetworkState
+import app.pocketpilot.network.tailscale.TailscaleProvider
 import app.pocketpilot.server.LocalTokenStore
 import app.pocketpilot.server.http.McpHttpServer
 import app.pocketpilot.server.mcp.McpServerFactory
+import app.pocketpilot.server.oauth.AuthorizationServer
+import app.pocketpilot.server.oauth.FileOAuthStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -62,6 +69,7 @@ import dagger.multibindings.IntoSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import java.io.File
 import javax.inject.Singleton
 
 /**
@@ -246,10 +254,45 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun authorizationServer(
+        @ApplicationContext context: Context,
+    ): AuthorizationServer = AuthorizationServer(FileOAuthStore(File(context.noBackupFilesDir, "oauth.json")))
+
+    @Provides
+    @Singleton
+    fun approvalCenter(
+        @ApplicationContext context: Context,
+        oauth: AuthorizationServer,
+        scope: CoroutineScope,
+    ): ApprovalCenter = ApprovalCenter(context, oauth, scope)
+
+    @Provides
+    @Singleton
+    fun policyEngine(
+        @ApplicationContext context: Context,
+        reader: ScreenReader,
+        approvals: ApprovalCenter,
+    ): PolicyEngine =
+        PolicyEngine(
+            appPolicy = AppPolicy(ownPackages = setOf(context.packageName)),
+            foreground = { runCatching { reader.foreground()?.packageName }.getOrNull() },
+            confirmer = approvals,
+        )
+
+    @Provides
+    @Singleton
     fun callDispatcher(
         registry: ToolRegistry,
         auditSink: AuditSink,
-    ): CallDispatcher = CallDispatcher(registry, auditSink)
+        policy: PolicyEngine,
+    ): CallDispatcher = CallDispatcher(registry, auditSink, policy)
+
+    @Provides
+    @Singleton
+    fun tailscaleProvider(
+        @ApplicationContext context: Context,
+        scope: CoroutineScope,
+    ): TailscaleProvider = TailscaleProvider(context, scope, McpHttpServer.DEFAULT_REMOTE_PORT)
 
     @Provides
     @Singleton
@@ -263,10 +306,14 @@ object AppModule {
         registry: ToolRegistry,
         dispatcher: CallDispatcher,
         tokens: LocalTokenStore,
+        oauth: AuthorizationServer,
+        tailscale: TailscaleProvider,
     ): McpHttpServer =
         McpHttpServer(
             factory = McpServerFactory(registry, dispatcher, appVersion = BuildConfig.VERSION_NAME),
             sessions = SessionFactory(),
             localToken = tokens::current,
+            oauth = oauth,
+            remoteHosts = { setOfNotNull((tailscale.state.value as? NetworkState.Connected)?.hostname) },
         )
 }
