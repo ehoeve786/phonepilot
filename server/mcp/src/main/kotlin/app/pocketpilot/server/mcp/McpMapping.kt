@@ -42,14 +42,15 @@ private fun JsonObject.toToolSchema(): ToolSchema =
 
 /**
  * Maps a [ToolResult] onto MCP. Failures put the stable error code and recovery hint in structured
- * content, next to the human message in the text content (spec section 5, Errors).
+ * content, and repeat them under the human message, since many clients only show models the text
+ * (spec section 5, Errors).
  */
 internal fun ToolResult.toMcpResult(): CallToolResult =
     CallToolResult(
         content =
-            content.map { part ->
+            content.mapIndexed { index, part ->
                 when (part) {
-                    is ContentPart.Text -> TextContent(part.text)
+                    is ContentPart.Text -> TextContent(if (isError && index == 0) part.text + errorFooter() else part.text)
                     is ContentPart.Image -> ImageContent(data = part.base64, mimeType = part.mimeType)
                 }
             },
@@ -64,3 +65,9 @@ internal fun ToolResult.toMcpResult(): CallToolResult =
                 structured
             },
     )
+
+private fun ToolResult.errorFooter(): String =
+    buildString {
+        errorCode?.let { append("\nError code: ").append(it.name) }
+        recoveryHint?.let { append("\nWhat to do: ").append(it) }
+    }

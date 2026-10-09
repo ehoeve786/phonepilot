@@ -31,16 +31,22 @@ import app.pocketpilot.R
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.server.http.ServerState
 
-/** M2 home: start and stop the local MCP server and connect Claude Code with the local token. */
+/**
+ * Home: start and stop the local MCP server, turn on the Accessibility service, and connect Claude
+ * Code with the local token.
+ */
 @Composable
 fun HomeScreen(
     policyProfile: PolicyProfile,
     versionName: String,
     serverState: ServerState,
+    accessibilityOn: Boolean,
     token: String,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onRotateToken: () -> Unit,
+    onOpenAccessibilitySettings: () -> Unit,
+    onOpenAppInfo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(modifier = modifier.fillMaxSize()) { padding ->
@@ -59,6 +65,7 @@ fun HomeScreen(
                 style = MaterialTheme.typography.bodySmall,
             )
             ServerCard(serverState, onStart, onStop)
+            AccessibilityCard(accessibilityOn, onOpenAccessibilitySettings, onOpenAppInfo)
             TokenCard(token, onRotateToken)
             ConnectCard(serverState, token)
         }
@@ -85,6 +92,26 @@ private fun ServerCard(
                 OutlinedButton(onClick = onStop) { Text(stringResource(R.string.server_stop)) }
             } else {
                 Button(onClick = onStart) { Text(stringResource(R.string.server_start)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccessibilityCard(
+    on: Boolean,
+    onOpenSettings: () -> Unit,
+    onOpenAppInfo: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.accessibility_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(if (on) R.string.accessibility_on else R.string.accessibility_off))
+            if (!on) {
+                Text(stringResource(R.string.accessibility_explainer), style = MaterialTheme.typography.bodySmall)
+                Button(onClick = onOpenSettings) { Text(stringResource(R.string.accessibility_open_settings)) }
+                Text(stringResource(R.string.accessibility_restricted), style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = onOpenAppInfo) { Text(stringResource(R.string.accessibility_open_app_info)) }
             }
         }
     }
@@ -154,10 +181,13 @@ private fun HomeScreenPreview() {
             policyProfile = PolicyProfile.OSS,
             versionName = "0.1.0",
             serverState = ServerState.Running(8765),
+            accessibilityOn = false,
             token = "pp_example",
             onStart = {},
             onStop = {},
             onRotateToken = {},
+            onOpenAccessibilitySettings = {},
+            onOpenAppInfo = {},
         )
     }
 }

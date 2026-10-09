@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- The system binds this once the owner turns PocketPilot on in Settings > Accessibility. -->
+        <service
+            android:name=".PocketPilotA11yService"
+            android:exported="true"
+            android:label="@string/capability_accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/capability_accessibility_service" />
+        </service>
+    </application>
+
+</manifest>
