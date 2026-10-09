@@ -1,5 +1,7 @@
 package app.pocketpilot.capability.api.screen
 
+import app.pocketpilot.capability.api.CapabilityBackend
+
 /** Where an action lands: an element from a snapshot, or a point in screen pixels. */
 sealed interface Target {
     /** [snapshotId] null means the latest snapshot. */
@@ -25,7 +27,7 @@ enum class Key { BACK, HOME, ENTER, DEL, TAB }
  * INJECT_INPUT: taps, gestures and text. Element targets throw ToolException STALE_ELEMENT when the
  * snapshot or element is no longer known, and CAPABILITY_UNAVAILABLE when the backend is off.
  */
-interface InputController {
+interface InputController : CapabilityBackend {
     suspend fun tap(target: Target)
 
     suspend fun longPress(
@@ -58,4 +60,21 @@ interface InputController {
     suspend fun pressKey(key: Key)
 
     suspend fun globalAction(action: GlobalAction)
+}
+
+/** A swipe across [bounds] in [direction], kept 15% away from the edges so it starts inside the element. */
+fun swipePoints(
+    bounds: Bounds,
+    direction: SwipeDirection,
+): IntArray {
+    val insetX = bounds.width * 15 / 100
+    val insetY = bounds.height * 15 / 100
+    val cx = bounds.centerX
+    val cy = bounds.centerY
+    return when (direction) {
+        SwipeDirection.UP -> intArrayOf(cx, bounds.bottom - insetY, cx, bounds.top + insetY)
+        SwipeDirection.DOWN -> intArrayOf(cx, bounds.top + insetY, cx, bounds.bottom - insetY)
+        SwipeDirection.LEFT -> intArrayOf(bounds.right - insetX, cy, bounds.left + insetX, cy)
+        SwipeDirection.RIGHT -> intArrayOf(bounds.left + insetX, cy, bounds.right - insetX, cy)
+    }
 }

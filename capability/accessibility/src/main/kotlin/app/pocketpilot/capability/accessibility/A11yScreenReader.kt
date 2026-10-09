@@ -5,6 +5,7 @@ import android.graphics.Rect
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
+import app.pocketpilot.capability.api.BackendIds
 import app.pocketpilot.capability.api.screen.Bounds
 import app.pocketpilot.capability.api.screen.ForegroundApp
 import app.pocketpilot.capability.api.screen.RawNode
@@ -12,10 +13,9 @@ import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.api.screen.ScreenSize
 import app.pocketpilot.capability.api.screen.Snapshot
 import app.pocketpilot.capability.api.screen.SnapshotBuilder
+import app.pocketpilot.capability.api.screen.SnapshotCache
 import app.pocketpilot.capability.api.screen.SnapshotOptions
 import app.pocketpilot.capability.api.screen.Target
-import app.pocketpilot.core.model.ToolErrorCode
-import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
@@ -23,18 +23,15 @@ import java.util.concurrent.atomic.AtomicLong
 
 /** READ_UI through the Accessibility service: walks every interactive window's node tree. */
 class A11yScreenReader : ScreenReader {
+    override val backendId: String = BackendIds.ACCESSIBILITY
     override val available: StateFlow<Boolean> = A11yBridge.connected
 
     private val counter = AtomicLong()
 
-    /** Recent snapshots, so element IDs from the last few calls still resolve to live nodes. */
-    private val recent =
-        object : LinkedHashMap<String, Taken>() {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Taken>) = size > KEEP_SNAPSHOTS
-        }
+    /** Recent snapshots with their live nodes, so element IDs from the last few calls still resolve. */
+    private val recent = SnapshotCache<Taken>()
 
     private class Taken(
-        val snapshot: Snapshot,
         val nodes: List<AccessibilityNodeInfo>,
         val sources: Map<String, Int>,
     )
@@ -49,9 +46,9 @@ class A11yScreenReader : ScreenReader {
                 walk(root, null, window, raw, nodes)
                 if (raw.size >= MAX_RAW_NODES) break
             }
-            val id = "s${counter.incrementAndGet()}"
+            val id = "a${counter.incrementAndGet()}"
             val built = SnapshotBuilder.build(id, appWindow(service)?.root?.packageName?.toString(), screenSize(service), raw, options)
-            synchronized(recent) { recent[id] = Taken(built.snapshot, nodes, built.sources) }
+            recent.put(built.snapshot, Taken(nodes, built.sources))
             built.snapshot
         }
 
@@ -68,23 +65,23 @@ class A11yScreenReader : ScreenReader {
 
     override suspend fun awaitChange(timeoutMs: Long): Boolean = A11yBridge.awaitChange(timeoutMs, ScreenReader.DEFAULT_QUIET_MS)
 
+    override fun bounds(target: Target.OnElement): Bounds = recent.element(target).bounds
+
+    override fun owns(snapshotId: String): Boolean = recent.contains(snapshotId)
+
     /**
      * The live node behind an element ID, refreshed. Throws STALE_ELEMENT when the snapshot has been
      * dropped or the element has left the screen since.
      */
     internal fun resolve(target: Target.OnElement): AccessibilityNodeInfo {
-        val taken =
-            synchronized(recent) {
-                if (target.snapshotId != null) recent[target.snapshotId] else recent.values.lastOrNull()
-            } ?: throw stale("Snapshot ${target.snapshotId ?: "(none taken yet)"} is not current")
-        val index = taken.sources[target.elementId] ?: throw stale("Element ${target.elementId} is not in snapshot ${taken.snapshot.id}")
-        val node = taken.nodes[index]
-        if (!node.refresh()) throw stale("Element ${target.elementId} has left the screen")
+        val entry = recent.entryFor(target)
+        val index =
+            entry.payload.sources[target.elementId]
+                ?: throw SnapshotCache.stale("Element ${target.elementId} is not in snapshot ${entry.snapshot.id}")
+        val node = entry.payload.nodes[index]
+        if (!node.refresh()) throw SnapshotCache.stale("Element ${target.elementId} has left the screen")
         return node
     }
-
-    private fun stale(message: String) =
-        ToolException(ToolErrorCode.STALE_ELEMENT, message, "Take a new screen.snapshot and use its element IDs")
 
     private fun walk(
         node: AccessibilityNodeInfo,
@@ -147,8 +144,6 @@ class A11yScreenReader : ScreenReader {
     }
 
     private companion object {
-        const val KEEP_SNAPSHOTS = 5
-
         /** A safety cap on very deep trees, well above the 300-element default. */
         const val MAX_RAW_NODES = 6_000
     }

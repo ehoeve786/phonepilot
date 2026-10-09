@@ -14,6 +14,8 @@ junit4 = "4.13.2"
 # The MCP SDK pins the Ktor line; keep ktor equal to the SDK's Ktor dependency.
 mcpKotlinSdk = "0.15.0"
 ktor = "3.5.1"
+# Shizuku client API; the privileged UserService contract is versioned separately in capability/shizuku.
+shizuku = "13.1.5"
 ktlintGradle = "14.2.0"
 ktlint = "1.8.0"
 
@@ -38,6 +40,8 @@ kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 mcp-kotlin-sdk-server = { group = "io.modelcontextprotocol", name = "kotlin-sdk-server", version.ref = "mcpKotlinSdk" }
 ktor-server-cio = { group = "io.ktor", name = "ktor-server-cio", version.ref = "ktor" }
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 
 # Dependencies of the included build-logic build

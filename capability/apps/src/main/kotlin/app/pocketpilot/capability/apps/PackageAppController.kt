@@ -8,11 +8,14 @@ import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Build
+import app.pocketpilot.capability.api.BackendIds
 import app.pocketpilot.capability.api.apps.AppController
 import app.pocketpilot.capability.api.apps.AppInfo
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 
 /**
@@ -22,6 +25,9 @@ import kotlinx.coroutines.withContext
 class PackageAppController(
     private val context: Context,
 ) : AppController {
+    override val backendId: String = BackendIds.PACKAGE_MANAGER
+    override val available: StateFlow<Boolean> = MutableStateFlow(true)
+
     private val packageManager: PackageManager get() = context.packageManager
 
     override suspend fun list(includeSystem: Boolean): List<AppInfo> =

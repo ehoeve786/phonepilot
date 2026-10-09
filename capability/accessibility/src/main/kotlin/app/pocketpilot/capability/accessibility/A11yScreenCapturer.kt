@@ -3,6 +3,7 @@ package app.pocketpilot.capability.accessibility
 import android.accessibilityservice.AccessibilityService
 import android.graphics.Bitmap
 import android.view.Display
+import app.pocketpilot.capability.api.BackendIds
 import app.pocketpilot.capability.api.screen.Frame
 import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.core.model.ToolErrorCode
@@ -15,6 +16,7 @@ import kotlin.coroutines.resume
 
 /** CAPTURE_SCREEN, third backend in spec section 6: the Accessibility screenshot API (Android 11+). */
 class A11yScreenCapturer : ScreenCapturer {
+    override val backendId: String = BackendIds.ACCESSIBILITY
     override val available: StateFlow<Boolean> = A11yBridge.connected
 
     private val executor = Executors.newSingleThreadExecutor()

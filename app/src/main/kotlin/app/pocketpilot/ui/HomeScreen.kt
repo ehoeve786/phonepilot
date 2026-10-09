@@ -28,12 +28,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.R
+import app.pocketpilot.capability.shizuku.ShizukuState
+import app.pocketpilot.core.capabilities.CapabilityStatus
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.server.http.ServerState
 
 /**
- * Home: start and stop the local MCP server, turn on the Accessibility service, and connect Claude
- * Code with the local token.
+ * Home: start and stop the local MCP server, turn on the Accessibility service, see which backends
+ * work in Doctor, and connect Claude Code with the local token.
  */
 @Composable
 fun HomeScreen(
@@ -41,12 +43,15 @@ fun HomeScreen(
     versionName: String,
     serverState: ServerState,
     accessibilityOn: Boolean,
+    capabilities: List<CapabilityStatus>,
+    shizukuState: ShizukuState,
     token: String,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onRotateToken: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
     onOpenAppInfo: () -> Unit,
+    onGrantShizuku: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(modifier = modifier.fillMaxSize()) { padding ->
@@ -66,6 +71,7 @@ fun HomeScreen(
             )
             ServerCard(serverState, onStart, onStop)
             AccessibilityCard(accessibilityOn, onOpenAccessibilitySettings, onOpenAppInfo)
+            DoctorCard(capabilities, shizukuState, onGrantShizuku)
             TokenCard(token, onRotateToken)
             ConnectCard(serverState, token)
         }
@@ -182,12 +188,15 @@ private fun HomeScreenPreview() {
             versionName = "0.1.0",
             serverState = ServerState.Running(8765),
             accessibilityOn = false,
+            capabilities = emptyList(),
+            shizukuState = ShizukuState.NOT_RUNNING,
             token = "pp_example",
             onStart = {},
             onStop = {},
             onRotateToken = {},
             onOpenAccessibilitySettings = {},
             onOpenAppInfo = {},
+            onGrantShizuku = {},
         )
     }
 }

@@ -1,6 +1,6 @@
 package app.pocketpilot.capability.api.screen
 
-import kotlinx.coroutines.flow.StateFlow
+import app.pocketpilot.capability.api.CapabilityBackend
 
 /** A captured screen as ARGB pixels, row by row. */
 class Frame(
@@ -14,9 +14,7 @@ class Frame(
 }
 
 /** CAPTURE_SCREEN. Throws ToolException PROTECTED_SCREEN for secure windows. */
-interface ScreenCapturer {
-    val available: StateFlow<Boolean>
-
+interface ScreenCapturer : CapabilityBackend {
     suspend fun capture(): Frame
 }
 

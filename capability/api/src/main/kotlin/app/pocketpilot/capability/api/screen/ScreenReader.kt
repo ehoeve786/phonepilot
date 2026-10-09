@@ -1,14 +1,20 @@
 package app.pocketpilot.capability.api.screen
 
-import kotlinx.coroutines.flow.StateFlow
+import app.pocketpilot.capability.api.CapabilityBackend
 
-/** READ_UI: reads what is on screen. Implemented by the Accessibility service, and by Shizuku in M4. */
-interface ScreenReader {
-    /** True while the backend can read the screen. */
-    val available: StateFlow<Boolean>
-
+/** READ_UI: reads what is on screen. Implemented by the Accessibility service and by Shizuku. */
+interface ScreenReader : CapabilityBackend {
     /** Throws [app.pocketpilot.core.model.ToolException] with CAPABILITY_UNAVAILABLE when [available] is false. */
     suspend fun snapshot(options: SnapshotOptions = SnapshotOptions()): Snapshot
+
+    /**
+     * Where an element from one of this reader's recent snapshots is, in screen pixels. Throws
+     * ToolException STALE_ELEMENT when the snapshot is no longer kept or has no such element.
+     */
+    fun bounds(target: Target.OnElement): Bounds
+
+    /** True when [snapshotId] is one of this reader's recent snapshots. */
+    fun owns(snapshotId: String): Boolean
 
     /** The app in front, from the most recent window change. */
     suspend fun foreground(): ForegroundApp?

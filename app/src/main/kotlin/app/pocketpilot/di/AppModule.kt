@@ -2,6 +2,7 @@ package app.pocketpilot.di
 
 import android.content.Context
 import app.pocketpilot.BuildConfig
+import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.accessibility.A11yInputController
 import app.pocketpilot.capability.accessibility.A11yScreenCapturer
 import app.pocketpilot.capability.accessibility.A11yScreenReader
@@ -13,9 +14,20 @@ import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.apps.PackageAppController
 import app.pocketpilot.capability.device.AndroidDeviceInfoSource
 import app.pocketpilot.capability.screencapture.BitmapImageEncoder
+import app.pocketpilot.capability.shizuku.ShizukuAppController
+import app.pocketpilot.capability.shizuku.ShizukuConnection
+import app.pocketpilot.capability.shizuku.ShizukuInputController
+import app.pocketpilot.capability.shizuku.ShizukuScreenCapturer
+import app.pocketpilot.capability.shizuku.ShizukuScreenReader
 import app.pocketpilot.core.audit.AuditSink
 import app.pocketpilot.core.audit.InMemoryAuditSink
+import app.pocketpilot.core.capabilities.CapabilityGraph
+import app.pocketpilot.core.capabilities.ResolvingAppController
+import app.pocketpilot.core.capabilities.ResolvingInputController
+import app.pocketpilot.core.capabilities.ResolvingScreenCapturer
+import app.pocketpilot.core.capabilities.ResolvingScreenReader
 import app.pocketpilot.core.imaging.ImagePipeline
+import app.pocketpilot.core.model.CapabilityId
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.SessionFactory
@@ -47,6 +59,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.ElementsIntoSet
 import dagger.multibindings.IntoSet
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import javax.inject.Singleton
 
 /**
@@ -66,30 +81,129 @@ object AppModule {
     @IntoSet
     fun deviceInfoTool(source: DeviceInfoSource): ToolHandler = DeviceInfoTool(source)
 
+    /** Lives as long as the process; backs the availability flows of every backend. */
+    @Provides
+    @Singleton
+    fun appScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     @Provides
     @Singleton
     fun a11yScreenReader(): A11yScreenReader = A11yScreenReader()
 
     @Provides
-    fun screenReader(reader: A11yScreenReader): ScreenReader = reader
+    @Singleton
+    fun a11yInputController(reader: A11yScreenReader): A11yInputController = A11yInputController(reader)
 
     @Provides
     @Singleton
-    fun inputController(reader: A11yScreenReader): InputController = A11yInputController(reader)
+    fun a11yScreenCapturer(): A11yScreenCapturer = A11yScreenCapturer()
 
     @Provides
     @Singleton
-    fun screenCapturer(): ScreenCapturer = A11yScreenCapturer()
+    fun packageAppController(
+        @ApplicationContext context: Context,
+    ): PackageAppController = PackageAppController(context)
+
+    @Provides
+    @Singleton
+    fun shizukuConnection(
+        @ApplicationContext context: Context,
+    ): ShizukuConnection = ShizukuConnection(context)
+
+    @Provides
+    @Singleton
+    fun shizukuScreenReader(
+        shizuku: ShizukuConnection,
+        scope: CoroutineScope,
+    ): ShizukuScreenReader = ShizukuScreenReader(shizuku, scope)
+
+    @Provides
+    @Singleton
+    fun shizukuInputController(
+        shizuku: ShizukuConnection,
+        reader: ShizukuScreenReader,
+        scope: CoroutineScope,
+    ): ShizukuInputController = ShizukuInputController(shizuku, reader, scope)
+
+    @Provides
+    @Singleton
+    fun shizukuScreenCapturer(
+        shizuku: ShizukuConnection,
+        scope: CoroutineScope,
+    ): ShizukuScreenCapturer = ShizukuScreenCapturer(shizuku, scope)
+
+    @Provides
+    @Singleton
+    fun shizukuAppController(
+        shizuku: ShizukuConnection,
+        scope: CoroutineScope,
+    ): ShizukuAppController = ShizukuAppController(shizuku, scope)
+
+    // Spec section 3 backend order: READ_UI prefers Accessibility, INJECT_INPUT and CAPTURE_SCREEN
+    // prefer Shizuku, LAUNCH_APPS prefers package manager intents.
+
+    @Provides
+    @Singleton
+    fun resolvingScreenReader(
+        a11y: A11yScreenReader,
+        shizuku: ShizukuScreenReader,
+        scope: CoroutineScope,
+    ): ResolvingScreenReader = ResolvingScreenReader(listOf(a11y, shizuku), scope)
+
+    @Provides
+    fun screenReader(reader: ResolvingScreenReader): ScreenReader = reader
+
+    @Provides
+    @Singleton
+    fun inputController(
+        shizuku: ShizukuInputController,
+        a11y: A11yInputController,
+        reader: ResolvingScreenReader,
+        scope: CoroutineScope,
+    ): InputController = ResolvingInputController(listOf(shizuku, a11y), reader, scope)
+
+    @Provides
+    @Singleton
+    fun screenCapturer(
+        shizuku: ShizukuScreenCapturer,
+        a11y: A11yScreenCapturer,
+        scope: CoroutineScope,
+    ): ScreenCapturer = ResolvingScreenCapturer(listOf(shizuku, a11y), scope)
 
     @Provides
     @Singleton
     fun imagePipeline(): ImagePipeline = ImagePipeline(BitmapImageEncoder())
 
+    /** Activity starts from the background need the Accessibility service running, else Shizuku launches. */
     @Provides
     @Singleton
     fun appController(
-        @ApplicationContext context: Context,
-    ): AppController = PackageAppController(context)
+        packageManager: PackageAppController,
+        shizuku: ShizukuAppController,
+    ): AppController = ResolvingAppController(packageManager, shizuku, A11yBridge.connected)
+
+    @Provides
+    @Singleton
+    fun capabilityGraph(
+        a11yReader: A11yScreenReader,
+        a11yInput: A11yInputController,
+        a11yCapturer: A11yScreenCapturer,
+        packageManager: PackageAppController,
+        shizukuReader: ShizukuScreenReader,
+        shizukuInput: ShizukuInputController,
+        shizukuCapturer: ShizukuScreenCapturer,
+        shizukuApps: ShizukuAppController,
+        scope: CoroutineScope,
+    ): CapabilityGraph =
+        CapabilityGraph(
+            mapOf(
+                CapabilityId.READ_UI to listOf(a11yReader, shizukuReader),
+                CapabilityId.INJECT_INPUT to listOf(shizukuInput, a11yInput),
+                CapabilityId.CAPTURE_SCREEN to listOf(shizukuCapturer, a11yCapturer),
+                CapabilityId.LAUNCH_APPS to listOf(packageManager, shizukuApps),
+            ),
+            scope,
+        )
 
     /** The M3 tools: screen reading, input and apps (spec section 5). */
     @Provides

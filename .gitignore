@@ -19,3 +19,6 @@ captures/
 *.jks
 *.keystore
 keystore.properties
+
+# Shared debug signing key, so CI debug builds install over each other. Never used for releases.
+!app/debug.keystore

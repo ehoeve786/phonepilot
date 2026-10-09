@@ -1,10 +1,11 @@
 package app.pocketpilot.capability.api.apps
 
+import app.pocketpilot.capability.api.CapabilityBackend
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /** LAUNCH_APPS: installed apps and launching them. */
-interface AppController {
+interface AppController : CapabilityBackend {
     /** Apps with a launcher entry. */
     suspend fun list(includeSystem: Boolean): List<AppInfo>
 

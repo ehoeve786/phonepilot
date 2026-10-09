@@ -29,6 +29,7 @@ class ScreenAndUiToolsTest {
     private var encodedFrame: Frame? = null
     private val capturer =
         object : ScreenCapturer {
+            override val backendId = "fake"
             override val available = MutableStateFlow(true)
 
             override suspend fun capture() = Frame(1080, 2400, IntArray(1080 * 2400) { -1 })
