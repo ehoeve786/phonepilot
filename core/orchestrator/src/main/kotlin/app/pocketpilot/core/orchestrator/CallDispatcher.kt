@@ -92,7 +92,7 @@ class CallDispatcher(
                 AuditDecision.DENY
         }
 
-        policy?.before(session, handler.spec)?.let { decision ->
+        policy?.before(session, handler.spec, handler.confirmationDetail(call))?.let { decision ->
             if (decision is Decision.Deny) {
                 return ToolResult.error(decision.code, decision.message, decision.hint) to AuditDecision.DENY
             }

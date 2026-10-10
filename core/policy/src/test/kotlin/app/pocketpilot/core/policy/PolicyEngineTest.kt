@@ -107,6 +107,18 @@ class PolicyEngineTest {
         }
 
     @Test
+    fun `pre-confirmed sensitive tools skip the prompt, destructive ones never do`() =
+        runTest {
+            val engine = engine()
+            val settings = spec("settings.set", RiskTier.SENSITIVE, Scope.SETTINGS_WRITE)
+            val destructive = spec("shell.exec", RiskTier.DESTRUCTIVE, Scope.SHELL_EXEC)
+            engine.preConfirm(session.id, setOf("settings.set", "shell.exec"))
+            assertEquals(Decision.Allow, engine.before(session, settings))
+            assertEquals(Decision.Allow, engine.before(session, destructive))
+            assertEquals(listOf("shell.exec"), asked.map { it.tool })
+        }
+
+    @Test
     fun `a declined confirmation denies the call`() =
         runTest {
             answer = ConfirmationAnswer.DECLINED

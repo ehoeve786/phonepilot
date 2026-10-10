@@ -15,11 +15,14 @@ import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.apps.PackageAppController
 import app.pocketpilot.capability.device.AndroidDeviceInfoSource
 import app.pocketpilot.capability.screencapture.BitmapImageEncoder
+import app.pocketpilot.capability.shizuku.ShizukuAppAdmin
 import app.pocketpilot.capability.shizuku.ShizukuAppController
 import app.pocketpilot.capability.shizuku.ShizukuConnection
 import app.pocketpilot.capability.shizuku.ShizukuInputController
 import app.pocketpilot.capability.shizuku.ShizukuScreenCapturer
 import app.pocketpilot.capability.shizuku.ShizukuScreenReader
+import app.pocketpilot.capability.shizuku.ShizukuSettingsController
+import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.core.audit.AuditSink
 import app.pocketpilot.core.audit.InMemoryAuditSink
 import app.pocketpilot.core.capabilities.CapabilityGraph
@@ -30,22 +33,32 @@ import app.pocketpilot.core.capabilities.ResolvingScreenReader
 import app.pocketpilot.core.imaging.ImagePipeline
 import app.pocketpilot.core.model.CapabilityId
 import app.pocketpilot.core.model.PolicyProfile
+import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.SessionFactory
 import app.pocketpilot.core.orchestrator.ToolHandler
 import app.pocketpilot.core.orchestrator.ToolRegistry
 import app.pocketpilot.core.policy.AppPolicy
 import app.pocketpilot.core.policy.PolicyEngine
+import app.pocketpilot.core.tools.AppClearDataTool
 import app.pocketpilot.core.tools.AppCurrentTool
 import app.pocketpilot.core.tools.AppLaunchTool
 import app.pocketpilot.core.tools.AppListTool
 import app.pocketpilot.core.tools.AppOpenUrlTool
+import app.pocketpilot.core.tools.AppPermissionsTool
+import app.pocketpilot.core.tools.AppSetAppOpTool
+import app.pocketpilot.core.tools.AppSetEnabledTool
+import app.pocketpilot.core.tools.AppSetPermissionTool
+import app.pocketpilot.core.tools.AppStopTool
 import app.pocketpilot.core.tools.DeviceInfoTool
 import app.pocketpilot.core.tools.ScreenCaptureTool
 import app.pocketpilot.core.tools.ScreenFindTool
 import app.pocketpilot.core.tools.ScreenSnapshotTool
 import app.pocketpilot.core.tools.ScreenWaitForChangeTool
 import app.pocketpilot.core.tools.ScreenWaitForTool
+import app.pocketpilot.core.tools.SettingsGetTool
+import app.pocketpilot.core.tools.SettingsSetTool
+import app.pocketpilot.core.tools.ShellExecTool
 import app.pocketpilot.core.tools.UiGlobalActionTool
 import app.pocketpilot.core.tools.UiLongPressTool
 import app.pocketpilot.core.tools.UiPressKeyTool
@@ -58,6 +71,7 @@ import app.pocketpilot.network.certificates.CertificateManager
 import app.pocketpilot.network.tailscale.TailscaleProvider
 import app.pocketpilot.network.wireguard.WireGuardProvider
 import app.pocketpilot.security.KeystoreSecretStore
+import app.pocketpilot.security.ShellSwitch
 import app.pocketpilot.server.LocalTokenStore
 import app.pocketpilot.server.http.McpHttpServer
 import app.pocketpilot.server.mcp.McpServerFactory
@@ -151,6 +165,59 @@ object AppModule {
         scope: CoroutineScope,
     ): ShizukuAppController = ShizukuAppController(shizuku, scope)
 
+    @Provides
+    @Singleton
+    fun shizukuSettingsController(
+        shizuku: ShizukuConnection,
+        scope: CoroutineScope,
+    ): ShizukuSettingsController = ShizukuSettingsController(shizuku, scope)
+
+    @Provides
+    @Singleton
+    fun shizukuAppAdmin(
+        shizuku: ShizukuConnection,
+        scope: CoroutineScope,
+    ): ShizukuAppAdmin = ShizukuAppAdmin(shizuku, scope)
+
+    @Provides
+    @Singleton
+    fun shizukuShellRunner(
+        shizuku: ShizukuConnection,
+        scope: CoroutineScope,
+    ): ShizukuShellRunner = ShizukuShellRunner(shizuku, scope)
+
+    @Provides
+    @Singleton
+    fun shellSwitch(
+        @ApplicationContext context: Context,
+    ): ShellSwitch = ShellSwitch(context)
+
+    /**
+     * Permissions, app ops and package state through fixed Shizuku commands, plus the raw shell, which
+     * stays off until the owner turns it on and asks before every command.
+     */
+    @Provides
+    @ElementsIntoSet
+    fun appAdminAndShellTools(
+        admin: ShizukuAppAdmin,
+        shell: ShizukuShellRunner,
+        shellSwitch: ShellSwitch,
+    ): Set<ToolHandler> =
+        setOf(
+            AppStopTool(admin),
+            AppPermissionsTool(admin),
+            AppSetPermissionTool(admin),
+            AppSetAppOpTool(admin),
+            AppSetEnabledTool(admin),
+            AppClearDataTool(admin),
+            ShellExecTool(shell) { shellSwitch.enabled.value },
+        )
+
+    /** Settings change through Shizuku only; without it the model uses the Settings app. */
+    @Provides
+    @ElementsIntoSet
+    fun settingsTools(settings: ShizukuSettingsController): Set<ToolHandler> = setOf(SettingsGetTool(settings), SettingsSetTool(settings))
+
     // Spec section 3 backend order: READ_UI prefers Accessibility, INJECT_INPUT and CAPTURE_SCREEN
     // prefer Shizuku, LAUNCH_APPS prefers package manager intents.
 
@@ -205,6 +272,8 @@ object AppModule {
         shizukuInput: ShizukuInputController,
         shizukuCapturer: ShizukuScreenCapturer,
         shizukuApps: ShizukuAppController,
+        shizukuSettings: ShizukuSettingsController,
+        shizukuShell: ShizukuShellRunner,
         scope: CoroutineScope,
     ): CapabilityGraph =
         CapabilityGraph(
@@ -213,6 +282,8 @@ object AppModule {
                 CapabilityId.INJECT_INPUT to listOf(shizukuInput, a11yInput),
                 CapabilityId.CAPTURE_SCREEN to listOf(shizukuCapturer, a11yCapturer),
                 CapabilityId.LAUNCH_APPS to listOf(packageManager, shizukuApps),
+                CapabilityId.WRITE_SETTINGS to listOf(shizukuSettings),
+                CapabilityId.RUN_SHELL to listOf(shizukuShell),
             ),
             scope,
         )
@@ -336,10 +407,11 @@ object AppModule {
         oauth: AuthorizationServer,
         tailscale: TailscaleProvider,
         wireGuard: WireGuardProvider,
+        shell: ShellSwitch,
     ): McpHttpServer =
         McpHttpServer(
             factory = McpServerFactory(registry, dispatcher, appVersion = BuildConfig.VERSION_NAME),
-            sessions = SessionFactory(),
+            sessions = SessionFactory(localExtraScopes = { if (shell.enabled.value) setOf(Scope.SHELL_EXEC) else emptySet() }),
             localToken = tokens::current,
             oauth = oauth,
             remoteHosts = {

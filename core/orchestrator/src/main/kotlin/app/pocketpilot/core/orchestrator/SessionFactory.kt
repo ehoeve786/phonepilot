@@ -11,17 +11,20 @@ import app.pocketpilot.core.model.SessionKind
 class SessionFactory(
     private val clock: Clock = Clock.System,
     private val ids: UlidGenerator = UlidGenerator(clock),
+    /** Scopes the owner turned on for the local token, such as the raw shell. */
+    private val localExtraScopes: () -> Set<Scope> = { emptySet() },
 ) {
     /**
      * A session for the per-install local token used by on-device hosts such as Claude Code in Termux.
-     * It holds every scope except the raw shell and Termux ones, which stay behind their own toggles.
+     * It holds every scope except the raw shell and Termux ones, which stay behind their own toggles
+     * and are added only while [localExtraScopes] holds them.
      */
     fun localTokenSession(): Session =
         Session(
             id = SessionId(ids.next()),
             kind = SessionKind.MCP_CLIENT,
             principal = LOCAL_PRINCIPAL,
-            grantedScopes = Scope.KNOWN - setOf(Scope.SHELL_EXEC, Scope.TERMUX_RUN),
+            grantedScopes = Scope.KNOWN - (setOf(Scope.SHELL_EXEC, Scope.TERMUX_RUN) - localExtraScopes()),
             createdAtMillis = clock.nowMillis(),
         )
 
@@ -38,7 +41,18 @@ class SessionFactory(
             createdAtMillis = clock.nowMillis(),
         )
 
+    /** A session for one Agent mode run, acting for the owner with the scopes the run was given. */
+    fun agentSession(grantedScopes: Set<Scope>): Session =
+        Session(
+            id = SessionId(ids.next()),
+            kind = SessionKind.AGENT_RUN,
+            principal = OWNER_PRINCIPAL,
+            grantedScopes = grantedScopes,
+            createdAtMillis = clock.nowMillis(),
+        )
+
     companion object {
         const val LOCAL_PRINCIPAL = "local-token"
+        const val OWNER_PRINCIPAL = "owner"
     }
 }

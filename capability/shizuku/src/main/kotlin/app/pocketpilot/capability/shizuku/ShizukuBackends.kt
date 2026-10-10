@@ -2,8 +2,11 @@ package app.pocketpilot.capability.shizuku
 
 import android.os.ParcelFileDescriptor
 import app.pocketpilot.capability.api.BackendIds
+import app.pocketpilot.capability.api.apps.AppAdmin
+import app.pocketpilot.capability.api.apps.AppAdminArgs
 import app.pocketpilot.capability.api.apps.AppController
 import app.pocketpilot.capability.api.apps.AppInfo
+import app.pocketpilot.capability.api.apps.AppPermissions
 import app.pocketpilot.capability.api.screen.Bounds
 import app.pocketpilot.capability.api.screen.Element
 import app.pocketpilot.capability.api.screen.ForegroundApp
@@ -21,6 +24,10 @@ import app.pocketpilot.capability.api.screen.SnapshotOptions
 import app.pocketpilot.capability.api.screen.SwipeDirection
 import app.pocketpilot.capability.api.screen.Target
 import app.pocketpilot.capability.api.screen.swipePoints
+import app.pocketpilot.capability.api.settings.SettingKey
+import app.pocketpilot.capability.api.settings.SettingsController
+import app.pocketpilot.capability.api.shell.ShellResult
+import app.pocketpilot.capability.api.shell.ShellRunner
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.CoroutineScope
@@ -108,10 +115,22 @@ class ShizukuScreenReader(
         } ?: false
     }
 
-    private suspend fun dump(): String = shizuku.call { it.dumpUiHierarchy().readAllBytes() }.decodeToString()
+    private suspend fun dump(): String =
+        try {
+            shizuku.call { it.dumpUiHierarchy().readAllBytes() }.decodeToString()
+        } catch (e: ToolException) {
+            // uiautomator only reads a screen once it stops changing, which a running stopwatch or a video never does.
+            if (e.message?.contains(NOT_IDLE) != true) throw e
+            throw ToolException(
+                ToolErrorCode.DEVICE_BUSY,
+                "This screen keeps moving, and the Shizuku reader can only read a still screen",
+                "Use screen.capture to see it, or turn on PocketPilot's Accessibility service, which can read moving screens",
+            )
+        }
 
     private companion object {
         const val POLL_MS = 500L
+        const val NOT_IDLE = "could not get idle state"
     }
 }
 
@@ -260,5 +279,115 @@ class ShizukuAppController(
 
     override suspend fun openUrl(url: String) {
         shizuku.call { it.openUrl(url) }
+    }
+}
+
+/** WRITE_SETTINGS: allowlisted settings through fixed shell commands (`cmd uimode`, `settings put`, `svc`). */
+class ShizukuSettingsController(
+    private val shizuku: ShizukuConnection,
+    scope: CoroutineScope,
+) : SettingsController {
+    override val backendId: String = BackendIds.SHIZUKU
+    override val available: StateFlow<Boolean> = shizuku.availability(scope)
+
+    override suspend fun get(key: SettingKey): String = shizuku.call { it.readSetting(key.wire) }
+
+    override suspend fun set(
+        key: SettingKey,
+        value: String,
+    ) {
+        shizuku.call { it.writeSetting(key.wire, value) }
+    }
+}
+
+/** App management through `am`, `pm` and `appops`; the privileged service checks every argument again. */
+class ShizukuAppAdmin(
+    private val shizuku: ShizukuConnection,
+    scope: CoroutineScope,
+) : AppAdmin {
+    override val backendId: String = BackendIds.SHIZUKU
+    override val available: StateFlow<Boolean> = shizuku.availability(scope)
+
+    override suspend fun forceStop(packageName: String) {
+        mutable(packageName)
+        shizuku.call { it.forceStop(packageName) }
+    }
+
+    override suspend fun permissions(packageName: String): AppPermissions {
+        AppAdminArgs.checkPackage(packageName)
+        val dump = shizuku.call { it.dumpPackage(packageName) }
+        if (!dump.contains("Package [$packageName]")) {
+            throw ToolException(ToolErrorCode.ELEMENT_NOT_FOUND, "$packageName is not installed", "Find the package with app.list")
+        }
+        val ops = shizuku.call { it.appOps(packageName) }
+        return AppPermissions(AppAdminParsers.runtimePermissions(dump), AppAdminParsers.appOps(ops))
+    }
+
+    override suspend fun setPermission(
+        packageName: String,
+        permission: String,
+        granted: Boolean,
+    ) {
+        mutable(packageName)
+        AppAdminArgs.checkPermission(permission)
+        shizuku.call { it.setPermission(packageName, permission, granted) }
+    }
+
+    override suspend fun setAppOp(
+        packageName: String,
+        op: String,
+        mode: String,
+    ) {
+        mutable(packageName)
+        AppAdminArgs.checkOp(op)
+        AppAdminArgs.checkMode(mode)
+        shizuku.call { it.setAppOp(packageName, op, mode) }
+    }
+
+    override suspend fun setEnabled(
+        packageName: String,
+        enabled: Boolean,
+    ) {
+        mutable(packageName)
+        AppAdminArgs.checkNotCritical(packageName)
+        shizuku.call { it.setPackageEnabled(packageName, enabled) }
+    }
+
+    override suspend fun clearData(packageName: String) {
+        mutable(packageName)
+        AppAdminArgs.checkNotCritical(packageName)
+        shizuku.call { it.clearPackageData(packageName) }
+    }
+
+    private fun mutable(packageName: String) {
+        try {
+            AppAdminArgs.checkPackage(packageName)
+            AppAdminArgs.checkNotProtected(packageName)
+        } catch (e: IllegalArgumentException) {
+            throw ToolException(ToolErrorCode.DENIED_BY_POLICY, e.message ?: "Not allowed")
+        }
+    }
+}
+
+/** RUN_SHELL: `sh -c` as the shell user, for `shell.exec`. */
+class ShizukuShellRunner(
+    private val shizuku: ShizukuConnection,
+    scope: CoroutineScope,
+) : ShellRunner {
+    override val backendId: String = BackendIds.SHIZUKU
+    override val available: StateFlow<Boolean> = shizuku.availability(scope)
+
+    override suspend fun run(
+        command: String,
+        timeoutMs: Long,
+    ): ShellResult {
+        val parts = shizuku.call { it.runShell(command, timeoutMs) }.split('\u0000', limit = 3)
+        val exit = parts[0].toIntOrNull() ?: -1
+        return ShellResult(
+            exitCode = exit,
+            stdout = parts.getOrElse(1) { "" },
+            stderr = parts.getOrElse(2) { "" },
+            timedOut = exit == -1,
+        )
     }
 }

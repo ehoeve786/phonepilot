@@ -43,6 +43,12 @@ android {
 }
 
 dependencies {
+    implementation(projects.agent.modelRegistry)
+    implementation(projects.agent.providers.anthropic)
+    implementation(projects.agent.providers.gemini)
+    implementation(projects.agent.providers.openai)
+    implementation(projects.agent.providers.openaiCompatible)
+    implementation(projects.agent.runtime)
     implementation(projects.capability.accessibility)
     implementation(projects.capability.api)
     implementation(projects.capability.apps)
@@ -57,6 +63,7 @@ dependencies {
     implementation(projects.core.orchestrator)
     implementation(projects.core.policy)
     implementation(projects.core.tools)
+    implementation(projects.feature.agent)
     implementation(projects.feature.approvals)
     implementation(projects.feature.clients)
     implementation(projects.feature.network)
@@ -74,6 +81,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.ktor.client.okhttp)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test.junit)

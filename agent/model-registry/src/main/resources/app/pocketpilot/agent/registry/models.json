@@ -1,0 +1,80 @@
+[
+  {
+    "provider": "anthropic",
+    "model": "claude-sonnet-5-5",
+    "tools": "native",
+    "vision": true,
+    "maxImageEdge": 1568,
+    "contextTokens": 1000000,
+    "maxOutputTokens": 128000,
+    "pricing": { "inputPerMillion": 2.0, "outputPerMillion": 10.0, "currency": "USD" },
+    "notes": "Forced tool choice (any) is rejected; use auto. Image edge follows Anthropic's 1568 px guidance for earlier models."
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5",
+    "tools": "native",
+    "vision": true,
+    "maxImageEdge": 1568,
+    "contextTokens": 1000000,
+    "maxOutputTokens": 128000,
+    "pricing": { "inputPerMillion": 0.1, "outputPerMillion": 0.5, "currency": "USD" },
+    "notes": "Price is for prompts up to 100K tokens; longer prompts cost 0.50 / 2.50 per million."
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "tools": "native",
+    "vision": true,
+    "maxImageEdge": 2048,
+    "contextTokens": 1047576,
+    "maxOutputTokens": 32768,
+    "pricing": { "inputPerMillion": 0.4, "outputPerMillion": 1.6, "currency": "USD" }
+  },
+  {
+    "provider": "gemini",
+    "model": "gemini-2.5-flash",
+    "tools": "native",
+    "vision": true,
+    "maxImageEdge": 3072,
+    "contextTokens": 1048576,
+    "maxOutputTokens": 65536,
+    "pricing": { "inputPerMillion": 0.3, "outputPerMillion": 2.5, "currency": "USD" },
+    "notes": "Has a free tier with lower rate limits; free-tier prompts may be used to improve Google's products."
+  },
+  {
+    "provider": "openai-compatible:deepseek",
+    "model": "deepseek-chat",
+    "tools": "native",
+    "vision": false,
+    "contextTokens": 128000,
+    "maxOutputTokens": 8192,
+    "notes": "Text only. Pricing changes often; see the DeepSeek pricing page."
+  },
+  {
+    "provider": "openai-compatible:ollama",
+    "model": "qwen2.5:7b",
+    "tools": "native",
+    "vision": false,
+    "contextTokens": 32768,
+    "notes": "Runs locally at no cost. Ollama's default context is much smaller; raise num_ctx for long tasks."
+  },
+  {
+    "provider": "openai-compatible:ollama",
+    "model": "llama3.2-vision",
+    "tools": "json-fallback",
+    "vision": true,
+    "maxImageEdge": 1120,
+    "contextTokens": 131072,
+    "notes": "Ollama does not offer tool calling for this model, so tools go through JSON replies. Runs locally at no cost."
+  },
+  {
+    "provider": "openai-compatible:ollama",
+    "model": "gemma3",
+    "tools": "json-fallback",
+    "vision": true,
+    "maxImageEdge": 896,
+    "contextTokens": 131072,
+    "notes": "Images are resized to 896 px squares. The 1b size has no vision and a 32K context. Runs locally at no cost."
+  }
+]

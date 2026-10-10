@@ -27,6 +27,8 @@ data class ConfirmationRequest(
     val riskTier: RiskTier,
     /** Set when the call is confirmed because of the app in front ([AppMode.CONFIRM_ALL]). */
     val foregroundPackage: String? = null,
+    /** What exactly will run, such as a shell command, shown to the owner verbatim. */
+    val detail: String? = null,
 )
 
 enum class ConfirmationAnswer {
@@ -64,6 +66,8 @@ class PolicyEngine(
     suspend fun before(
         session: Session,
         spec: ToolSpec,
+        /** Shown in the confirmation; see [ConfirmationRequest.detail]. */
+        detail: String? = null,
     ): Decision {
         if (!rateLimiter.tryAcquire(session.id.value)) {
             return Decision.Deny(
@@ -114,6 +118,7 @@ class PolicyEngine(
                         toolTitle = spec.title,
                         riskTier = spec.riskTier,
                         foregroundPackage = front.takeIf { confirmBecauseOfApp },
+                        detail = detail,
                     ),
                 ) ?: ConfirmationAnswer.DECLINED
             when (answer) {
@@ -149,6 +154,18 @@ class PolicyEngine(
         if (!spec.touchesScreen() || spec.riskTier == RiskTier.READ) return Decision.Allow
         val front = foreground() ?: return Decision.Allow
         return if (appPolicy.modeFor(front) == AppMode.DENY) deniedApp(front) else Decision.Allow
+    }
+
+    /**
+     * Treats [tools] as already confirmed for session [id], for sessions the owner started on the phone
+     * itself. Only sensitive tools are affected; destructive ones are confirmed on every call regardless.
+     */
+    @Synchronized
+    fun preConfirm(
+        id: SessionId,
+        tools: Set<String>,
+    ) {
+        confirmedSensitive.getOrPut(id) { HashSet() } += tools
     }
 
     /** Forgets a session's confirmations and rate-limit window when it ends. */
