@@ -45,7 +45,7 @@ type Node struct {
 // NewNode prepares a node that keeps its state in stateDir, asks for hostname on the tailnet and
 // forwards to 127.0.0.1:targetPort. Nothing starts until Start.
 func NewNode(stateDir, hostname string, targetPort int) *Node {
-	return &Node{stateDir: stateDir, hostname: hostname, targetPort: targetPort, logs: newRing(200)}
+	return &Node{stateDir: stateDir, hostname: hostname, targetPort: targetPort, logs: newRing(500)}
 }
 
 // Start brings the node up in the background. authKey may be empty, in which case Status reports a
@@ -230,8 +230,22 @@ func (n *Node) Status() string {
 }
 
 // Logs returns the node's recent log lines, newest last, for the Doctor screen.
+// Lines about certificates, Funnel and incoming requests come first, so they survive when the
+// owner pastes the log somewhere that cuts long messages.
 func (n *Node) Logs() string {
-	return n.logs.String()
+	all := n.logs.String()
+	var key []string
+	for _, line := range strings.Split(all, "\n") {
+		l := strings.ToLower(line)
+		if strings.Contains(l, "ppnet:") || strings.Contains(l, "cert") || strings.Contains(l, "acme") ||
+			strings.Contains(l, "funnel") || strings.Contains(l, "error") {
+			key = append(key, line)
+		}
+	}
+	if len(key) == 0 {
+		return all
+	}
+	return "--- Key lines ---\n" + strings.Join(key, "\n") + "\n\n--- Full log ---\n" + all
 }
 
 func (n *Node) setError(msg string) {
