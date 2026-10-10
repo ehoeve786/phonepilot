@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace = "app.pocketpilot.network.tailscale"
+    namespace = "app.pocketpilot.network.wireguard"
 }
 
 dependencies {
     api(projects.network.api)
-    implementation(projects.network.gonet)
+    implementation(projects.network.certificates)
     implementation(libs.kotlinx.coroutines.core)
 }

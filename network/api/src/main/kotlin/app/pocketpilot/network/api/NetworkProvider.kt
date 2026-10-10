@@ -9,12 +9,19 @@ sealed interface NetworkState {
 
     data object Connecting : NetworkState
 
-    /** Waiting for the owner to sign in at [url]. */
+    /**
+     * Waiting for the owner to sign in at [url], or to approve this phone there. [code] is what
+     * identifies the phone on that page, such as a ZeroTier node ID, when there is one.
+     */
     data class NeedsAuth(
         val url: String,
+        val code: String? = null,
     ) : NetworkState
 
-    /** On the private network as [hostname], reachable at https://[hostname]. */
+    /**
+     * On the private network at [address], reachable at https://[hostname]. For WireGuard and
+     * ZeroTier the host name is the owner's domain, which the relay forwards to [address].
+     */
     data class Connected(
         val address: String,
         val hostname: String,

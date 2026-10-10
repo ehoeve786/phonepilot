@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_network_title">Your own network</string>
+    <string name="feature_network_explainer">Reach the phone over your own WireGuard or ZeroTier network instead of Tailscale. Your router or a server forwards your domain to the phone, and the phone keeps the HTTPS certificate.</string>
+
+    <string name="feature_network_cert_title">Domain and certificate</string>
+    <string name="feature_network_cert_domain">Domain for the phone, such as phone.example.com</string>
+    <string name="feature_network_cert_email">Email for Let\'s Encrypt (optional)</string>
+    <string name="feature_network_cert_token">Cloudflare API token (Zone, DNS, Edit)</string>
+    <string name="feature_network_cert_token_saved">Token saved. Enter a new one to replace it.</string>
+    <string name="feature_network_cert_save">Save</string>
+    <string name="feature_network_cert_get">Get certificate</string>
+    <string name="feature_network_cert_busy">Getting a certificate from Let\'s Encrypt. This can take a couple of minutes.</string>
+    <string name="feature_network_cert_ready">Certificate ready until %1$s</string>
+    <string name="feature_network_cert_none">No certificate yet.</string>
+    <string name="feature_network_cert_error">Certificate problem: %1$s</string>
+    <string name="feature_network_cert_follow">Keep the domain pointed at my router</string>
+    <string name="feature_network_cert_follow_explainer">Updates the domain\'s DNS when your router\'s address changes. Uses the server in your WireGuard config.</string>
+
+    <string name="feature_network_wg_title">WireGuard</string>
+    <string name="feature_network_wg_paste">Paste the config your router or server made for this phone</string>
+    <string name="feature_network_wg_import">Import file</string>
+    <string name="feature_network_wg_save">Save config</string>
+    <string name="feature_network_wg_replace">Replace config</string>
+    <string name="feature_network_wg_forget">Forget</string>
+    <string name="feature_network_public_key">This phone\'s public key: %1$s</string>
+    <string name="feature_network_copy_key">Copy key</string>
+
+    <string name="feature_network_zt_title">ZeroTier</string>
+    <string name="feature_network_zt_network">Network ID (16 characters)</string>
+    <string name="feature_network_zt_save">Save network</string>
+    <string name="feature_network_zt_node">This phone\'s node ID: %1$s</string>
+    <string name="feature_network_zt_approve">Approve node %1$s in your ZeroTier network, then wait a few seconds.</string>
+    <string name="feature_network_zt_open">Open ZeroTier Central</string>
+    <string name="feature_network_zt_forget">Leave network</string>
+
+    <string name="feature_network_off">Off</string>
+    <string name="feature_network_connecting">Connecting…</string>
+    <string name="feature_network_connected">Connected as %1$s</string>
+    <string name="feature_network_error">Problem: %1$s</string>
+    <string name="feature_network_turn_on">Turn on</string>
+    <string name="feature_network_turn_off">Turn off</string>
+    <string name="feature_network_copy_details">Copy details</string>
+    <string name="feature_network_copy_log">Copy log</string>
+    <string name="feature_network_url">Connector URL</string>
+    <string name="feature_network_copy_url">Copy URL</string>
+    <string name="feature_network_router_setup">Copy router setup</string>
+    <string name="feature_network_router_explainer">Run it on your router over SSH. It forwards your internet port 443 to the phone. nginx and Caddy versions for a server are under More.</string>
+    <string name="feature_network_more">More relay setups</string>
+    <string name="feature_network_copy_nginx">Copy nginx</string>
+    <string name="feature_network_copy_caddy">Copy Caddy</string>
+    <string name="feature_network_copy_peer">Copy server peer</string>
+</resources>

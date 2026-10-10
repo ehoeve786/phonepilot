@@ -17,7 +17,12 @@ import app.pocketpilot.capability.shizuku.ShizukuConnection
 import app.pocketpilot.core.capabilities.CapabilityGraph
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.feature.clients.ClientRow
+import app.pocketpilot.feature.network.OwnNetworkActions
+import app.pocketpilot.feature.network.OwnNetworkCard
+import app.pocketpilot.network.certificates.CertificateManager
 import app.pocketpilot.network.tailscale.TailscaleProvider
+import app.pocketpilot.network.wireguard.WireGuardProvider
+import app.pocketpilot.network.zerotier.ZeroTierProvider
 import app.pocketpilot.server.LocalTokenStore
 import app.pocketpilot.server.PocketPilotService
 import app.pocketpilot.server.http.McpHttpServer
@@ -44,11 +49,33 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var oauth: AuthorizationServer
 
+    @Inject lateinit var certificates: CertificateManager
+
+    @Inject lateinit var wireGuard: WireGuardProvider
+
+    @Inject lateinit var zeroTier: ZeroTierProvider
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val crashReports = (application as PocketPilotApplication).crashReports
         crashReports.load()
+        certificates.load()
+        val ownNetworkActions =
+            OwnNetworkActions(
+                saveCertificate = certificates::configure,
+                requestCertificate = certificates::request,
+                setFollowRelay = certificates::setFollowRelay,
+                configureWireGuard = wireGuard::configure,
+                setWireGuard = { on -> if (on) startNetwork(wireGuard::start) else wireGuard.stop() },
+                forgetWireGuard = wireGuard::logout,
+                configureZeroTier = zeroTier::configure,
+                setZeroTier = { on -> if (on) startNetwork(zeroTier::start) else zeroTier.stop() },
+                forgetZeroTier = zeroTier::logout,
+                openUrl = { url -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+                wireGuardLog = { wireGuard.logs() + "\n\n--- Certificate ---\n" + certificates.logs() },
+                zeroTierLog = { zeroTier.logs() + "\n\n--- Certificate ---\n" + certificates.logs() },
+            )
         setContent {
             // The foreground service notification needs this permission on Android 13+; the server
             // runs either way, the notification is just hidden without it.
@@ -109,9 +136,28 @@ class MainActivity : ComponentActivity() {
                     onKillSwitch = {
                         oauth.revokeAll()
                         tailscale.setPublic(false)
+                        // A relay makes the phone public, so the kill switch closes these networks too.
+                        wireGuard.stop()
+                        zeroTier.stop()
+                    },
+                    ownNetworkCard = {
+                        OwnNetworkCard(
+                            certificate = certificates.state.collectAsStateWithLifecycle().value,
+                            wireGuard = wireGuard.state.collectAsStateWithLifecycle().value,
+                            wireGuardSetup = wireGuard.setup.collectAsStateWithLifecycle().value,
+                            zeroTier = zeroTier.state.collectAsStateWithLifecycle().value,
+                            zeroTierSetup = zeroTier.setup.collectAsStateWithLifecycle().value,
+                            actions = ownNetworkActions,
+                        )
                     },
                 )
             }
         }
+    }
+
+    /** Turns a network on and makes sure the foreground service that keeps it running is up. */
+    private fun startNetwork(start: () -> Unit) {
+        start()
+        PocketPilotService.start(this)
     }
 }

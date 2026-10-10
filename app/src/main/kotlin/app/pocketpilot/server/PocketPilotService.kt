@@ -14,6 +14,8 @@ import androidx.core.content.ContextCompat
 import app.pocketpilot.MainActivity
 import app.pocketpilot.R
 import app.pocketpilot.network.tailscale.TailscaleProvider
+import app.pocketpilot.network.wireguard.WireGuardProvider
+import app.pocketpilot.network.zerotier.ZeroTierProvider
 import app.pocketpilot.server.http.McpHttpServer
 import app.pocketpilot.server.http.ServerState
 import dagger.hilt.android.AndroidEntryPoint
@@ -25,14 +27,18 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Keeps the MCP server and the Tailscale node running while the app is in the background (spec
- * section 12). Agent runs and the health monitor join it in later milestones.
+ * Keeps the MCP server and the remote networks (Tailscale, WireGuard, ZeroTier) running while the
+ * app is in the background (spec section 12). Agent runs and the health monitor join it in later milestones.
  */
 @AndroidEntryPoint
 class PocketPilotService : Service() {
     @Inject lateinit var server: McpHttpServer
 
     @Inject lateinit var tailscale: TailscaleProvider
+
+    @Inject lateinit var wireGuard: WireGuardProvider
+
+    @Inject lateinit var zeroTier: ZeroTierProvider
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -45,7 +51,7 @@ class PocketPilotService : Service() {
     ): Int {
         if (intent?.action == ACTION_STOP) {
             scope.launch {
-                tailscale.pause()
+                pauseNetworks()
                 server.stop()
                 stopSelf()
             }
@@ -62,6 +68,8 @@ class PocketPilotService : Service() {
             val state = server.serverState.value
             if (state is ServerState.Running) {
                 tailscale.resume()
+                wireGuard.resume()
+                zeroTier.resume()
                 getSystemService(NotificationManager::class.java)
                     .notify(NOTIFICATION_ID, notification(getString(R.string.notification_text, state.url)))
             } else {
@@ -72,10 +80,16 @@ class PocketPilotService : Service() {
     }
 
     override fun onDestroy() {
-        tailscale.pause()
+        pauseNetworks()
         server.stop()
         scope.cancel()
         super.onDestroy()
+    }
+
+    private fun pauseNetworks() {
+        tailscale.pause()
+        wireGuard.pause()
+        zeroTier.pause()
     }
 
     private fun notification(text: String): Notification {

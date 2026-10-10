@@ -53,7 +53,12 @@ import app.pocketpilot.core.tools.UiSwipeTool
 import app.pocketpilot.core.tools.UiTapTool
 import app.pocketpilot.core.tools.UiTypeTextTool
 import app.pocketpilot.network.api.NetworkState
+import app.pocketpilot.network.api.SecretStore
+import app.pocketpilot.network.certificates.CertificateManager
 import app.pocketpilot.network.tailscale.TailscaleProvider
+import app.pocketpilot.network.wireguard.WireGuardProvider
+import app.pocketpilot.network.zerotier.ZeroTierProvider
+import app.pocketpilot.security.KeystoreSecretStore
 import app.pocketpilot.server.LocalTokenStore
 import app.pocketpilot.server.http.McpHttpServer
 import app.pocketpilot.server.mcp.McpServerFactory
@@ -296,6 +301,37 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun secretStore(
+        @ApplicationContext context: Context,
+    ): SecretStore = KeystoreSecretStore(context.noBackupFilesDir)
+
+    @Provides
+    @Singleton
+    fun certificateManager(
+        @ApplicationContext context: Context,
+        scope: CoroutineScope,
+        secrets: SecretStore,
+    ): CertificateManager = CertificateManager(context, scope, secrets)
+
+    @Provides
+    @Singleton
+    fun wireGuardProvider(
+        @ApplicationContext context: Context,
+        scope: CoroutineScope,
+        secrets: SecretStore,
+        certificates: CertificateManager,
+    ): WireGuardProvider = WireGuardProvider(context, scope, secrets, certificates, McpHttpServer.DEFAULT_REMOTE_PORT)
+
+    @Provides
+    @Singleton
+    fun zeroTierProvider(
+        @ApplicationContext context: Context,
+        scope: CoroutineScope,
+        certificates: CertificateManager,
+    ): ZeroTierProvider = ZeroTierProvider(context, scope, certificates, McpHttpServer.DEFAULT_REMOTE_PORT)
+
+    @Provides
+    @Singleton
     fun localTokenStore(
         @ApplicationContext context: Context,
     ): LocalTokenStore = LocalTokenStore(context.noBackupFilesDir)
@@ -308,12 +344,18 @@ object AppModule {
         tokens: LocalTokenStore,
         oauth: AuthorizationServer,
         tailscale: TailscaleProvider,
+        wireGuard: WireGuardProvider,
+        zeroTier: ZeroTierProvider,
     ): McpHttpServer =
         McpHttpServer(
             factory = McpServerFactory(registry, dispatcher, appVersion = BuildConfig.VERSION_NAME),
             sessions = SessionFactory(),
             localToken = tokens::current,
             oauth = oauth,
-            remoteHosts = { setOfNotNull((tailscale.state.value as? NetworkState.Connected)?.hostname) },
+            remoteHosts = {
+                listOf(tailscale, wireGuard, zeroTier)
+                    .mapNotNull { (it.state.value as? NetworkState.Connected)?.hostname }
+                    .toSet()
+            },
         )
 }

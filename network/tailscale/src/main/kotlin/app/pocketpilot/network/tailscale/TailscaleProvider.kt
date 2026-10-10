@@ -6,8 +6,8 @@ import app.pocketpilot.network.api.NetworkProvider
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.PublicAccess
 import app.pocketpilot.network.api.PublicAccessState
-import app.pocketpilot.network.tailscale.gen.ppnet.Node
-import app.pocketpilot.network.tailscale.gen.ppnet.Ppnet
+import app.pocketpilot.network.gonet.gen.ppnet.Node
+import app.pocketpilot.network.gonet.gen.ppnet.Ppnet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

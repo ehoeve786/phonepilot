@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace = "app.pocketpilot.network.tailscale"
+    namespace = "app.pocketpilot.network.certificates"
 }
 
 dependencies {
     api(projects.network.api)
-    implementation(projects.network.gonet)
+    api(projects.network.gonet)
     implementation(libs.kotlinx.coroutines.core)
 }
