@@ -246,7 +246,7 @@ class AgentRun internal constructor(
                 messages += Message(Role.ASSISTANT, listOf(Part.Text(reply.text)))
                 val (result, record) = execute(parsed.action, parsed.args.toString())
                 messages +=
-                    Message(Role.USER, listOf(Part.Text("Result of ${parsed.action}:")) + convert(result))
+                    Message(Role.USER, listOf(Part.Text("${TextBudget.JSON_RESULT}${parsed.action}:")) + convert(result))
                 recordStep(reply.text, listOf(record), screenHash(result))
                 null
             }
@@ -295,7 +295,7 @@ class AgentRun internal constructor(
                 ModelRequest(
                     model = model.model,
                     system = Prompts.system(model.toolMode, tools.defs),
-                    messages = ImageBudget.apply(messages, if (model.vision) budgets.maxImagesPerRequest else 0),
+                    messages = ImageBudget.apply(TextBudget.apply(messages), if (model.vision) budgets.maxImagesPerRequest else 0),
                     tools = if (model.toolMode == ToolMode.NATIVE) tools.defs else emptyList(),
                     maxTokens = model.maxOutputTokens,
                     toolChoice = if (model.toolMode == ToolMode.NATIVE) ToolChoice.AUTO else null,
