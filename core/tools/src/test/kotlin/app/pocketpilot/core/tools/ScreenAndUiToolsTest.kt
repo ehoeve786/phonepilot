@@ -147,6 +147,22 @@ class ScreenAndUiToolsTest {
         }
 
     @Test
+    fun `a direction alone swipes across the middle of the screen`() =
+        runTest {
+            assertFalse(call("ui.swipe", """{"direction":"up"}""").isError)
+            assertEquals("swipe 540,2040 540,360 300", input.calls.single())
+        }
+
+    @Test
+    fun `find drops a guessed role when the text matches something else`() =
+        runTest {
+            val result = call("screen.find", """{"text":"display","role":"checkbox"}""")
+            assertFalse(result.isError)
+            assertTrue(result.text().startsWith("No element with role checkbox matched"), result.text())
+            assertTrue(result.text().contains(""""id":"e3""""))
+        }
+
+    @Test
     fun `type text, keys and global actions reach the input controller`() =
         runTest {
             call("ui.type_text", """{"text":"dark","submit":true}""")

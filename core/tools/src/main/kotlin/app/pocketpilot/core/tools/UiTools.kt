@@ -1,11 +1,13 @@
 package app.pocketpilot.core.tools
 
+import app.pocketpilot.capability.api.screen.Bounds
 import app.pocketpilot.capability.api.screen.GlobalAction
 import app.pocketpilot.capability.api.screen.InputController
 import app.pocketpilot.capability.api.screen.Key
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.api.screen.SwipeDirection
 import app.pocketpilot.capability.api.screen.Target
+import app.pocketpilot.capability.api.screen.swipePoints
 import app.pocketpilot.core.model.Availability
 import app.pocketpilot.core.model.CapabilityId
 import app.pocketpilot.core.model.Phase
@@ -104,7 +106,8 @@ class UiSwipeTool(
             name = "ui.swipe",
             title = "Swipe",
             description =
-                "Swipes from (fromX, fromY) to (toX, toY) in screen pixels, or across an element in a direction. " +
+                "Swipes from (fromX, fromY) to (toX, toY) in screen pixels, across an element in a direction, or " +
+                    "across the middle of the screen when only direction is given. " +
                     "direction is where the finger moves: to scroll a list down to later items, swipe up. durationMs " +
                     "defaults to 300.",
             properties =
@@ -129,6 +132,13 @@ class UiSwipeTool(
                     "Swiped ${direction.name.lowercase()} on element ${element.elementId}."
                 }
 
+                element == null && direction != null && points.all { it == null } -> {
+                    val screen = reader.snapshot().screen
+                    val (fromX, fromY, toX, toY) = swipePoints(Bounds(0, 0, screen.width, screen.height), direction).toList()
+                    input.swipe(fromX, fromY, toX, toY, duration)
+                    "Swiped ${direction.name.lowercase()} across the screen."
+                }
+
                 element == null && direction == null && points.all { it != null } -> {
                     val (fromX, fromY, toX, toY) = points.map { it!! }
                     input.swipe(fromX, fromY, toX, toY, duration)
@@ -136,7 +146,9 @@ class UiSwipeTool(
                 }
 
                 else -> {
-                    invalid("Give fromX, fromY, toX and toY, or element and direction")
+                    invalid(
+                        "Give fromX, fromY, toX and toY; or a direction, with an element to swipe on or without one for the whole screen",
+                    )
                 }
             }
         return afterAction(reader, summary, args.boolean("returnSnapshot") ?: true)

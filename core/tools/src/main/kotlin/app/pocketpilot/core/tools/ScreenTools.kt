@@ -107,6 +107,14 @@ class ScreenFindTool(
         val selector = Selector.from(call.arguments)
         val snapshot = reader.snapshot()
         val matches = selector.match(snapshot)
+        if (matches.isEmpty() && selector.role != null) {
+            // Models often guess the role (checkbox for a switch tile); the text is the stronger hint.
+            val loose = selector.copy(role = null).match(snapshot)
+            if (loose.isNotEmpty()) {
+                val found = compactJson.encodeToString(FindResult.serializer(), FindResult(snapshot.id, loose))
+                return ToolResult.success("No element with role ${selector.role.name.lowercase()} matched; these match the rest:\n$found")
+            }
+        }
         if (matches.isEmpty()) {
             throw ToolException(
                 ToolErrorCode.ELEMENT_NOT_FOUND,
