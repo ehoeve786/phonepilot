@@ -88,7 +88,7 @@ class MainActivity : ComponentActivity() {
                 saveProfile = agent::saveProfile,
                 deleteProfile = agent::deleteProfile,
                 hasKey = agent::hasKey,
-                testProfile = agent::test,
+                listModels = agent::listModels,
             )
         setContent {
             // The foreground service notification needs this permission on Android 13+; the server

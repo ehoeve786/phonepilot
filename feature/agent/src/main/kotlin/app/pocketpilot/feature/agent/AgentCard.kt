@@ -1,6 +1,7 @@
 package app.pocketpilot.feature.agent
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -8,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -16,8 +19,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -34,6 +40,7 @@ import app.pocketpilot.agent.runtime.RunState
 import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.agent.runtime.stepLine
 import app.pocketpilot.agent.runtime.transcript
+import kotlinx.coroutines.delay
 import java.util.UUID
 
 /** What the owner can do on [AgentCard]. */
@@ -46,9 +53,29 @@ data class AgentActions(
     val saveProfile: (AgentProfile, apiKey: String?) -> Unit,
     val deleteProfile: (String) -> Unit,
     val hasKey: (AgentProfile) -> Boolean,
-    /** Lists the server's models with the given settings and reports the outcome in plain words. */
-    val testProfile: (AgentProfile, apiKey: String?, onResult: (String) -> Unit) -> Unit,
+    /**
+     * Lists the models the given settings reach; [onResult] gets them, or a problem in plain words.
+     * A null key means the profile's saved key.
+     */
+    val listModels: (AgentProfile, apiKey: String?, onResult: (ModelList) -> Unit) -> Unit,
 )
+
+/** A model the provider offers, for the model picker. */
+data class ModelOption(
+    val id: String,
+    val label: String = id,
+)
+
+/** The outcome of [AgentActions.listModels]. */
+sealed interface ModelList {
+    data class Loaded(
+        val models: List<ModelOption>,
+    ) : ModelList
+
+    data class Failed(
+        val problem: String,
+    ) : ModelList
+}
 
 /**
  * Agent mode (spec section 9): model profiles, a new task, the current run with takeover and stop,
@@ -130,7 +157,10 @@ private fun ProfileForm(
     var baseUrl by rememberSaveable { mutableStateOf(existing?.baseUrl ?: "") }
     var key by rememberSaveable { mutableStateOf("") }
     var cost by rememberSaveable { mutableStateOf(existing?.maxCostUsd?.toString() ?: "") }
-    var testResult by rememberSaveable { mutableStateOf<String?>(null) }
+    var models by remember { mutableStateOf<ModelList?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    var pickerOpen by remember { mutableStateOf(false) }
+    var request by remember { mutableIntStateOf(0) }
 
     fun profile() =
         AgentProfile(
@@ -141,6 +171,37 @@ private fun ProfileForm(
             baseUrl = baseUrl.trim().ifBlank { null }.takeIf { kind == ProviderKind.OPENAI_COMPATIBLE },
             maxCostUsd = cost.trim().toDoubleOrNull(),
         )
+
+    val canList =
+        when (kind) {
+            ProviderKind.OPENAI_COMPATIBLE -> baseUrl.trim().let { it.startsWith("http://") || it.startsWith("https://") }
+
+            // A saved key belongs to the provider it was saved for.
+            else -> key.isNotBlank() || (hasKey && kind == existing?.kind)
+        }
+
+    fun load() {
+        val mine = ++request
+        loading = true
+        actions.listModels(profile(), key.trim().ifBlank { null }) { result ->
+            if (mine == request) {
+                models = result
+                loading = false
+            }
+        }
+    }
+
+    // Fetch the list as soon as the provider can be reached, once typing pauses.
+    LaunchedEffect(kind, key, baseUrl, canList) {
+        models = null
+        if (canList) {
+            delay(LIST_DEBOUNCE_MS)
+            load()
+        } else {
+            request++
+            loading = false
+        }
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.feature_agent_provider), style = MaterialTheme.typography.labelMedium)
@@ -157,7 +218,6 @@ private fun ProfileForm(
             }
         }
         OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.feature_agent_profile_name)) }, singleLine = true)
-        OutlinedTextField(model, { model = it }, label = { Text(stringResource(R.string.feature_agent_model)) }, singleLine = true)
         if (kind == ProviderKind.OPENAI_COMPATIBLE) {
             OutlinedTextField(
                 baseUrl,
@@ -177,6 +237,16 @@ private fun ProfileForm(
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         )
+        ModelField(
+            model = model,
+            onModel = { model = it },
+            models = models,
+            loading = loading,
+            pickerOpen = pickerOpen,
+            onPickerOpen = { pickerOpen = it },
+            onRetry = ::load,
+            canList = canList,
+        )
         OutlinedTextField(
             cost,
             { cost = it },
@@ -184,7 +254,6 @@ private fun ProfileForm(
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         )
-        testResult?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         val valid = model.isNotBlank() && (kind != ProviderKind.OPENAI_COMPATIBLE || baseUrl.startsWith("http"))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
@@ -194,10 +263,6 @@ private fun ProfileForm(
                     onDone()
                 },
             ) { Text(stringResource(R.string.feature_agent_save)) }
-            TextButton(enabled = valid, onClick = {
-                testResult = "…"
-                actions.testProfile(profile(), key.trim().ifBlank { null }) { testResult = it }
-            }) { Text(stringResource(R.string.feature_agent_test)) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onDone) { Text(stringResource(R.string.feature_agent_cancel)) }
@@ -208,6 +273,84 @@ private fun ProfileForm(
                 }) { Text(stringResource(R.string.feature_agent_delete)) }
             }
         }
+    }
+}
+
+@Composable
+private fun ModelField(
+    model: String,
+    onModel: (String) -> Unit,
+    models: ModelList?,
+    loading: Boolean,
+    pickerOpen: Boolean,
+    onPickerOpen: (Boolean) -> Unit,
+    onRetry: () -> Unit,
+    canList: Boolean,
+) {
+    val offered = (models as? ModelList.Loaded)?.models.orEmpty()
+    Box {
+        OutlinedTextField(
+            model,
+            onModel,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.feature_agent_model)) },
+            singleLine = true,
+            trailingIcon = {
+                if (offered.isNotEmpty()) {
+                    TextButton(onClick = { onPickerOpen(true) }) { Text(stringResource(R.string.feature_agent_choose)) }
+                }
+            },
+        )
+        DropdownMenu(expanded = pickerOpen && offered.isNotEmpty(), onDismissRequest = { onPickerOpen(false) }) {
+            for (option in offered) {
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(option.label)
+                            if (option.label != option.id) Text(option.id, style = MaterialTheme.typography.bodySmall)
+                        }
+                    },
+                    onClick = {
+                        onModel(option.id)
+                        onPickerOpen(false)
+                    },
+                )
+            }
+        }
+    }
+    val status =
+        when {
+            loading -> {
+                stringResource(R.string.feature_agent_models_loading)
+            }
+
+            models is ModelList.Failed -> {
+                stringResource(R.string.feature_agent_models_failed, models.problem)
+            }
+
+            models is ModelList.Loaded && offered.isEmpty() -> {
+                stringResource(R.string.feature_agent_models_none)
+            }
+
+            models is ModelList.Loaded && offered.none { it.id == model.trim() } -> {
+                stringResource(R.string.feature_agent_models_not_listed, offered.size)
+            }
+
+            models is ModelList.Loaded -> {
+                stringResource(R.string.feature_agent_models_found, offered.size)
+            }
+
+            !canList -> {
+                stringResource(R.string.feature_agent_models_need_key)
+            }
+
+            else -> {
+                null
+            }
+        }
+    status?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+    if (models is ModelList.Failed) {
+        TextButton(onClick = onRetry) { Text(stringResource(R.string.feature_agent_models_retry)) }
     }
 }
 
@@ -322,5 +465,6 @@ private fun defaultModel(kind: ProviderKind): String =
     }
 
 private const val NEW = "new"
+private const val LIST_DEBOUNCE_MS = 700L
 private const val HISTORY_SHOWN = 10
 private const val STEPS_SHOWN = 30

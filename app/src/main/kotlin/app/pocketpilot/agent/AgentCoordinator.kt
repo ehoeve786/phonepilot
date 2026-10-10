@@ -20,6 +20,8 @@ import app.pocketpilot.agent.runtime.RunState
 import app.pocketpilot.agent.runtime.ToolMode
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.core.model.Scope
+import app.pocketpilot.feature.agent.ModelList
+import app.pocketpilot.feature.agent.ModelOption
 import app.pocketpilot.network.api.SecretStore
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CancellationException
@@ -122,28 +124,42 @@ class AgentCoordinator(
 
     fun hasKey(profile: AgentProfile): Boolean = !secrets.get(profile.keyName).isNullOrBlank()
 
-    /** Lists the models the profile reaches, to check the key or the server address. */
-    fun test(
+    /** Lists the models the profile reaches, for the model picker; also checks the key or the server address. */
+    fun listModels(
         profile: AgentProfile,
         apiKey: String?,
-        onResult: (String) -> Unit,
+        onResult: (ModelList) -> Unit,
     ) {
         scope.launch {
-            val message =
+            val result =
                 try {
-                    val models = provider(profile, apiKey ?: secrets.get(profile.keyName)).listModels().map { it.id }
-                    val found = profile.model in models || models.any { it.endsWith("/${profile.model}") }
-                    when {
-                        models.isEmpty() -> "Connected, but the server lists no models."
-                        found -> "Connected. ${profile.model} is available."
-                        else -> "Connected, but ${profile.model} is not listed. Available: ${models.take(MODELS_SHOWN).joinToString()}"
-                    }
+                    val models = provider(profile, apiKey ?: secrets.get(profile.keyName)).listModels()
+                    ModelList.Loaded(models.map { ModelOption(it.id, it.displayName) }.sortedBy { it.label.lowercase() })
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    "Could not connect: ${e.message ?: e::class.simpleName}"
+                    ModelList.Failed(problem(e))
                 }
-            withContext(Dispatchers.Main) { onResult(message) }
+            withContext(Dispatchers.Main) { onResult(result) }
+        }
+    }
+
+    /** A provider failure in words the owner can act on. */
+    private fun problem(e: Exception): String {
+        val message = e.message.orEmpty()
+        return when {
+            e is java.net.UnknownHostException || e is java.net.ConnectException ||
+                e is java.net.NoRouteToHostException || e is java.net.SocketTimeoutException -> {
+                "the server did not answer. Check the address, and that the server listens on the network."
+            }
+
+            "API_KEY_INVALID" in message || message.startsWith("HTTP 401") || message.startsWith("HTTP 403") -> {
+                "the API key was not accepted."
+            }
+
+            else -> {
+                message.take(MAX_PROBLEM_CHARS).ifBlank { e::class.simpleName.orEmpty() }
+            }
         }
     }
 
@@ -198,7 +214,7 @@ class AgentCoordinator(
         val AGENT_SCOPES = Scope.KNOWN - setOf(Scope.SHELL_EXEC, Scope.TERMUX_RUN)
         const val LEAVE_TIMEOUT_MS = 3_000L
         const val LEAVE_POLL_MS = 150L
-        const val MODELS_SHOWN = 8
+        const val MAX_PROBLEM_CHARS = 200
         const val MAX_OUTPUT_TOKENS = 4096
     }
 }
