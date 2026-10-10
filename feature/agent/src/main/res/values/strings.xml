@@ -15,7 +15,14 @@
     <string name="feature_agent_base_url">Server URL</string>
     <string name="feature_agent_base_url_hint">For Ollama: http://&lt;computer address&gt;:11434/v1</string>
     <string name="feature_agent_api_key">API key</string>
-    <string name="feature_agent_api_key_kept">A key is saved. Leave blank to keep it.</string>
+    <string name="feature_agent_api_key_extra">Another API key</string>
+    <string name="feature_agent_add_key">Add another key</string>
+    <string name="feature_agent_remove_keys">Remove saved keys</string>
+    <string name="feature_agent_keys_rotate">With several keys, a run switches to the next key when one hits its rate limit.</string>
+    <plurals name="feature_agent_keys_saved">
+        <item quantity="one">%d key saved. Keys you add here are kept with it.</item>
+        <item quantity="other">%d keys saved. Keys you add here are kept with them.</item>
+    </plurals>
     <string name="feature_agent_cost_limit">Cost limit per run (USD, blank for default)</string>
     <string name="feature_agent_choose">Choose</string>
     <string name="feature_agent_models_loading">Getting the list of models…</string>

@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -52,10 +53,14 @@ data class AgentActions(
     val pause: () -> Unit,
     val resume: () -> Unit,
     val stop: () -> Unit,
-    /** Saves a profile; a non-null key replaces the stored one. */
-    val saveProfile: (AgentProfile, apiKey: String?) -> Unit,
+    /**
+     * Saves a profile with [newKeys] added to its saved keys, or in their place when [clearSaved].
+     * With several keys, a run moves to the next one when a key hits its rate limit.
+     */
+    val saveProfile: (AgentProfile, newKeys: List<String>, clearSaved: Boolean) -> Unit,
     val deleteProfile: (String) -> Unit,
-    val hasKey: (AgentProfile) -> Boolean,
+    /** How many API keys the profile has saved. */
+    val keyCount: (AgentProfile) -> Int,
     /**
      * Lists the models the given settings reach; [onResult] gets them, or a problem in plain words.
      * A null key means the profile's saved key.
@@ -129,7 +134,7 @@ private fun ProfilesSection(
     }
     for (profile in profiles) {
         if (editing == profile.id) {
-            ProfileForm(profile, actions.hasKey(profile), actions, onDone = { editing = null })
+            ProfileForm(profile, actions.keyCount(profile), actions, onDone = { editing = null })
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column(Modifier.weight(1f)) {
@@ -141,7 +146,7 @@ private fun ProfilesSection(
         }
     }
     if (editing == NEW) {
-        ProfileForm(null, hasKey = false, actions, onDone = { editing = null })
+        ProfileForm(null, savedKeys = 0, actions, onDone = { editing = null })
     } else if (editing == null) {
         OutlinedButton(onClick = { editing = NEW }) { Text(stringResource(R.string.feature_agent_add_profile)) }
     }
@@ -150,7 +155,7 @@ private fun ProfilesSection(
 @Composable
 private fun ProfileForm(
     existing: AgentProfile?,
-    hasKey: Boolean,
+    savedKeys: Int,
     actions: AgentActions,
     onDone: () -> Unit,
 ) {
@@ -158,7 +163,10 @@ private fun ProfileForm(
     var name by rememberSaveable { mutableStateOf(existing?.name ?: "") }
     var model by rememberSaveable { mutableStateOf(existing?.model ?: defaultModel(kind)) }
     var baseUrl by rememberSaveable { mutableStateOf(existing?.baseUrl ?: "") }
-    var key by rememberSaveable { mutableStateOf("") }
+    var keys by rememberSaveable { mutableStateOf(listOf("")) }
+    var clearSaved by rememberSaveable { mutableStateOf(false) }
+    val keptKeys = if (clearSaved) 0 else savedKeys
+    val key = keys.firstOrNull { it.isNotBlank() }.orEmpty()
     var cost by rememberSaveable { mutableStateOf(existing?.maxCostUsd?.toString() ?: "") }
     var models by remember { mutableStateOf<ModelList?>(null) }
     var loading by remember { mutableStateOf(false) }
@@ -180,7 +188,7 @@ private fun ProfileForm(
             ProviderKind.OPENAI_COMPATIBLE -> baseUrl.trim().let { it.startsWith("http://") || it.startsWith("https://") }
 
             // A saved key belongs to the provider it was saved for.
-            else -> key.isNotBlank() || (hasKey && kind == existing?.kind)
+            else -> key.isNotBlank() || (keptKeys > 0 && kind == existing?.kind)
         }
 
     fun load() {
@@ -231,15 +239,38 @@ private fun ProfileForm(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
             )
         }
-        OutlinedTextField(
-            key,
-            { key = it },
-            label = { Text(stringResource(R.string.feature_agent_api_key)) },
-            supportingText = { if (hasKey) Text(stringResource(R.string.feature_agent_api_key_kept)) },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        )
+        if (keptKeys > 0) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    pluralStringResource(R.plurals.feature_agent_keys_saved, keptKeys, keptKeys),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { clearSaved = true }) { Text(stringResource(R.string.feature_agent_remove_keys)) }
+            }
+        }
+        keys.forEachIndexed { index, value ->
+            OutlinedTextField(
+                value,
+                { typed -> keys = keys.toMutableList().also { it[index] = typed } },
+                label = {
+                    Text(
+                        if (keptKeys + index == 0) {
+                            stringResource(R.string.feature_agent_api_key)
+                        } else {
+                            stringResource(R.string.feature_agent_api_key_extra)
+                        },
+                    )
+                },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            )
+        }
+        TextButton(onClick = { keys = keys + "" }) { Text(stringResource(R.string.feature_agent_add_key)) }
+        if (keptKeys + keys.count { it.isNotBlank() } > 1) {
+            Text(stringResource(R.string.feature_agent_keys_rotate), style = MaterialTheme.typography.bodySmall)
+        }
         ModelField(
             model = model,
             onModel = { model = it },
@@ -262,7 +293,7 @@ private fun ProfileForm(
             Button(
                 enabled = valid,
                 onClick = {
-                    actions.saveProfile(profile(), key.trim().ifBlank { null })
+                    actions.saveProfile(profile(), keys.map { it.trim() }.filter { it.isNotEmpty() }, clearSaved)
                     onDone()
                 },
             ) { Text(stringResource(R.string.feature_agent_save)) }

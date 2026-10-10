@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PocketPilot</string>
+    <string name="tab_home">Home</string>
+    <string name="tab_ai">AI</string>
+    <string name="tab_settings">Settings</string>
     <string name="home_tagline">Your phone, ready for any AI.</string>
     <string name="home_build">%1$s build · version %2$s</string>
 

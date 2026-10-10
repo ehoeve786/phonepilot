@@ -1,5 +1,7 @@
 package app.pocketpilot.ui
 
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +12,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -24,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -86,7 +92,22 @@ fun HomeScreen(
     shellEnabled: Boolean = false,
     onShellChange: (Boolean) -> Unit = {},
 ) {
-    Scaffold(modifier = modifier.fillMaxSize()) { padding ->
+    var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        bottomBar = {
+            NavigationBar {
+                Tab.entries.forEach { item ->
+                    NavigationBarItem(
+                        selected = tab == item,
+                        onClick = { tab = item },
+                        icon = { Icon(painterResource(item.icon), contentDescription = null) },
+                        label = { Text(stringResource(item.label)) },
+                    )
+                }
+            }
+        },
+    ) { padding ->
         Column(
             modifier =
                 Modifier
@@ -95,34 +116,56 @@ fun HomeScreen(
                     .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
-            Text(stringResource(R.string.home_tagline), style = MaterialTheme.typography.bodyLarge)
-            Text(
-                stringResource(R.string.home_build, policyProfile.flavor.name.lowercase(), versionName),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            crashReport?.let { CrashCard(it, onDismissCrash) }
-            ServerCard(serverState, onStart, onStop)
-            AccessibilityCard(accessibilityOn, onOpenAccessibilitySettings, onOpenAppInfo)
-            DoctorCard(capabilities, shizukuState, onGrantShizuku)
-            agentCard()
-            if (policyProfile != PolicyProfile.PLAY) ShellCard(shellEnabled, onShellChange)
-            RemoteAccessCard(
-                state = remoteState,
-                public = publicState,
-                onTurnOn = remoteActions.turnOn,
-                onTurnOff = remoteActions.turnOff,
-                onSignIn = remoteActions.signIn,
-                onSignOut = remoteActions.signOut,
-                onPublicChange = remoteActions.setPublic,
-                logs = remoteActions.logs,
-            )
-            ownNetworkCard()
-            ClientsCard(clients, onRevokeClient, onKillSwitch)
-            TokenCard(token, onRotateToken)
-            ConnectCard(serverState, token)
+            when (tab) {
+                Tab.HOME -> {
+                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
+                    Text(stringResource(R.string.home_tagline), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        stringResource(R.string.home_build, policyProfile.flavor.name.lowercase(), versionName),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    crashReport?.let { CrashCard(it, onDismissCrash) }
+                    ServerCard(serverState, onStart, onStop)
+                    DoctorCard(capabilities, shizukuState, onGrantShizuku)
+                    ConnectCard(serverState, token)
+                }
+
+                Tab.AI -> {
+                    Text(stringResource(R.string.tab_ai), style = MaterialTheme.typography.headlineMedium)
+                    agentCard()
+                }
+
+                Tab.SETTINGS -> {
+                    Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.headlineMedium)
+                    AccessibilityCard(accessibilityOn, onOpenAccessibilitySettings, onOpenAppInfo)
+                    RemoteAccessCard(
+                        state = remoteState,
+                        public = publicState,
+                        onTurnOn = remoteActions.turnOn,
+                        onTurnOff = remoteActions.turnOff,
+                        onSignIn = remoteActions.signIn,
+                        onSignOut = remoteActions.signOut,
+                        onPublicChange = remoteActions.setPublic,
+                        logs = remoteActions.logs,
+                    )
+                    ownNetworkCard()
+                    ClientsCard(clients, onRevokeClient, onKillSwitch)
+                    TokenCard(token, onRotateToken)
+                    if (policyProfile != PolicyProfile.PLAY) ShellCard(shellEnabled, onShellChange)
+                }
+            }
         }
     }
+}
+
+/** The bottom bar: status and connecting on Home, Agent mode on AI, setup and access on Settings. */
+private enum class Tab(
+    @param:StringRes val label: Int,
+    @param:DrawableRes val icon: Int,
+) {
+    HOME(R.string.tab_home, R.drawable.ic_tab_home),
+    AI(R.string.tab_ai, R.drawable.ic_tab_ai),
+    SETTINGS(R.string.tab_settings, R.drawable.ic_tab_settings),
 }
 
 @Composable

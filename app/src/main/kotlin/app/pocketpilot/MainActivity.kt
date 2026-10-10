@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
                 stop = { agent.stop() },
                 saveProfile = agent::saveProfile,
                 deleteProfile = agent::deleteProfile,
-                hasKey = agent::hasKey,
+                keyCount = agent::keyCount,
                 listModels = agent::listModels,
             )
         setContent {

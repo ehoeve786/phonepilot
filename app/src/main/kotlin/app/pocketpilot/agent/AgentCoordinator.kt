@@ -13,6 +13,7 @@ import app.pocketpilot.agent.runtime.AgentProfile
 import app.pocketpilot.agent.runtime.AgentRunner
 import app.pocketpilot.agent.runtime.AgentTask
 import app.pocketpilot.agent.runtime.FileRunStore
+import app.pocketpilot.agent.runtime.KeyRotatingProvider
 import app.pocketpilot.agent.runtime.ProfileStore
 import app.pocketpilot.agent.runtime.ProviderKind
 import app.pocketpilot.agent.runtime.RunModel
@@ -116,11 +117,15 @@ class AgentCoordinator(
 
     fun stop() = runner.current.value?.stop()
 
+    /** Saves [profile]; [newKeys] join its saved keys, or replace them when [clearSaved]. */
     fun saveProfile(
         profile: AgentProfile,
-        apiKey: String?,
+        newKeys: List<String>,
+        clearSaved: Boolean,
     ) {
-        apiKey?.let { secrets.put(profile.keyName, it) }
+        val kept = if (clearSaved) emptyList() else keys(profile)
+        val all = (kept + newKeys).distinct()
+        if (all.isEmpty()) secrets.remove(profile.keyName) else secrets.put(profile.keyName, all.joinToString(KEY_SEPARATOR))
         profiles.save(profile)
     }
 
@@ -131,7 +136,16 @@ class AgentCoordinator(
         profiles.remove(id)
     }
 
-    fun hasKey(profile: AgentProfile): Boolean = !secrets.get(profile.keyName).isNullOrBlank()
+    fun keyCount(profile: AgentProfile): Int = keys(profile).size
+
+    /** A profile's API keys, kept as one secret with one key per line. */
+    private fun keys(profile: AgentProfile): List<String> =
+        secrets
+            .get(profile.keyName)
+            .orEmpty()
+            .split(KEY_SEPARATOR)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
 
     /** Lists the models the profile reaches, for the model picker; also checks the key or the server address. */
     fun listModels(
@@ -142,7 +156,7 @@ class AgentCoordinator(
         scope.launch {
             val result =
                 try {
-                    val models = provider(profile, apiKey ?: secrets.get(profile.keyName)).listModels()
+                    val models = provider(profile, apiKey ?: keys(profile).firstOrNull()).listModels()
                     ModelList.Loaded(models.map { ModelOption(it.id, it.displayName) }.sortedBy { it.label.lowercase() })
                 } catch (e: CancellationException) {
                     throw e
@@ -175,7 +189,11 @@ class AgentCoordinator(
     private fun runModel(profile: AgentProfile): RunModel {
         val descriptor = registry.describe(profile.providerId, profile.model)
         return RunModel(
-            provider = provider(profile, secrets.get(profile.keyName)),
+            provider =
+                keys(profile)
+                    .takeIf { it.size > 1 }
+                    ?.let { all -> KeyRotatingProvider(all.map { provider(profile, it) }) }
+                    ?: provider(profile, keys(profile).firstOrNull()),
             model = profile.model,
             toolMode = if (descriptor.tools == ToolSupport.NATIVE) ToolMode.NATIVE else ToolMode.JSON_FALLBACK,
             vision = descriptor.vision,
@@ -222,6 +240,7 @@ class AgentCoordinator(
         /** Everything the local token gets: raw shell and Termux stay behind their own toggles. */
         val AGENT_SCOPES = Scope.KNOWN - setOf(Scope.SHELL_EXEC, Scope.TERMUX_RUN)
         const val SETTINGS_SET = "settings.set"
+        const val KEY_SEPARATOR = "\n"
         const val LEAVE_TIMEOUT_MS = 3_000L
         const val LEAVE_POLL_MS = 150L
         const val MAX_PROBLEM_CHARS = 200
