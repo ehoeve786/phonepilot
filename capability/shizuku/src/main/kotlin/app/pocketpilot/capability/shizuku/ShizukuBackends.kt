@@ -115,10 +115,22 @@ class ShizukuScreenReader(
         } ?: false
     }
 
-    private suspend fun dump(): String = shizuku.call { it.dumpUiHierarchy().readAllBytes() }.decodeToString()
+    private suspend fun dump(): String =
+        try {
+            shizuku.call { it.dumpUiHierarchy().readAllBytes() }.decodeToString()
+        } catch (e: ToolException) {
+            // uiautomator only reads a screen once it stops changing, which a running stopwatch or a video never does.
+            if (e.message?.contains(NOT_IDLE) != true) throw e
+            throw ToolException(
+                ToolErrorCode.DEVICE_BUSY,
+                "This screen keeps moving, and the Shizuku reader can only read a still screen",
+                "Use screen.capture to see it, or turn on PocketPilot's Accessibility service, which can read moving screens",
+            )
+        }
 
     private companion object {
         const val POLL_MS = 500L
+        const val NOT_IDLE = "could not get idle state"
     }
 }
 

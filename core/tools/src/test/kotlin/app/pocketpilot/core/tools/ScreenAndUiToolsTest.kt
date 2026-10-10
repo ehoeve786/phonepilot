@@ -7,6 +7,7 @@ import app.pocketpilot.core.imaging.ImagePipeline
 import app.pocketpilot.core.model.ContentPart
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.core.model.ToolErrorCode
+import app.pocketpilot.core.model.ToolException
 import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.SessionFactory
@@ -101,6 +102,17 @@ class ScreenAndUiToolsTest {
             call("ui.tap", """{"x":10,"y":20,"returnSnapshot":false}""").also { assertFalse(it.text().contains("Screen now")) }
             assertEquals(ToolErrorCode.INVALID_ARGUMENTS, call("ui.tap", """{"x":10}""").errorCode)
             assertEquals(ToolErrorCode.INVALID_ARGUMENTS, call("ui.tap", """{"element":"e3","x":1,"y":2}""").errorCode)
+        }
+
+    @Test
+    fun `an action still succeeds when the screen cannot be read afterwards`() =
+        runTest {
+            call("ui.tap", """{"element":"e3"}""")
+            reader.failure = ToolException(ToolErrorCode.DEVICE_BUSY, "This screen keeps moving", "Use screen.capture")
+            val result = call("ui.tap", """{"x":10,"y":20}""")
+            assertFalse(result.isError, result.text())
+            assertTrue(result.text().startsWith("Tapped"))
+            assertTrue("could not be read afterwards: This screen keeps moving. Use screen.capture" in result.text(), result.text())
         }
 
     @Test

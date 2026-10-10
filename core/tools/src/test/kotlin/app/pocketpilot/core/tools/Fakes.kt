@@ -15,6 +15,7 @@ import app.pocketpilot.capability.api.screen.Snapshot
 import app.pocketpilot.capability.api.screen.SnapshotOptions
 import app.pocketpilot.capability.api.screen.SwipeDirection
 import app.pocketpilot.capability.api.screen.Target
+import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.flow.MutableStateFlow
 
 internal class FakeReader(
@@ -25,8 +26,12 @@ internal class FakeReader(
     var foregroundApp: ForegroundApp? = ForegroundApp("com.android.settings", "SettingsActivity")
     var snapshots = 0
 
+    /** Set to make the next reads fail, like a screen uiautomator cannot read. */
+    var failure: ToolException? = null
+
     override suspend fun snapshot(options: SnapshotOptions): Snapshot {
         snapshots++
+        failure?.let { throw it }
         return snapshot
     }
 
