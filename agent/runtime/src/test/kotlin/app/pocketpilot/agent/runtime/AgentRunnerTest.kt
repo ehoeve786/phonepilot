@@ -179,6 +179,36 @@ class AgentRunnerTest {
         }
 
     @Test
+    fun `moves to the next model when one runs out, skipping models that call tools differently`() =
+        runTest {
+            val gemini = ScriptedProvider(fail(ModelErrorCode.QUOTA))
+            val jsonOnly = ScriptedProvider()
+            val openRouter = ScriptedProvider(callTool("ui_tap"), say("Done"))
+            val chain =
+                RunModel(
+                    gemini,
+                    "gemini-2.5-flash",
+                    label = "Gemini",
+                    estimateCost = { _, _ -> 0.0 },
+                    fallback =
+                        RunModel(
+                            jsonOnly,
+                            "small",
+                            toolMode = ToolMode.JSON_FALLBACK,
+                            fallback = RunModel(openRouter, "mistral", label = "OpenRouter", estimateCost = { i, o -> (i + o) / 1000.0 }),
+                        ),
+                )
+            val end = runner().start(AgentTask("Tap", scopes), chain, AgentBudgets(), backgroundScope).finished()
+
+            assertEquals(RunStatus.FINISHED, end.status)
+            assertEquals("mistral", end.model)
+            assertTrue(end.steps.any { it.note == "Gemini is not available (QUOTA), switching to OpenRouter" })
+            assertTrue(jsonOnly.requests.isEmpty())
+            assertEquals(2, openRouter.requests.size)
+            assertEquals(0.22, end.costUsd!!, 1e-9)
+        }
+
+    @Test
     fun `runs the session as the owner's agent run`() =
         runTest {
             val provider = ScriptedProvider(say("Nothing to do"))

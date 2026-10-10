@@ -1,6 +1,7 @@
 package app.pocketpilot.agent.runtime
 
 import app.pocketpilot.agent.providers.api.Message
+import app.pocketpilot.agent.providers.api.ModelErrorCode
 import app.pocketpilot.agent.providers.api.ModelEvent
 import app.pocketpilot.agent.providers.api.ModelRequest
 import app.pocketpilot.agent.providers.api.Part
@@ -84,7 +85,7 @@ class AgentRunner(
 class AgentRun internal constructor(
     private val session: Session,
     private val task: AgentTask,
-    private val model: RunModel,
+    initialModel: RunModel,
     private val budgets: AgentBudgets,
     registry: ToolRegistry,
     private val dispatcher: CallDispatcher,
@@ -93,6 +94,9 @@ class AgentRun internal constructor(
     private val onSessionEnd: (SessionId) -> Unit,
 ) {
     val id: String get() = session.id.value
+
+    /** The model in use; moves down the fallback chain when one runs out. */
+    private var model: RunModel = initialModel
 
     private val mutableState =
         MutableStateFlow(
@@ -317,6 +321,14 @@ class AgentRun internal constructor(
                 }
             }
             val failure = error ?: return Reply.Answer(text.toString(), calls, stop)
+            val next = nextModel()
+            if (failure.code in FALL_OVER && next != null) {
+                note("${model.label} is not available (${failure.code}), switching to ${next.label}")
+                model = next
+                mutableState.update { it.copy(provider = next.provider.id, model = next.model) }
+                attempt = 0
+                continue
+            }
             if (!failure.retryable || attempt >= MODEL_RETRIES) {
                 return Reply.Failed("${model.provider.displayName} error (${failure.code}): ${failure.message}")
             }
@@ -330,7 +342,9 @@ class AgentRun internal constructor(
         mutableState.update { s ->
             val input = s.inputTokens + usage.inputTokens
             val output = s.outputTokens + usage.outputTokens
-            s.copy(inputTokens = input, outputTokens = output, costUsd = model.estimateCost(input, output))
+            // Priced per step, so a run that moved to another model adds each model's own price.
+            val stepCost = model.estimateCost(usage.inputTokens.toLong(), usage.outputTokens.toLong())
+            s.copy(inputTokens = input, outputTokens = output, costUsd = stepCost?.let { (s.costUsd ?: 0.0) + it } ?: s.costUsd)
         }
     }
 
@@ -400,6 +414,13 @@ class AgentRun internal constructor(
         store?.save(state.value)
     }
 
+    /** The next fallback that calls tools the same way as the model in use, so the history still fits. */
+    private fun nextModel(): RunModel? {
+        var candidate = model.fallback
+        while (candidate != null && candidate.toolMode != model.toolMode) candidate = candidate.fallback
+        return candidate
+    }
+
     private fun note(text: String) {
         mutableState.update { s -> s.copy(steps = s.steps + AgentStep(index = s.steps.size, atMillis = clock.nowMillis(), note = text)) }
     }
@@ -436,6 +457,7 @@ class AgentRun internal constructor(
         const val MAX_CONSECUTIVE_ERRORS = 3
         const val JSON_RETRIES = 2
         const val MODEL_RETRIES = 2
+        val FALL_OVER = setOf(ModelErrorCode.RATE_LIMIT, ModelErrorCode.QUOTA, ModelErrorCode.AUTH)
         const val RETRY_BASE_MS = 2_000L
         const val MAX_RETRY_WAIT_MS = 30_000L
         const val SUMMARY_CHARS = 300

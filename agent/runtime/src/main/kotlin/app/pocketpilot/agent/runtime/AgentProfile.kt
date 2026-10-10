@@ -78,9 +78,19 @@ class ProfileStore(
     private val mutableProfiles = MutableStateFlow(load())
     val profiles: StateFlow<List<AgentProfile>> = mutableProfiles.asStateFlow()
 
-    /** Adds [profile], or replaces the one with the same id. */
+    /** Adds [profile] at the end, or replaces the one with the same id in its place. */
     fun save(profile: AgentProfile) {
-        write { list -> list.filterNot { it.id == profile.id } + profile }
+        write { list ->
+            if (list.any { it.id == profile.id }) list.map { if (it.id == profile.id) profile else it } else list + profile
+        }
+    }
+
+    /** Moves a profile one place up; the order is the order runs fall back in. */
+    fun moveUp(id: String) {
+        write { list ->
+            val index = list.indexOfFirst { it.id == id }
+            if (index <= 0) list else list.toMutableList().apply { add(index - 1, removeAt(index)) }
+        }
     }
 
     fun remove(id: String) {

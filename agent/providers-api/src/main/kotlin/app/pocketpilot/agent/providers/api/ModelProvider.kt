@@ -150,6 +150,9 @@ enum class StopReason {
 enum class ModelErrorCode {
     AUTH,
     RATE_LIMIT,
+
+    /** The key's credit or quota is used up; waiting will not help. */
+    QUOTA,
     CONTEXT_TOO_LONG,
     SERVER,
     NETWORK,

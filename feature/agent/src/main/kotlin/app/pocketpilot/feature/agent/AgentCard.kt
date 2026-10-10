@@ -48,8 +48,11 @@ import java.util.UUID
 
 /** What the owner can do on [AgentCard]. */
 data class AgentActions(
-    /** [allowSettings]: the run may change settings without asking first. */
-    val start: (goal: String, profileId: String, allowSettings: Boolean) -> Unit,
+    /**
+     * [allowSettings]: the run may change settings without asking first. [useFallbacks]: when the
+     * model runs out, the run goes on with the other models in their listed order.
+     */
+    val start: (goal: String, profileId: String, allowSettings: Boolean, useFallbacks: Boolean) -> Unit,
     val pause: () -> Unit,
     val resume: () -> Unit,
     val stop: () -> Unit,
@@ -59,6 +62,8 @@ data class AgentActions(
      */
     val saveProfile: (AgentProfile, newKeys: List<String>, clearSaved: Boolean) -> Unit,
     val deleteProfile: (String) -> Unit,
+    /** Moves a model one place up the list, which is the order runs fall back in. */
+    val moveUp: (String) -> Unit,
     /** How many API keys the profile has saved. */
     val keyCount: (AgentProfile) -> Int,
     /**
@@ -132,7 +137,10 @@ private fun ProfilesSection(
     if (profiles.isEmpty() && editing == null) {
         Text(stringResource(R.string.feature_agent_no_profiles), style = MaterialTheme.typography.bodySmall)
     }
-    for (profile in profiles) {
+    if (profiles.size > 1) {
+        Text(stringResource(R.string.feature_agent_fallback_order), style = MaterialTheme.typography.bodySmall)
+    }
+    profiles.forEachIndexed { index, profile ->
         if (editing == profile.id) {
             ProfileForm(profile, actions.keyCount(profile), actions, onDone = { editing = null })
         } else {
@@ -140,6 +148,9 @@ private fun ProfilesSection(
                 Column(Modifier.weight(1f)) {
                     Text(profile.name)
                     Text("${profile.kind.displayName} · ${profile.model}", style = MaterialTheme.typography.bodySmall)
+                }
+                if (index > 0) {
+                    TextButton(onClick = { actions.moveUp(profile.id) }) { Text(stringResource(R.string.feature_agent_move_up)) }
                 }
                 TextButton(onClick = { editing = profile.id }) { Text(stringResource(R.string.feature_agent_edit)) }
             }
@@ -420,7 +431,20 @@ private fun TaskSection(
             Text(stringResource(R.string.feature_agent_allow_settings_hint), style = MaterialTheme.typography.bodySmall)
         }
     }
-    Button(enabled = goal.isNotBlank() && !running, onClick = { actions.start(goal.trim(), selected.id, allowSettings) }) {
+    var useFallbacks by rememberSaveable { mutableStateOf(true) }
+    if (profiles.size > 1) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = useFallbacks, onCheckedChange = { useFallbacks = it })
+            Column {
+                Text(stringResource(R.string.feature_agent_use_fallbacks))
+                Text(stringResource(R.string.feature_agent_use_fallbacks_hint), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+    Button(
+        enabled = goal.isNotBlank() && !running,
+        onClick = { actions.start(goal.trim(), selected.id, allowSettings, useFallbacks && profiles.size > 1) },
+    ) {
         Text(stringResource(R.string.feature_agent_start))
     }
 }

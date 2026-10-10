@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.flow
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * One provider with several API keys, one [ModelProvider] per key. When a key hits its rate limit or
- * is refused, the request goes to the next key, and later requests start from that key. Only when
+ * One provider with several API keys, one [ModelProvider] per key. When a key hits its rate limit,
+ * runs out of credit or is refused, the request goes to the next key, and later requests start from that key. Only when
  * every key fails is the error passed on, so the runner's own retry and wait apply then.
  */
 class KeyRotatingProvider(
@@ -46,6 +46,6 @@ class KeyRotatingProvider(
         }
 
     private companion object {
-        val SWITCH_ON = setOf(ModelErrorCode.RATE_LIMIT, ModelErrorCode.AUTH)
+        val SWITCH_ON = setOf(ModelErrorCode.RATE_LIMIT, ModelErrorCode.QUOTA, ModelErrorCode.AUTH)
     }
 }

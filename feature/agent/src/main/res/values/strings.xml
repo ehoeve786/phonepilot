@@ -13,7 +13,11 @@
     <string name="feature_agent_provider">Provider</string>
     <string name="feature_agent_model">Model</string>
     <string name="feature_agent_base_url">Server URL</string>
-    <string name="feature_agent_base_url_hint">For Ollama: http://&lt;computer address&gt;:11434/v1</string>
+    <string name="feature_agent_base_url_hint">OpenRouter: https://openrouter.ai/api/v1 · NVIDIA: https://integrate.api.nvidia.com/v1 · Mistral: https://api.mistral.ai/v1 · Ollama: http://&lt;computer address&gt;:11434/v1</string>
+    <string name="feature_agent_fallback_order">When a model runs out, a run moves on to the next model in this list.</string>
+    <string name="feature_agent_move_up">Move up</string>
+    <string name="feature_agent_use_fallbacks">Switch models when one runs out</string>
+    <string name="feature_agent_use_fallbacks_hint">If every key of this model is rate limited or out of credit, go on with your other models in list order.</string>
     <string name="feature_agent_api_key">API key</string>
     <string name="feature_agent_api_key_extra">Another API key</string>
     <string name="feature_agent_add_key">Add another key</string>

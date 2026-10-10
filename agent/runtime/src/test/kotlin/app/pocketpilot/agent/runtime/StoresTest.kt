@@ -23,6 +23,20 @@ class StoresTest {
     }
 
     @Test
+    fun `editing keeps a profile's place, and move up changes the fallback order`() {
+        val gemini = AgentProfile("g", "Gemini", ProviderKind.GEMINI, "gemini-2.5-flash")
+        val router = AgentProfile("r", "OpenRouter", ProviderKind.OPENAI_COMPATIBLE, "mistral", "https://openrouter.ai/api/v1")
+        val store = ProfileStore(dir.resolve("order.json"))
+        store.save(gemini)
+        store.save(router)
+        store.save(gemini.copy(model = "gemini-2.5-flash-lite"))
+        assertEquals(listOf("g", "r"), store.profiles.value.map { it.id })
+        store.moveUp("r")
+        store.moveUp("r")
+        assertEquals(listOf("r", "g"), store.profiles.value.map { it.id })
+    }
+
+    @Test
     fun `profiles name compatible servers by host and only limit cost on paid APIs`() {
         val ollama = AgentProfile("p", "Ollama", ProviderKind.OPENAI_COMPATIBLE, "qwen2.5:7b", "http://192.168.8.20:11434/v1")
         assertEquals("openai-compatible:192.168.8.20", ollama.providerId)

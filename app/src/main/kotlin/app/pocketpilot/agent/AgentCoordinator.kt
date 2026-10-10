@@ -89,8 +89,12 @@ class AgentCoordinator(
         profileId: String,
         /** The owner ticked "Allow settings changes": settings.set runs without a prompt in this run. */
         allowSettings: Boolean,
+        /** When the model runs out, go on with the owner's other models in their listed order. */
+        useFallbacks: Boolean,
     ) {
-        val profile = profiles.profiles.value.firstOrNull { it.id == profileId } ?: return
+        val all = profiles.profiles.value
+        val profile = all.firstOrNull { it.id == profileId } ?: return
+        val chain = listOf(profile) + if (useFallbacks) all.filter { it.id != profileId && usable(it) } else emptyList()
         if (current.value?.active == true) return
         scope.launch {
             withTimeoutOrNull(LEAVE_TIMEOUT_MS) {
@@ -99,8 +103,9 @@ class AgentCoordinator(
             try {
                 runner.start(
                     AgentTask(goal, AGENT_SCOPES + extraScopes(), preApproved = if (allowSettings) setOf(SETTINGS_SET) else emptySet()),
-                    runModel(profile),
-                    profile.budgets(),
+                    chainedModel(chain),
+                    // The tightest cost limit in the chain holds for the whole run.
+                    profile.budgets().copy(maxCostUsd = chain.mapNotNull { it.budgets().maxCostUsd }.minOrNull()),
                     scope,
                 )
             } catch (e: IllegalStateException) {
@@ -137,6 +142,8 @@ class AgentCoordinator(
     }
 
     fun keyCount(profile: AgentProfile): Int = keys(profile).size
+
+    fun moveUp(id: String) = profiles.moveUp(id)
 
     /** A profile's API keys, kept as one secret with one key per line. */
     private fun keys(profile: AgentProfile): List<String> =
@@ -186,7 +193,27 @@ class AgentCoordinator(
         }
     }
 
-    private fun runModel(profile: AgentProfile): RunModel {
+    /** Needs a key unless it is a local or self-hosted server. */
+    private fun usable(profile: AgentProfile): Boolean = profile.kind == ProviderKind.OPENAI_COMPATIBLE || keys(profile).isNotEmpty()
+
+    /** The first profile's model, falling back to the others in order. A fallback that cannot be built is left out. */
+    private fun chainedModel(chain: List<AgentProfile>): RunModel {
+        var next: RunModel? = null
+        for (p in chain.drop(1).asReversed()) {
+            next =
+                try {
+                    runModel(p, next)
+                } catch (e: IllegalArgumentException) {
+                    next
+                }
+        }
+        return runModel(chain.first(), next)
+    }
+
+    private fun runModel(
+        profile: AgentProfile,
+        fallback: RunModel? = null,
+    ): RunModel {
         val descriptor = registry.describe(profile.providerId, profile.model)
         return RunModel(
             provider =
@@ -199,6 +226,8 @@ class AgentCoordinator(
             vision = descriptor.vision,
             estimateCost = { input, output -> estimateCost(descriptor, input.toInt(), output.toInt()) },
             maxOutputTokens = (descriptor.maxOutputTokens ?: MAX_OUTPUT_TOKENS).coerceAtMost(MAX_OUTPUT_TOKENS),
+            fallback = fallback,
+            label = profile.name,
         )
     }
 

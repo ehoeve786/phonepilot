@@ -14,6 +14,7 @@ object ModelErrors {
         val code =
             when {
                 status == 401 || status == 403 -> ModelErrorCode.AUTH
+                status == 402 -> ModelErrorCode.QUOTA
                 status == 429 -> ModelErrorCode.RATE_LIMIT
                 status == 413 -> ModelErrorCode.CONTEXT_TOO_LONG
                 status in 400..499 && CONTEXT_HINTS.any { body.contains(it, ignoreCase = true) } -> ModelErrorCode.CONTEXT_TOO_LONG

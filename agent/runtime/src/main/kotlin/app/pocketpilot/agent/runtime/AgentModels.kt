@@ -33,6 +33,13 @@ class RunModel(
     /** Estimated cost in US dollars for the given token counts, or null when the price is unknown. */
     val estimateCost: (inputTokens: Long, outputTokens: Long) -> Double? = { _, _ -> null },
     val maxOutputTokens: Int = 4096,
+    /**
+     * The owner's next model, used for the rest of the run when every key of this one is rate limited,
+     * out of credit or refused. Models that call tools differently are skipped.
+     */
+    val fallback: RunModel? = null,
+    /** How the transcript names this model, such as the profile's name. */
+    val label: String = model,
 )
 
 /** What the owner asked for and which scopes the run may use. */
