@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.Socket
 import kotlin.concurrent.thread
@@ -151,13 +152,15 @@ class ZeroTierProvider(
     private suspend fun CoroutineScope.connect(networkId: Long) {
         val node = startNode()
         while (isActive && !node.isOnline) delay(POLL_MS)
+        // The ID is 0 until the node has its identity, which it has once online.
+        mutableSetup.value = mutableSetup.value.copy(nodeId = "%010x".format(node.id))
         lastNetworkEvent = 0
         node.join(networkId)
         joined = networkId
         val approveUrl = "https://my.zerotier.com/network/%016x".format(networkId)
         var address: InetAddress? = null
         while (isActive) {
-            val assigned = runCatching { node.getIPv4Address(networkId) }.getOrNull()
+            val assigned = assignedIpv4(networkId)
             when {
                 lastNetworkEvent == ZeroTierNative.ZTS_EVENT_NETWORK_NOT_FOUND -> {
                     mutableState.value = NetworkState.Error("ZeroTier network ${"%016x".format(networkId)} does not exist")
@@ -206,8 +209,20 @@ class ZeroTierProvider(
             val result = created.start()
             check(result == ZeroTierNative.ZTS_ERR_OK) { "ZeroTier did not start ($result)" }
             node = created
-            mutableSetup.value = mutableSetup.value.copy(nodeId = "%010x".format(created.id))
         }
+
+    /**
+     * The phone's IPv4 address on the network, or null until the controller assigns one.
+     * ZeroTierNode.getIPv4Address cannot be used for this: before an address is assigned it resolves an
+     * empty string, which gives the loopback address instead of null.
+     */
+    private fun assignedIpv4(networkId: Long): InetAddress? {
+        if (ZeroTierNative.zts_addr_is_assigned(networkId, ZeroTierNative.ZTS_AF_INET) != 1) return null
+        val text = ZeroTierNative.zts_addr_get_str(networkId, ZeroTierNative.ZTS_AF_INET)?.takeIf(String::isNotBlank) ?: return null
+        return runCatching { InetAddress.getByName(text) }
+            .getOrNull()
+            ?.takeIf { it is Inet4Address && !it.isLoopbackAddress && !it.isAnyLocalAddress }
+    }
 
     /** Opens port 443 on the ZeroTier address and pipes each connection to the HTTPS frontend. */
     private fun listen(address: InetAddress) {
