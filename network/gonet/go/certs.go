@@ -146,7 +146,8 @@ func (c *CertManager) StartRenewals() {
 }
 
 // PointDomainAt makes the domain's DNS A record point at ip (the relay server), creating or
-// replacing it. The record is DNS only: Cloudflare's proxy would end TLS before the phone does.
+// replacing it. The record is DNS only: Cloudflare's proxy would end TLS before the phone does. A
+// domain the owner routes through Cloudflare's proxy or a Cloudflare Tunnel is left as it is.
 func (c *CertManager) PointDomainAt(ip string) error {
 	addr := net.ParseIP(strings.TrimSpace(ip))
 	if addr == nil || addr.To4() == nil {
@@ -161,7 +162,10 @@ func (c *CertManager) PointDomainAt(ip string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	cf := &cloudflare{base: c.cloudflareAPI, token: token}
-	if err := cf.setA(ctx, domain, addr.String()); err != nil {
+	if err := cf.setA(ctx, domain, addr.String()); errors.Is(err, errDomainProxied) {
+		c.logs.logf("ppnet: not pointing %s at %s: %v", domain, ip, err)
+		return nil
+	} else if err != nil {
 		c.logs.logf("ppnet: pointing %s at %s failed: %v", domain, ip, err)
 		return err
 	}

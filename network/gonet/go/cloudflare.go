@@ -45,20 +45,34 @@ func (c *cloudflare) delete(ctx context.Context, zoneID, recordID string) error 
 	return c.call(ctx, http.MethodDelete, "/zones/"+zoneID+"/dns_records/"+recordID, nil, nil)
 }
 
-// setA points name at ip, replacing an existing A record for it.
+// errDomainProxied means the domain already goes through Cloudflare, by its proxy or a Cloudflare
+// Tunnel, so its DNS record is the owner's to manage and is left alone.
+var errDomainProxied = errors.New("the domain goes through Cloudflare's proxy or a Cloudflare Tunnel, so its DNS record is left as it is")
+
+// setA points name at ip, replacing an existing A record for it. A proxied record or a CNAME, such
+// as a Cloudflare Tunnel's, is never replaced: it gives errDomainProxied.
 func (c *cloudflare) setA(ctx context.Context, name, ip string) error {
 	zoneID, err := c.zoneFor(ctx, name)
 	if err != nil {
 		return err
 	}
 	var existing []cfRecord
-	if err := c.call(ctx, http.MethodGet, "/zones/"+zoneID+"/dns_records?type=A&name="+url.QueryEscape(name), nil, &existing); err != nil {
+	if err := c.call(ctx, http.MethodGet, "/zones/"+zoneID+"/dns_records?name="+url.QueryEscape(name), nil, &existing); err != nil {
 		return err
+	}
+	var current *cfRecord
+	for i, r := range existing {
+		if r.Type == "CNAME" || (r.Proxied != nil && *r.Proxied) {
+			return errDomainProxied
+		}
+		if r.Type == "A" && current == nil {
+			current = &existing[i]
+		}
 	}
 	off := false
 	rec := cfRecord{Type: "A", Name: name, Content: ip, TTL: 60, Proxied: &off}
-	if len(existing) > 0 {
-		return c.call(ctx, http.MethodPut, "/zones/"+zoneID+"/dns_records/"+existing[0].ID, rec, nil)
+	if current != nil {
+		return c.call(ctx, http.MethodPut, "/zones/"+zoneID+"/dns_records/"+current.ID, rec, nil)
 	}
 	return c.call(ctx, http.MethodPost, "/zones/"+zoneID+"/dns_records", rec, nil)
 }
