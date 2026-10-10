@@ -103,6 +103,7 @@ class MainActivity : ComponentActivity() {
                             signIn = { url -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
                             signOut = tailscale::logout,
                             setPublic = tailscale::setPublic,
+                            logs = tailscale::logs,
                         ),
                     onRevokeClient = oauth::revokeClient,
                     onKillSwitch = {

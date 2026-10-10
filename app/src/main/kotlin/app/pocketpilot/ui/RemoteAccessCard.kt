@@ -37,6 +37,7 @@ internal fun RemoteAccessCard(
     onSignIn: (String) -> Unit,
     onSignOut: () -> Unit,
     onPublicChange: (Boolean) -> Unit,
+    logs: () -> String,
 ) {
     val clipboard = LocalClipboardManager.current
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -93,6 +94,9 @@ internal fun RemoteAccessCard(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = onTurnOff) { Text(stringResource(R.string.remote_turn_off)) }
                         TextButton(onClick = onSignOut) { Text(stringResource(R.string.remote_sign_out)) }
+                        TextButton(onClick = { clipboard.setText(AnnotatedString(logs())) }) {
+                            Text(stringResource(R.string.remote_copy_log))
+                        }
                     }
                 }
             }

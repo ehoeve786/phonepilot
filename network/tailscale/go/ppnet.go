@@ -262,7 +262,28 @@ func (n *Node) listenLocked() error {
 	}
 	n.serveLocked(ln)
 	n.lastError = ""
+	go n.warmCert(n.srv)
 	return nil
+}
+
+// warmCert fetches the node's HTTPS certificate now. Otherwise the first visitor waits while it is
+// issued, which can take longer than a client such as claude.ai waits for a reply.
+func (n *Node) warmCert(srv *tsnet.Server) {
+	lc, err := srv.LocalClient()
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	st, err := lc.StatusWithoutPeers(ctx)
+	if err != nil || len(st.CertDomains) == 0 {
+		return
+	}
+	if _, _, err := lc.CertPair(ctx, st.CertDomains[0]); err != nil {
+		n.logs.logf("ppnet: certificate for %s not ready: %v", st.CertDomains[0], err)
+		return
+	}
+	n.logs.logf("ppnet: certificate for %s ready", st.CertDomains[0])
 }
 
 func (n *Node) serveLocked(ln net.Listener) {

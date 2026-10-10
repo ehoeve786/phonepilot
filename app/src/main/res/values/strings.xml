@@ -63,6 +63,7 @@
     <string name="remote_sign_in">Sign in to Tailscale</string>
     <string name="remote_sign_out">Sign out</string>
     <string name="remote_copy_details">Copy details</string>
+    <string name="remote_copy_log">Copy log</string>
     <string name="remote_error">Tailscale problem: %1$s</string>
     <string name="remote_connected">On your tailnet as %1$s</string>
     <string name="remote_public">Public access (Funnel)</string>

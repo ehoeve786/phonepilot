@@ -44,6 +44,8 @@ data class RemoteActions(
     val signIn: (String) -> Unit,
     val signOut: () -> Unit,
     val setPublic: (Boolean) -> Unit,
+    /** The Tailscale node's recent log lines, for support. */
+    val logs: () -> String = { "" },
 )
 
 /**
@@ -102,6 +104,7 @@ fun HomeScreen(
                 onSignIn = remoteActions.signIn,
                 onSignOut = remoteActions.signOut,
                 onPublicChange = remoteActions.setPublic,
+                logs = remoteActions.logs,
             )
             ClientsCard(clients, onRevokeClient, onKillSwitch)
             TokenCard(token, onRotateToken)
