@@ -38,7 +38,18 @@ class SessionFactory(
             createdAtMillis = clock.nowMillis(),
         )
 
+    /** A session for one Agent mode run, acting for the owner with the scopes the run was given. */
+    fun agentSession(grantedScopes: Set<Scope>): Session =
+        Session(
+            id = SessionId(ids.next()),
+            kind = SessionKind.AGENT_RUN,
+            principal = OWNER_PRINCIPAL,
+            grantedScopes = grantedScopes,
+            createdAtMillis = clock.nowMillis(),
+        )
+
     companion object {
         const val LOCAL_PRINCIPAL = "local-token"
+        const val OWNER_PRINCIPAL = "owner"
     }
 }

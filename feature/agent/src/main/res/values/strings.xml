@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_agent_title">Agent mode</string>
+    <string name="feature_agent_explainer">Give PocketPilot a task and an AI model carries it out on this phone, using the same tools and confirmations as connected apps. PocketPilot goes to the background while it works; pause or stop it from the notification.</string>
+    <string name="feature_agent_profiles">Models</string>
+    <string name="feature_agent_no_profiles">Add a model to start. Gemini has a free tier (key from aistudio.google.com); Ollama runs models on a computer at home.</string>
+    <string name="feature_agent_add_profile">Add model</string>
+    <string name="feature_agent_edit">Edit</string>
+    <string name="feature_agent_delete">Delete</string>
+    <string name="feature_agent_save">Save</string>
+    <string name="feature_agent_cancel">Cancel</string>
+    <string name="feature_agent_profile_name">Name</string>
+    <string name="feature_agent_provider">Provider</string>
+    <string name="feature_agent_model">Model</string>
+    <string name="feature_agent_base_url">Server URL</string>
+    <string name="feature_agent_base_url_hint">For Ollama: http://&lt;computer address&gt;:11434/v1</string>
+    <string name="feature_agent_api_key">API key</string>
+    <string name="feature_agent_api_key_kept">A key is saved. Leave blank to keep it.</string>
+    <string name="feature_agent_cost_limit">Cost limit per run (USD, blank for default)</string>
+    <string name="feature_agent_test">Test connection</string>
+    <string name="feature_agent_task">Task</string>
+    <string name="feature_agent_task_hint">For example: open Settings and turn on Dark theme</string>
+    <string name="feature_agent_start">Start</string>
+    <string name="feature_agent_run_title">Current run</string>
+    <string name="feature_agent_pause">Take over</string>
+    <string name="feature_agent_resume">Resume</string>
+    <string name="feature_agent_stop">Stop</string>
+    <string name="feature_agent_status">%1$s · %2$d steps · %3$s</string>
+    <string name="feature_agent_cost">≈ $%1$.3f</string>
+    <string name="feature_agent_tokens">%1$d in / %2$d out tokens</string>
+    <string name="feature_agent_history">Earlier runs</string>
+    <string name="feature_agent_show_steps">Show steps</string>
+    <string name="feature_agent_hide_steps">Hide steps</string>
+    <string name="feature_agent_copy">Copy transcript</string>
+    <string name="feature_agent_status_running">Running</string>
+    <string name="feature_agent_status_paused">Paused, you have control</string>
+    <string name="feature_agent_status_finished">Finished</string>
+    <string name="feature_agent_status_stopped">Stopped</string>
+    <string name="feature_agent_status_budget">Out of budget</string>
+    <string name="feature_agent_status_failed">Failed</string>
+</resources>

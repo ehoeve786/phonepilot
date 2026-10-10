@@ -78,6 +78,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     /** WireGuard with the owner's relay, shown under Tailscale. */
     ownNetworkCard: @Composable () -> Unit = {},
+    /** Agent mode: model profiles, tasks and runs. */
+    agentCard: @Composable () -> Unit = {},
 ) {
     Scaffold(modifier = modifier.fillMaxSize()) { padding ->
         Column(
@@ -98,6 +100,7 @@ fun HomeScreen(
             ServerCard(serverState, onStart, onStop)
             AccessibilityCard(accessibilityOn, onOpenAccessibilitySettings, onOpenAppInfo)
             DoctorCard(capabilities, shizukuState, onGrantShizuku)
+            agentCard()
             RemoteAccessCard(
                 state = remoteState,
                 public = publicState,

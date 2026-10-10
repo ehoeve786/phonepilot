@@ -12,10 +12,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.shizuku.ShizukuConnection
 import app.pocketpilot.core.capabilities.CapabilityGraph
 import app.pocketpilot.core.model.PolicyProfile
+import app.pocketpilot.feature.agent.AgentActions
+import app.pocketpilot.feature.agent.AgentCard
 import app.pocketpilot.feature.clients.ClientRow
 import app.pocketpilot.feature.network.OwnNetworkActions
 import app.pocketpilot.feature.network.OwnNetworkCard
@@ -52,6 +55,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var wireGuard: WireGuardProvider
 
+    @Inject lateinit var agent: AgentCoordinator
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -67,6 +72,23 @@ class MainActivity : ComponentActivity() {
                 setWireGuard = { on -> if (on) startNetwork(wireGuard::start) else wireGuard.stop() },
                 forgetWireGuard = wireGuard::logout,
                 wireGuardLog = { wireGuard.logs() + "\n\n--- Certificate ---\n" + certificates.logs() },
+            )
+        val agentActions =
+            AgentActions(
+                start = { goal, profileId ->
+                    agent.start(goal, profileId)
+                    // The service keeps the process alive while the agent works in other apps, and the
+                    // policy never lets the agent act on PocketPilot itself, so step out of its way.
+                    PocketPilotService.start(this)
+                    moveTaskToBack(true)
+                },
+                pause = { agent.pause() },
+                resume = { agent.resume() },
+                stop = { agent.stop() },
+                saveProfile = agent::saveProfile,
+                deleteProfile = agent::deleteProfile,
+                hasKey = agent::hasKey,
+                testProfile = agent::test,
             )
         setContent {
             // The foreground service notification needs this permission on Android 13+; the server
@@ -137,6 +159,17 @@ class MainActivity : ComponentActivity() {
                             wireGuard = wireGuard.state.collectAsStateWithLifecycle().value,
                             wireGuardSetup = wireGuard.setup.collectAsStateWithLifecycle().value,
                             actions = ownNetworkActions,
+                        )
+                    },
+                    agentCard = {
+                        AgentCard(
+                            profiles =
+                                agent.profiles.profiles
+                                    .collectAsStateWithLifecycle()
+                                    .value,
+                            current = agent.current.collectAsStateWithLifecycle().value,
+                            history = agent.history.collectAsStateWithLifecycle().value,
+                            actions = agentActions,
                         )
                     },
                 )

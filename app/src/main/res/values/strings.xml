@@ -77,4 +77,11 @@
     <string name="approvals_title">PocketPilot needs your approval</string>
     <string name="approvals_consent_text">%1$s wants to connect to this phone</string>
     <string name="approvals_confirm_text">%1$s wants to run %2$s</string>
+    <string name="agent_channel">Agent runs</string>
+    <string name="agent_notification_title">Agent: %1$s</string>
+    <string name="agent_notification_step">Step %1$d · %2$s</string>
+    <string name="agent_notification_paused">Paused. You have control; resume when you are done.</string>
+    <string name="agent_take_over">Take over</string>
+    <string name="agent_resume">Resume</string>
+    <string name="agent_stop">Stop</string>
 </resources>
