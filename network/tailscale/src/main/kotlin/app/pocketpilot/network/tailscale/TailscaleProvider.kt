@@ -35,13 +35,14 @@ class TailscaleProvider(
     PublicAccess {
     override val id: String = "tailscale"
 
+    private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    private val node: Node by lazy {
-        go.Seq.setContext(context.applicationContext)
-        Ppnet.newNode(File(context.noBackupFilesDir, "tailscale").absolutePath, hostname(), targetPort.toLong())
-    }
+    private val stateDir = File(context.noBackupFilesDir, "tailscale")
 
-    private val mutableState = MutableStateFlow<NetworkState>(NetworkState.Stopped)
+    /** Created on first [start]: loading the Go library is the first thing that can fail. */
+    @Volatile private var createdNode: Node? = null
+
+    private val mutableState = MutableStateFlow(previousCrash())
     override val state: StateFlow<NetworkState> = mutableState.asStateFlow()
 
     private val mutablePublic = MutableStateFlow(PublicAccessState(enabled = prefs.getBoolean(KEY_PUBLIC, false)))
@@ -65,10 +66,12 @@ class TailscaleProvider(
         poller =
             scope.launch(Dispatchers.IO) {
                 try {
+                    val node = node()
                     node.setPublic(mutablePublic.value.enabled)
                     node.start("")
-                } catch (e: Exception) {
-                    mutableState.value = NetworkState.Error(e.message ?: "Tailscale could not start")
+                } catch (e: Throwable) {
+                    // Errors too: a missing native library is an UnsatisfiedLinkError.
+                    mutableState.value = NetworkState.Error(e.message ?: e.toString(), e.stackTraceToString())
                     return@launch
                 }
                 while (isActive) {
@@ -83,7 +86,7 @@ class TailscaleProvider(
         prefs.edit().putBoolean(KEY_ENABLED, false).apply()
         poller?.cancel()
         poller = null
-        scope.launch(Dispatchers.IO) { node.stop() }
+        scope.launch(Dispatchers.IO) { runCatching { createdNode?.stop() } }
         mutableState.value = NetworkState.Stopped
         mutablePublic.value = mutablePublic.value.copy(url = null, problem = null)
     }
@@ -94,28 +97,50 @@ class TailscaleProvider(
         if (poller == null) return
         poller?.cancel()
         poller = null
-        scope.launch(Dispatchers.IO) { node.stop() }
+        scope.launch(Dispatchers.IO) { runCatching { createdNode?.stop() } }
         mutableState.value = NetworkState.Stopped
     }
 
     override fun logout() {
         stop()
-        scope.launch(Dispatchers.IO) { node.logout() }
+        scope.launch(Dispatchers.IO) { runCatching { createdNode?.logout() } }
     }
 
     override fun setPublic(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_PUBLIC, enabled).apply()
         mutablePublic.value = mutablePublic.value.copy(enabled = enabled, url = null, problem = null)
         scope.launch(Dispatchers.IO) {
-            runCatching { node.setPublic(enabled) }
+            runCatching { createdNode?.setPublic(enabled) }
             refresh()
         }
     }
 
     /** The node's recent log lines, for Doctor. */
-    fun logs(): String = runCatching { node.logs() }.getOrDefault("")
+    fun logs(): String = runCatching { createdNode?.logs() }.getOrNull().orEmpty()
+
+    @Synchronized
+    private fun node(): Node =
+        createdNode ?: run {
+            go.Seq.setContext(appContext)
+            Ppnet.newNode(stateDir.absolutePath, hostname(), targetPort.toLong()).also { createdNode = it }
+        }
+
+    /**
+     * If the Go runtime died in the last run, it left a report in the state directory. Shows it once,
+     * and leaves Tailscale off so [resume] does not crash the app again on every launch.
+     */
+    private fun previousCrash(): NetworkState {
+        val crash = runCatching { File(stateDir, CRASH_FILE).readText() }.getOrNull()
+        if (crash.isNullOrBlank()) return NetworkState.Stopped
+        val log = runCatching { File(stateDir, LOG_FILE).readLines().takeLast(CRASH_LOG_LINES) }.getOrDefault(emptyList())
+        runCatching { File(stateDir, CRASH_FILE).writeText("") }
+        prefs.edit().putBoolean(KEY_ENABLED, false).apply()
+        val details = crash.trim() + "\n\n--- Tailscale log ---\n" + log.joinToString("\n")
+        return NetworkState.Error("Tailscale stopped unexpectedly last time", details)
+    }
 
     private fun refresh() {
+        val node = createdNode ?: return
         val status = runCatching { JSONObject(node.status()) }.getOrNull() ?: return
         val backend = status.optString("backendState")
         val dnsName = status.optString("dnsName")
@@ -163,6 +188,11 @@ class TailscaleProvider(
         const val KEY_PUBLIC = "public"
         const val POLL_STARTING_MS = 1_000L
         const val POLL_CONNECTED_MS = 5_000L
+        const val CRASH_LOG_LINES = 80
+
+        // ppnet.CrashFile and ppnet.LogFile. Kept here so reading them never loads the Go library.
+        const val CRASH_FILE = "crash.txt"
+        const val LOG_FILE = "node.log"
 
         /** `pocketpilot-sm-s918w`: Tailscale host names allow letters, digits and hyphens. */
         fun hostname(): String =

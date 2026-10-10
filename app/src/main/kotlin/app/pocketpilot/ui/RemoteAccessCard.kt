@@ -59,7 +59,14 @@ internal fun RemoteAccessCard(
 
                 is NetworkState.Error -> {
                     Text(stringResource(R.string.remote_error, state.reason), color = MaterialTheme.colorScheme.error)
-                    TextButton(onClick = onTurnOff) { Text(stringResource(R.string.remote_turn_off)) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = onTurnOff) { Text(stringResource(R.string.remote_turn_off)) }
+                        state.details?.let { details ->
+                            TextButton(onClick = { clipboard.setText(AnnotatedString(details)) }) {
+                                Text(stringResource(R.string.remote_copy_details))
+                            }
+                        }
+                    }
                 }
 
                 is NetworkState.Connected -> {

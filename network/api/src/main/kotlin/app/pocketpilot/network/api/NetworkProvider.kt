@@ -22,6 +22,8 @@ sealed interface NetworkState {
 
     data class Error(
         val reason: String,
+        /** A crash report or stack trace the owner can copy and send for support. */
+        val details: String? = null,
     ) : NetworkState
 }
 

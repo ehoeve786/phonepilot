@@ -15,6 +15,9 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -54,6 +57,7 @@ func (n *Node) Start(authKey string) error {
 		return nil
 	}
 	registerInterfaceGetter()
+	n.recordCrashes()
 	n.lastError = ""
 	n.srv = &tsnet.Server{
 		Dir:      n.stateDir,
@@ -69,6 +73,28 @@ func (n *Node) Start(authKey string) error {
 	}
 	go n.serveWhenRunning(n.srv)
 	return nil
+}
+
+// CrashFile and LogFile, in the state directory, hold the Go runtime's report of a fatal error and
+// the node's log lines from the run that hit it. The app reads them after a restart.
+const (
+	CrashFile = "crash.txt"
+	LogFile   = "node.log"
+)
+
+// recordCrashes points the Go runtime's fatal-error output, and a copy of the log, at the state
+// directory, replacing what an earlier run left there.
+func (n *Node) recordCrashes() {
+	if err := os.MkdirAll(n.stateDir, 0o700); err != nil {
+		return
+	}
+	n.logs.writeTo(filepath.Join(n.stateDir, LogFile))
+	f, err := os.OpenFile(filepath.Join(n.stateDir, CrashFile), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_ = debug.SetCrashOutput(f, debug.CrashOptions{})
 }
 
 // serveWhenRunning waits until the node is logged in, then opens the HTTPS listener.
