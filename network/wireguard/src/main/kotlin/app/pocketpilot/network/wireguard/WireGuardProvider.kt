@@ -101,9 +101,15 @@ class WireGuardProvider(
                     mutableState.value = NetworkState.Error(e.message ?: e.toString(), e.stackTraceToString())
                     return@launch
                 }
-                mutableSetup.value.serverHost?.let { certificates.followRelay(it) }
+                var followedAt = 0L
                 while (isActive) {
                     refresh()
+                    // Also catches a domain set after the tunnel came up, and a router whose address changed.
+                    val now = System.currentTimeMillis()
+                    if (state.value is NetworkState.Connected && now - followedAt > FOLLOW_RELAY_MS) {
+                        followedAt = now
+                        mutableSetup.value.serverHost?.let { certificates.followRelay(it) }
+                    }
                     delay(POLL_MS)
                 }
             }
@@ -177,6 +183,7 @@ class WireGuardProvider(
         const val KEY_ENABLED = "enabled"
         const val SECRET_CONFIG = "wireguard_config"
         const val POLL_MS = 3_000L
+        const val FOLLOW_RELAY_MS = 15 * 60_000L
 
         /** `host:port` or `[v6]:port` to the host. */
         fun hostOf(endpoint: String): String =
