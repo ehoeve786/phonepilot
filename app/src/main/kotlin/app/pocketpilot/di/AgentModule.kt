@@ -58,7 +58,17 @@ object AgentModule {
         dispatcher: CallDispatcher,
         store: FileRunStore,
         policy: PolicyEngine,
-    ): AgentRunner = AgentRunner(registry, dispatcher, SessionFactory(), store, onSessionEnd = policy::endSession)
+    ): AgentRunner =
+        AgentRunner(
+            registry,
+            dispatcher,
+            SessionFactory(),
+            store,
+            onSessionEnd = policy::endSession,
+            // The owner starts a run by typing the task on the phone, so its settings changes need no
+            // second prompt. Remote clients still confirm, and destructive tools always do.
+            onSessionStart = { policy.preConfirm(it.id, setOf("settings.set")) },
+        )
 
     @Provides
     @Singleton

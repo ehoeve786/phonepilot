@@ -49,6 +49,8 @@ class AgentRunner(
     private val clock: Clock = Clock.System,
     /** Called when a run's session ends, so the policy engine can forget its confirmations. */
     private val onSessionEnd: (SessionId) -> Unit = {},
+    /** Called before a run starts, for example to pre-approve tools the owner allows in their own runs. */
+    private val onSessionStart: (Session) -> Unit = {},
 ) {
     private val mutableCurrent = MutableStateFlow<AgentRun?>(null)
 
@@ -70,6 +72,7 @@ class AgentRunner(
                 ?.active != true,
         ) { "A run is already in progress" }
         val session = sessions.agentSession(task.scopes)
+        onSessionStart(session)
         val run = AgentRun(session, task, model, budgets, registry, dispatcher, store, clock, onSessionEnd)
         mutableCurrent.value = run
         run.launchIn(scope)

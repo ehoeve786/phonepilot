@@ -151,6 +151,18 @@ class PolicyEngine(
         return if (appPolicy.modeFor(front) == AppMode.DENY) deniedApp(front) else Decision.Allow
     }
 
+    /**
+     * Treats [tools] as already confirmed for session [id], for sessions the owner started on the phone
+     * itself. Only sensitive tools are affected; destructive ones are confirmed on every call regardless.
+     */
+    @Synchronized
+    fun preConfirm(
+        id: SessionId,
+        tools: Set<String>,
+    ) {
+        confirmedSensitive.getOrPut(id) { HashSet() } += tools
+    }
+
     /** Forgets a session's confirmations and rate-limit window when it ends. */
     @Synchronized
     fun endSession(id: SessionId) {
