@@ -93,7 +93,8 @@ class ScreenFindTool(
             name = "screen.find",
             title = "Find on screen",
             description =
-                "Finds elements on the current screen. text and description match case-insensitively by substring, " +
+                "Finds elements on the current screen. text and description match case-insensitively by substring; " +
+                    "text also matches an element's accessibility label, where icons and Quick Settings tiles keep theirs. " +
                     "resourceId by suffix (\"title\" matches \"android:id/title\"), role exactly. Returns the snapshotId " +
                     "and the matching elements.",
             inputSchema = selectorSchema(),
@@ -288,7 +289,8 @@ internal data class Selector(
 ) {
     fun match(snapshot: Snapshot): List<Element> =
         snapshot.elements.filter { e ->
-            (text == null || e.text?.contains(text, ignoreCase = true) == true) &&
+            // Text is what a person reads, and many tiles and icons (Quick Settings on Samsung) carry it only as their label.
+            (text == null || listOfNotNull(e.text, e.description).any { it.contains(text, ignoreCase = true) }) &&
                 (description == null || e.description?.contains(description, ignoreCase = true) == true) &&
                 (resourceId == null || e.resourceId?.let { it == resourceId || it.endsWith("/$resourceId") } == true) &&
                 (role == null || e.role == role)

@@ -1,6 +1,9 @@
 package app.pocketpilot.core.tools
 
+import app.pocketpilot.capability.api.screen.Bounds
+import app.pocketpilot.capability.api.screen.Element
 import app.pocketpilot.capability.api.screen.Frame
+import app.pocketpilot.capability.api.screen.Role
 import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.core.audit.InMemoryAuditSink
 import app.pocketpilot.core.imaging.ImagePipeline
@@ -89,6 +92,25 @@ class ScreenAndUiToolsTest {
             assertTrue(call("screen.find", """{"resourceId":"title"}""").text().contains(""""id":"e3""""))
             assertEquals(ToolErrorCode.ELEMENT_NOT_FOUND, call("screen.find", """{"text":"Wi-Fi"}""").errorCode)
             assertEquals(ToolErrorCode.INVALID_ARGUMENTS, call("screen.find").errorCode)
+        }
+
+    @Test
+    fun `find by text also matches a tile that only has a label`() =
+        runTest {
+            reader.snapshot =
+                settingsSnapshot().copy(
+                    elements =
+                        settingsSnapshot().elements +
+                            Element(
+                                "e9",
+                                "e1",
+                                Role.BUTTON,
+                                description = "Do not disturb, Off",
+                                bounds = Bounds(0, 600, 270, 800),
+                                clickable = true,
+                            ),
+                )
+            assertTrue(call("screen.find", """{"text":"Do Not Disturb","role":"button"}""").text().contains(""""id":"e9""""))
         }
 
     @Test
