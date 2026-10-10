@@ -302,7 +302,7 @@ func (n *Node) serveLocked(ln net.Listener) {
 		},
 	}
 	httpSrv := &http.Server{
-		Handler:           proxy,
+		Handler:           n.logRequests(proxy),
 		ReadHeaderTimeout: 30 * time.Second,
 		// TLS is already terminated by the tsnet listener.
 		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
@@ -315,6 +315,31 @@ func (n *Node) serveLocked(ln net.Listener) {
 		}
 	}()
 }
+
+// logRequests adds a line per request to the node log (method, path, status, time taken), so the
+// owner can copy it when a client such as claude.ai cannot connect. Tokens and bodies are not logged.
+func (n *Node) logRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+		n.logs.logf("ppnet: %s %s %s -> %d in %v (%s)", r.Method, r.Host, r.URL.Path, rec.status,
+			time.Since(start).Round(time.Millisecond), r.UserAgent())
+	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+// Unwrap lets http.ResponseController reach Flush, which streaming MCP responses need.
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 
 func (n *Node) closeListenerLocked() {
 	if n.httpSrv != nil {
