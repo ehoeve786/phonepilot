@@ -202,7 +202,8 @@ private fun WireGuardSection(
         )
     }
     val address = (state as? NetworkState.Connected)?.address
-    val peer = if (setup.publicKey != null && address != null) RelayConfig.wireGuardPeer(setup.publicKey, address) else null
+    val publicKey = setup.publicKey
+    val peer = if (publicKey != null && address != null) RelayConfig.wireGuardPeer(publicKey, address) else null
     RelaySetups(state, RelayNetwork.WIREGUARD, peer)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OnOffButton(state, actions.setWireGuard)
