@@ -4,6 +4,7 @@ plugins {
 
 dependencies {
     api(projects.server.mcp)
+    api(projects.server.oauth)
     implementation(libs.ktor.server.cio)
 
     // The end-to-end test serves the real device.info tool backed by a fake source.

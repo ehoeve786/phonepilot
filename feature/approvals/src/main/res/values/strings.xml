@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_approvals_consent_title">Let %1$s control this phone?</string>
+    <string name="feature_approvals_consent_from">Request from %1$s</string>
+    <string name="feature_approvals_consent_explainer">Choose what it may do. You can remove access at any time from PocketPilot\'s home screen.</string>
+    <string name="feature_approvals_consent_warning">Only allow this if you just started connecting an app you trust. Banking, payment and password apps stay off limits either way.</string>
+    <string name="feature_approvals_allow">Allow</string>
+    <string name="feature_approvals_deny">Deny</string>
+    <string name="feature_approvals_confirm_title">%1$s wants to do this</string>
+    <string name="feature_approvals_confirm_in_app">While %1$s is open</string>
+    <string name="feature_approvals_confirm_destructive">This cannot be undone.</string>
+    <string name="feature_approvals_scope_screen_read">Read the screen</string>
+    <string name="feature_approvals_scope_ui_interact">Tap, swipe and type</string>
+    <string name="feature_approvals_scope_apps_read">See installed apps and the app in front</string>
+    <string name="feature_approvals_scope_apps_control">Open apps and links</string>
+    <string name="feature_approvals_scope_device_read">See device details and battery</string>
+    <string name="feature_approvals_scope_clipboard">Read and write the clipboard</string>
+    <string name="feature_approvals_scope_notify_read">Read notifications</string>
+    <string name="feature_approvals_scope_notify_act">Open, reply to and dismiss notifications</string>
+    <string name="feature_approvals_scope_settings_write">Change settings</string>
+    <string name="feature_approvals_scope_files_read">Read files in folders you share</string>
+    <string name="feature_approvals_scope_files_write">Write files in folders you share</string>
+    <string name="feature_approvals_scope_task_run">Run agent tasks</string>
+</resources>
