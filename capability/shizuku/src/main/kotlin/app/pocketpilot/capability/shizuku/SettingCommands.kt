@@ -52,9 +52,41 @@ internal class SettingCommands(
                 if (setting("system", "accelerometer_rotation") == "1") AUTO else LOCKED
             }
 
-            SettingKey.VOLUME -> {
-                val (level, max) = mediaVolume()
+            SettingKey.VOLUME, SettingKey.RING_VOLUME, SettingKey.ALARM_VOLUME, SettingKey.NOTIFICATION_VOLUME -> {
+                val (level, max) = volume(stream(key))
                 if (max == 0) "0" else (level * 100.0 / max).roundToInt().toString()
+            }
+
+            SettingKey.AIRPLANE_MODE -> {
+                onOff(setting("global", "airplane_mode_on") == "1")
+            }
+
+            SettingKey.MOBILE_DATA -> {
+                onOff(setting("global", "mobile_data") == "1")
+            }
+
+            SettingKey.LOCATION -> {
+                onOff(setting("secure", "location_mode").let { it.isNotEmpty() && it != "0" && it != "null" })
+            }
+
+            SettingKey.BATTERY_SAVER -> {
+                onOff(setting("global", "low_power") == "1")
+            }
+
+            SettingKey.STAY_AWAKE -> {
+                onOff(setting("global", "stay_on_while_plugged_in").let { it.isNotEmpty() && it != "0" && it != "null" })
+            }
+
+            SettingKey.SCREEN_TIMEOUT -> {
+                ((setting("system", "screen_off_timeout").toLongOrNull() ?: 0L) / 1000).toString()
+            }
+
+            SettingKey.FONT_SCALE -> {
+                setting("system", "font_scale").takeUnless { it.isEmpty() || it == "null" } ?: "1"
+            }
+
+            SettingKey.ANIMATIONS -> {
+                onOff(setting("global", "animator_duration_scale").toDoubleOrNull() != 0.0)
             }
         }
 
@@ -101,10 +133,52 @@ internal class SettingCommands(
                 put("system", "accelerometer_rotation", if (value == AUTO) "1" else "0")
             }
 
-            SettingKey.VOLUME -> {
-                val (_, max) = mediaVolume()
+            SettingKey.VOLUME, SettingKey.RING_VOLUME, SettingKey.ALARM_VOLUME, SettingKey.NOTIFICATION_VOLUME -> {
+                val stream = stream(key)
+                val (_, max) = volume(stream)
                 val level = (value.toInt() * max / 100.0).roundToInt().coerceIn(0, max)
-                run(listOf("cmd", "media_session", "volume", "--stream", MEDIA_STREAM, "--set", level.toString()))
+                run(listOf("cmd", "media_session", "volume", "--stream", stream, "--set", level.toString()))
+            }
+
+            SettingKey.AIRPLANE_MODE -> {
+                run(listOf("cmd", "connectivity", "airplane-mode", if (value == ON) "enable" else "disable"))
+            }
+
+            SettingKey.MOBILE_DATA -> {
+                run(listOf("svc", "data", if (value == ON) "enable" else "disable"))
+            }
+
+            SettingKey.LOCATION -> {
+                firstWorking(
+                    listOf("cmd", "location", "set-location-enabled", (value == ON).toString()),
+                    listOf("settings", "put", "secure", "location_mode", if (value == ON) "3" else "0"),
+                )
+            }
+
+            SettingKey.BATTERY_SAVER -> {
+                firstWorking(
+                    listOf("cmd", "power", "set-mode", if (value == ON) "1" else "0"),
+                    listOf("settings", "put", "global", "low_power", if (value == ON) "1" else "0"),
+                )
+            }
+
+            SettingKey.STAY_AWAKE -> {
+                run(listOf("svc", "power", "stayon", (value == ON).toString()))
+            }
+
+            SettingKey.SCREEN_TIMEOUT -> {
+                put("system", "screen_off_timeout", (value.toLong() * 1000).toString())
+            }
+
+            SettingKey.FONT_SCALE -> {
+                put("system", "font_scale", value)
+            }
+
+            SettingKey.ANIMATIONS -> {
+                val scale = if (value == ON) "1" else "0"
+                for (name in listOf("window_animation_scale", "transition_animation_scale", "animator_duration_scale")) {
+                    put("global", name, scale)
+                }
             }
         }
     }
@@ -122,9 +196,19 @@ internal class SettingCommands(
         run(listOf("settings", "put", namespace, name, value))
     }
 
-    /** The media stream's level and its maximum. */
-    private fun mediaVolume(): Pair<Int, Int> {
-        val output = run(listOf("cmd", "media_session", "volume", "--stream", MEDIA_STREAM, "--get"))
+    private fun onOff(on: Boolean) = if (on) ON else OFF
+
+    private fun stream(key: SettingKey): String =
+        when (key) {
+            SettingKey.RING_VOLUME -> RING_STREAM
+            SettingKey.ALARM_VOLUME -> ALARM_STREAM
+            SettingKey.NOTIFICATION_VOLUME -> NOTIFICATION_STREAM
+            else -> MEDIA_STREAM
+        }
+
+    /** A stream's level and its maximum. */
+    private fun volume(stream: String): Pair<Int, Int> {
+        val output = run(listOf("cmd", "media_session", "volume", "--stream", stream, "--get"))
         val match = checkNotNull(VOLUME.find(output)) { "Could not read the volume: ${output.trim().take(MAX_OUTPUT)}" }
         return match.groupValues[1].toInt() to match.groupValues[3].toInt()
     }
@@ -146,6 +230,9 @@ internal class SettingCommands(
     internal companion object {
         const val MAX_BRIGHTNESS = 255
         const val MEDIA_STREAM = "3"
+        const val RING_STREAM = "2"
+        const val ALARM_STREAM = "4"
+        const val NOTIFICATION_STREAM = "5"
         private const val MAX_OUTPUT = 200
 
         /** `cmd media_session volume --get` prints, for example, "volume is 7 in range [0..15]". */

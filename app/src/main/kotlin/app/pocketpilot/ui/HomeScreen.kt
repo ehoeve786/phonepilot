@@ -13,6 +13,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -20,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
@@ -80,6 +82,9 @@ fun HomeScreen(
     ownNetworkCard: @Composable () -> Unit = {},
     /** Agent mode: model profiles, tasks and runs. */
     agentCard: @Composable () -> Unit = {},
+    /** The raw shell switch; the Play build has no shell tool, so it never shows there. */
+    shellEnabled: Boolean = false,
+    onShellChange: (Boolean) -> Unit = {},
 ) {
     Scaffold(modifier = modifier.fillMaxSize()) { padding ->
         Column(
@@ -101,6 +106,7 @@ fun HomeScreen(
             AccessibilityCard(accessibilityOn, onOpenAccessibilitySettings, onOpenAppInfo)
             DoctorCard(capabilities, shizukuState, onGrantShizuku)
             agentCard()
+            if (policyProfile != PolicyProfile.PLAY) ShellCard(shellEnabled, onShellChange)
             RemoteAccessCard(
                 state = remoteState,
                 public = publicState,
@@ -184,6 +190,33 @@ private fun AccessibilityCard(
                 Button(onClick = onOpenSettings) { Text(stringResource(R.string.accessibility_open_settings)) }
                 Text(stringResource(R.string.accessibility_restricted), style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = onOpenAppInfo) { Text(stringResource(R.string.accessibility_open_app_info)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShellCard(
+    enabled: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.shell_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(checked = enabled, onCheckedChange = onChange)
+            }
+            Text(stringResource(R.string.shell_explainer), style = MaterialTheme.typography.bodySmall)
+            if (enabled) {
+                Text(
+                    stringResource(R.string.shell_warning),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }

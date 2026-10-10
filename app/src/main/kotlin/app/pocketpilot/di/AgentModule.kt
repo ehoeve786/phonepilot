@@ -8,11 +8,13 @@ import app.pocketpilot.agent.runtime.AgentRunner
 import app.pocketpilot.agent.runtime.FileRunStore
 import app.pocketpilot.agent.runtime.ProfileStore
 import app.pocketpilot.capability.api.screen.ScreenReader
+import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.SessionFactory
 import app.pocketpilot.core.orchestrator.ToolRegistry
 import app.pocketpilot.core.policy.PolicyEngine
 import app.pocketpilot.network.api.SecretStore
+import app.pocketpilot.security.ShellSwitch
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -78,6 +80,7 @@ object AgentModule {
         runs: FileRunStore,
         secrets: SecretStore,
         reader: ScreenReader,
+        shell: ShellSwitch,
         scope: CoroutineScope,
     ): AgentCoordinator {
         val notifier = AgentNotifier(context)
@@ -92,6 +95,7 @@ object AgentModule {
             ownPackage = context.packageName,
             scope = scope,
             onRunState = notifier::update,
+            extraScopes = { if (shell.enabled.value) setOf(Scope.SHELL_EXEC) else emptySet() },
         )
     }
 }

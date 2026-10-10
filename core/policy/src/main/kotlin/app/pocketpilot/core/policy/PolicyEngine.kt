@@ -27,6 +27,8 @@ data class ConfirmationRequest(
     val riskTier: RiskTier,
     /** Set when the call is confirmed because of the app in front ([AppMode.CONFIRM_ALL]). */
     val foregroundPackage: String? = null,
+    /** What exactly will run, such as a shell command, shown to the owner verbatim. */
+    val detail: String? = null,
 )
 
 enum class ConfirmationAnswer {
@@ -64,6 +66,8 @@ class PolicyEngine(
     suspend fun before(
         session: Session,
         spec: ToolSpec,
+        /** Shown in the confirmation; see [ConfirmationRequest.detail]. */
+        detail: String? = null,
     ): Decision {
         if (!rateLimiter.tryAcquire(session.id.value)) {
             return Decision.Deny(
@@ -114,6 +118,7 @@ class PolicyEngine(
                         toolTitle = spec.title,
                         riskTier = spec.riskTier,
                         foregroundPackage = front.takeIf { confirmBecauseOfApp },
+                        detail = detail,
                     ),
                 ) ?: ConfirmationAnswer.DECLINED
             when (answer) {

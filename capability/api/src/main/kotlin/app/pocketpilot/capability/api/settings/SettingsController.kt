@@ -18,17 +18,54 @@ enum class SettingKey(
     BRIGHTNESS("brightness", "0 to 100 (percent), or auto"),
     ROTATION("rotation", "auto or locked"),
     VOLUME("volume", "0 to 100 (percent of media volume)"),
+    RING_VOLUME("ring_volume", "0 to 100 (percent)"),
+    ALARM_VOLUME("alarm_volume", "0 to 100 (percent)"),
+    NOTIFICATION_VOLUME("notification_volume", "0 to 100 (percent)"),
+    AIRPLANE_MODE("airplane_mode", "on or off (on cuts remote connections)"),
+    MOBILE_DATA("mobile_data", "on or off"),
+    LOCATION("location", "on or off"),
+    BATTERY_SAVER("battery_saver", "on or off"),
+    STAY_AWAKE("stay_awake", "on or off (screen stays on while charging)"),
+    SCREEN_TIMEOUT("screen_timeout", "15 to 1800 (seconds)"),
+    FONT_SCALE("font_scale", "0.8 to 2.0 (1.0 is the default size)"),
+    ANIMATIONS("animations", "on or off (system animations)"),
     ;
 
     /** [value] in canonical form, or null when this key does not accept it. */
     fun normalize(value: String): String? {
         val v = value.trim().lowercase()
         return when (this) {
-            DARK_MODE -> v.takeIf { it in setOf(ON, OFF, AUTO) }
-            WIFI, BLUETOOTH, DND -> v.takeIf { it in setOf(ON, OFF) }
-            ROTATION -> v.takeIf { it in setOf(AUTO, LOCKED) }
-            BRIGHTNESS -> if (v == AUTO) v else percent(v)
-            VOLUME -> percent(v)
+            DARK_MODE -> {
+                v.takeIf { it in setOf(ON, OFF, AUTO) }
+            }
+
+            WIFI, BLUETOOTH, DND, AIRPLANE_MODE, MOBILE_DATA, LOCATION, BATTERY_SAVER, STAY_AWAKE, ANIMATIONS -> {
+                v.takeIf { it in setOf(ON, OFF) }
+            }
+
+            ROTATION -> {
+                v.takeIf { it in setOf(AUTO, LOCKED) }
+            }
+
+            BRIGHTNESS -> {
+                if (v == AUTO) v else percent(v)
+            }
+
+            VOLUME, RING_VOLUME, ALARM_VOLUME, NOTIFICATION_VOLUME -> {
+                percent(v)
+            }
+
+            SCREEN_TIMEOUT -> {
+                v
+                    .removeSuffix("s")
+                    .toIntOrNull()
+                    ?.takeIf { it in 15..1800 }
+                    ?.toString()
+            }
+
+            FONT_SCALE -> {
+                v.toDoubleOrNull()?.takeIf { it in 0.8..2.0 }?.let { "%.2f".format(java.util.Locale.ROOT, it).trimEnd('0').trimEnd('.') }
+            }
         }
     }
 

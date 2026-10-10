@@ -25,6 +25,7 @@ import app.pocketpilot.feature.network.OwnNetworkCard
 import app.pocketpilot.network.certificates.CertificateManager
 import app.pocketpilot.network.tailscale.TailscaleProvider
 import app.pocketpilot.network.wireguard.WireGuardProvider
+import app.pocketpilot.security.ShellSwitch
 import app.pocketpilot.server.LocalTokenStore
 import app.pocketpilot.server.PocketPilotService
 import app.pocketpilot.server.http.McpHttpServer
@@ -56,6 +57,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var wireGuard: WireGuardProvider
 
     @Inject lateinit var agent: AgentCoordinator
+
+    @Inject lateinit var shellSwitch: ShellSwitch
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -172,6 +175,8 @@ class MainActivity : ComponentActivity() {
                             actions = agentActions,
                         )
                     },
+                    shellEnabled = shellSwitch.enabled.collectAsStateWithLifecycle().value,
+                    onShellChange = shellSwitch::set,
                 )
             }
         }

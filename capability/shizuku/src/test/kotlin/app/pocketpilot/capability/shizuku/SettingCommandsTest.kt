@@ -56,6 +56,20 @@ class SettingCommandsTest {
     }
 
     @Test
+    fun `sets the newer settings with their own commands`() {
+        commands.set(SettingKey.AIRPLANE_MODE, "on")
+        commands.set(SettingKey.SCREEN_TIMEOUT, "60")
+        commands.set(SettingKey.ANIMATIONS, "off")
+        outputs["cmd media_session volume --stream 4 --get"] = "volume is 7 in range [1..7]"
+        commands.set(SettingKey.ALARM_VOLUME, "100")
+        assertEquals("cmd connectivity airplane-mode enable", ran[0])
+        assertEquals("settings put system screen_off_timeout 60000", ran[1])
+        assertEquals("settings put global animator_duration_scale 0", ran[4])
+        assertEquals("cmd media_session volume --stream 4 --set 7", ran.last())
+        assertEquals("1.15", SettingKey.FONT_SCALE.normalize("1.150"))
+    }
+
+    @Test
     fun `refuses values the key does not take`() {
         assertFailsWith<IllegalArgumentException> { commands.set(SettingKey.WIFI, "auto") }
         assertFailsWith<IllegalArgumentException> { commands.set(SettingKey.VOLUME, "150") }

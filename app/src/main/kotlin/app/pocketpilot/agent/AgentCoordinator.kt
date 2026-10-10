@@ -57,6 +57,8 @@ class AgentCoordinator(
     private val scope: CoroutineScope,
     /** Shows the live run outside the app, so the owner can take over or stop it from anywhere. */
     private val onRunState: (RunState?) -> Unit = {},
+    /** Scopes the owner turned on beyond [AGENT_SCOPES], such as the raw shell. Read when a run starts. */
+    private val extraScopes: () -> Set<Scope> = { emptySet() },
 ) {
     val current: StateFlow<RunState?> =
         runner.current
@@ -95,7 +97,7 @@ class AgentCoordinator(
             }
             try {
                 runner.start(
-                    AgentTask(goal, AGENT_SCOPES, preApproved = if (allowSettings) setOf(SETTINGS_SET) else emptySet()),
+                    AgentTask(goal, AGENT_SCOPES + extraScopes(), preApproved = if (allowSettings) setOf(SETTINGS_SET) else emptySet()),
                     runModel(profile),
                     profile.budgets(),
                     scope,

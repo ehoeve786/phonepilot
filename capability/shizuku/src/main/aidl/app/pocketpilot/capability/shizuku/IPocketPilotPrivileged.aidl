@@ -36,6 +36,27 @@ interface IPocketPilotPrivileged {
     // The value must already be canonical for the key.
     void writeSetting(String key, String value) = 13;
 
+    // App management (AppAdminArgs checks every argument).
+    void forceStop(String packageName) = 14;
+
+    // `dumpsys package` output for one package.
+    String dumpPackage(String packageName) = 15;
+
+    // `appops get` output for one package.
+    String appOps(String packageName) = 16;
+
+    void setPermission(String packageName, String permission, boolean granted) = 17;
+
+    void setAppOp(String packageName, String op, String mode) = 18;
+
+    void setPackageEnabled(String packageName, boolean enabled) = 19;
+
+    void clearPackageData(String packageName) = 20;
+
+    // shell.exec: `sh -c command`. Returns exit code, stdout and stderr separated by NUL characters;
+    // the exit code is -1 when the command timed out.
+    String runShell(String command, long timeoutMs) = 21;
+
     // Required by Shizuku to stop the service.
     void destroy() = 16777114;
 }
