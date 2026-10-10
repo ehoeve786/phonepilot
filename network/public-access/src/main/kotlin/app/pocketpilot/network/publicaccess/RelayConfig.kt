@@ -36,7 +36,8 @@ object RelayConfig {
     /**
      * Shell commands for an OpenWrt router (GL.iNet included) that forward the router's public port 443
      * to the phone. For ZeroTier the zone also masquerades, so the phone's replies return through the
-     * router; a WireGuard phone already sends every reply to the router.
+     * router; a WireGuard phone already sends every reply to the router. The forward also applies on
+     * the home network, where the router would otherwise answer its own address with its admin page.
      */
     fun openWrt(
         target: RelayTarget,
@@ -49,6 +50,9 @@ object RelayConfig {
             for ((key, value) in redirectOptions(target, network)) {
                 appendLine("uci set firewall.@redirect[-1].$key='$value'")
             }
+            // Devices at home reach the domain through the router's public address too, the phone's
+            // browser included when it signs a client in, so forward their connections as well.
+            appendLine("uci add_list firewall.@redirect[-1].reflection_zone='lan'")
             if (network == RelayNetwork.ZEROTIER) {
                 appendLine(
                     "for z in \$(uci show firewall | sed -n \"s/^firewall\\.\\([^.]*\\)\\.name='${network.openWrtZone}'\$/\\1/p\"); " +

@@ -14,6 +14,7 @@ class RelayConfigTest {
         assertContains(script, "uci set firewall.@redirect[-1].dest='wgserver'")
         assertContains(script, "uci set firewall.@redirect[-1].dest_ip='10.0.0.2'")
         assertContains(script, "uci set firewall.@redirect[-1].src_dport='443'")
+        assertContains(script, "uci add_list firewall.@redirect[-1].reflection_zone='lan'")
         assertFalse("masq" in script)
     }
 
