@@ -58,6 +58,8 @@ fun HomeScreen(
     accessibilityOn: Boolean,
     capabilities: List<CapabilityStatus>,
     shizukuState: ShizukuState,
+    crashReport: String?,
+    onDismissCrash: () -> Unit,
     remoteState: NetworkState,
     publicState: PublicAccessState,
     clients: List<ClientRow>,
@@ -88,6 +90,7 @@ fun HomeScreen(
                 stringResource(R.string.home_build, policyProfile.flavor.name.lowercase(), versionName),
                 style = MaterialTheme.typography.bodySmall,
             )
+            crashReport?.let { CrashCard(it, onDismissCrash) }
             ServerCard(serverState, onStart, onStop)
             AccessibilityCard(accessibilityOn, onOpenAccessibilitySettings, onOpenAppInfo)
             DoctorCard(capabilities, shizukuState, onGrantShizuku)
@@ -106,6 +109,31 @@ fun HomeScreen(
         }
     }
 }
+
+@Composable
+private fun CrashCard(
+    report: String,
+    onDismiss: () -> Unit,
+) {
+    val clipboard = LocalClipboardManager.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.crash_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.crash_text), style = MaterialTheme.typography.bodySmall)
+            Text(
+                report.lineSequence().take(CRASH_PREVIEW_LINES).joinToString("\n"),
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { clipboard.setText(AnnotatedString(report)) }) { Text(stringResource(R.string.crash_copy)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.crash_dismiss)) }
+            }
+        }
+    }
+}
+
+private const val CRASH_PREVIEW_LINES = 4
 
 @Composable
 private fun ServerCard(
@@ -219,6 +247,8 @@ private fun HomeScreenPreview() {
             accessibilityOn = false,
             capabilities = emptyList(),
             shizukuState = ShizukuState.NOT_RUNNING,
+            crashReport = null,
+            onDismissCrash = {},
             remoteState = NetworkState.Stopped,
             publicState = PublicAccessState(enabled = false),
             clients = emptyList(),

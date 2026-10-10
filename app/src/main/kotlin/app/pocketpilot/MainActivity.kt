@@ -47,6 +47,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val crashReports = (application as PocketPilotApplication).crashReports
+        crashReports.load()
         setContent {
             // The foreground service notification needs this permission on Android 13+; the server
             // runs either way, the notification is just hidden without it.
@@ -62,6 +64,8 @@ class MainActivity : ComponentActivity() {
                     accessibilityOn = A11yBridge.connected.collectAsStateWithLifecycle().value,
                     capabilities = capabilityGraph.state.collectAsStateWithLifecycle().value,
                     shizukuState = shizuku.state.collectAsStateWithLifecycle().value,
+                    crashReport = crashReports.report.collectAsStateWithLifecycle().value,
+                    onDismissCrash = crashReports::dismiss,
                     remoteState = tailscale.state.collectAsStateWithLifecycle().value,
                     publicState = tailscale.publicState.collectAsStateWithLifecycle().value,
                     clients =

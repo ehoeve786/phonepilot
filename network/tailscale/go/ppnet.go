@@ -58,6 +58,7 @@ func (n *Node) Start(authKey string) error {
 	}
 	registerInterfaceGetter()
 	n.recordCrashes()
+	n.setDirsLocked()
 	n.lastError = ""
 	n.srv = &tsnet.Server{
 		Dir:      n.stateDir,
@@ -95,6 +96,26 @@ func (n *Node) recordCrashes() {
 	}
 	defer f.Close()
 	_ = debug.SetCrashOutput(f, debug.CrashOptions{})
+}
+
+// setDirsLocked gives Tailscale writable directories. An Android app has no $HOME, cache directory
+// or writable temp directory, and Tailscale's log setup panics when it finds none of them.
+func (n *Node) setDirsLocked() {
+	dirs := map[string]string{
+		"TS_LOGS_DIR":    "logs",
+		"HOME":           "home",
+		"XDG_CACHE_HOME": "cache",
+		"TMPDIR":         "tmp",
+	}
+	for env, sub := range dirs {
+		if os.Getenv(env) != "" {
+			continue
+		}
+		dir := filepath.Join(n.stateDir, sub)
+		if os.MkdirAll(dir, 0o700) == nil {
+			_ = os.Setenv(env, dir)
+		}
+	}
 }
 
 // serveWhenRunning waits until the node is logged in, then opens the HTTPS listener.
