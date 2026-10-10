@@ -41,7 +41,8 @@ data class AgentProfile(
     /** Overrides the default cost limit; null uses the default for [kind]. */
     val maxCostUsd: Double? = null,
 ) {
-    val keyName: String get() = "agent.key.$id"
+    /** Lowercase letters, digits and `_` only, which every secret store accepts as a file name. */
+    val keyName: String get() = "agent_key_" + id.lowercase().replace(Regex("[^a-z0-9]"), "_")
 
     /** The id the provider reports, which the model registry is keyed by. */
     val providerId: String

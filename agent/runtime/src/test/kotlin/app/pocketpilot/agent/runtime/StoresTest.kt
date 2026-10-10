@@ -31,6 +31,12 @@ class StoresTest {
     }
 
     @Test
+    fun `key names are safe file names`() {
+        val profile = AgentProfile("dd0a46de-9862-4200-a43d-712e7ed1895b", "Gemini", ProviderKind.GEMINI, "gemini-2.5-flash")
+        assertEquals("agent_key_dd0a46de_9862_4200_a43d_712e7ed1895b", profile.keyName)
+    }
+
+    @Test
     fun `run store lists newest first and drops the oldest`() =
         runTest {
             val store = FileRunStore(dir.resolve("runs"), keep = 2)
