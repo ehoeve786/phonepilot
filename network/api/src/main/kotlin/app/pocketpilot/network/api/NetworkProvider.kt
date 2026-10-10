@@ -14,7 +14,10 @@ sealed interface NetworkState {
         val url: String,
     ) : NetworkState
 
-    /** On the private network as [hostname], reachable at https://[hostname]. */
+    /**
+     * On the private network at [address], reachable at https://[hostname]. For WireGuard the host
+     * name is the owner's domain, which the relay forwards to [address].
+     */
     data class Connected(
         val address: String,
         val hostname: String,
@@ -32,7 +35,7 @@ sealed interface NetworkState {
  * forwards accepted HTTPS connections to the loopback port the MCP server opens for remote traffic.
  */
 interface NetworkProvider {
-    /** `tailscale`, `wireguard` or `zerotier`. */
+    /** `tailscale` or `wireguard`. */
     val id: String
     val state: StateFlow<NetworkState>
 

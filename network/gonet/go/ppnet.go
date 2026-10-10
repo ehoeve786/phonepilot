@@ -7,14 +7,11 @@ package ppnet
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -230,23 +227,7 @@ func (n *Node) Status() string {
 }
 
 // Logs returns the node's recent log lines, newest last, for the Doctor screen.
-// Lines about certificates, Funnel and incoming requests come first, so they survive when the
-// owner pastes the log somewhere that cuts long messages.
-func (n *Node) Logs() string {
-	all := n.logs.String()
-	var key []string
-	for _, line := range strings.Split(all, "\n") {
-		l := strings.ToLower(line)
-		if strings.Contains(l, "ppnet:") || strings.Contains(l, "cert") || strings.Contains(l, "acme") ||
-			strings.Contains(l, "funnel") || strings.Contains(l, "error") {
-			key = append(key, line)
-		}
-	}
-	if len(key) == 0 {
-		return all
-	}
-	return "--- Key lines ---\n" + strings.Join(key, "\n") + "\n\n--- Full log ---\n" + all
-}
+func (n *Node) Logs() string { return n.logs.keyFirst() }
 
 func (n *Node) setError(msg string) {
 	n.mu.Lock()
@@ -301,26 +282,7 @@ func (n *Node) warmCert(srv *tsnet.Server) {
 }
 
 func (n *Node) serveLocked(ln net.Listener) {
-	target := &url.URL{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", n.targetPort)}
-	proxy := &httputil.ReverseProxy{
-		Rewrite: func(r *httputil.ProxyRequest) {
-			r.SetURL(target)
-			// Keep the public host name: the app checks it and builds OAuth URLs from it.
-			r.Out.Host = r.In.Host
-			r.SetXForwarded()
-		},
-		// Stream MCP's server-sent events without buffering.
-		FlushInterval: -1,
-		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
-			http.Error(w, "PocketPilot's server is not running on the phone", http.StatusBadGateway)
-		},
-	}
-	httpSrv := &http.Server{
-		Handler:           n.logRequests(proxy),
-		ReadHeaderTimeout: 30 * time.Second,
-		// TLS is already terminated by the tsnet listener.
-		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
-	}
+	httpSrv := newProxyServer(n.targetPort, n.logs)
 	n.listener = ln
 	n.httpSrv = httpSrv
 	go func() {
@@ -329,31 +291,6 @@ func (n *Node) serveLocked(ln net.Listener) {
 		}
 	}()
 }
-
-// logRequests adds a line per request to the node log (method, path, status, time taken), so the
-// owner can copy it when a client such as claude.ai cannot connect. Tokens and bodies are not logged.
-func (n *Node) logRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-		next.ServeHTTP(rec, r)
-		n.logs.logf("ppnet: %s %s %s -> %d in %v (%s)", r.Method, r.Host, r.URL.Path, rec.status,
-			time.Since(start).Round(time.Millisecond), r.UserAgent())
-	})
-}
-
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (r *statusRecorder) WriteHeader(code int) {
-	r.status = code
-	r.ResponseWriter.WriteHeader(code)
-}
-
-// Unwrap lets http.ResponseController reach Flush, which streaming MCP responses need.
-func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 
 func (n *Node) closeListenerLocked() {
 	if n.httpSrv != nil {

@@ -51,3 +51,21 @@ func (r *ring) String() string {
 	defer r.mu.Unlock()
 	return strings.Join(r.lines, "\n")
 }
+
+// keyFirst returns the log with lines about certificates, Funnel, handshakes and incoming requests
+// first, so they survive when the owner pastes the log somewhere that cuts long messages.
+func (r *ring) keyFirst() string {
+	all := r.String()
+	var key []string
+	for _, line := range strings.Split(all, "\n") {
+		l := strings.ToLower(line)
+		if strings.Contains(l, "ppnet:") || strings.Contains(l, "cert") || strings.Contains(l, "acme") ||
+			strings.Contains(l, "funnel") || strings.Contains(l, "handshake") || strings.Contains(l, "error") {
+			key = append(key, line)
+		}
+	}
+	if len(key) == 0 {
+		return all
+	}
+	return "--- Key lines ---\n" + strings.Join(key, "\n") + "\n\n--- Full log ---\n" + all
+}

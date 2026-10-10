@@ -76,6 +76,8 @@ fun HomeScreen(
     onRevokeClient: (String) -> Unit,
     onKillSwitch: () -> Unit,
     modifier: Modifier = Modifier,
+    /** WireGuard with the owner's relay, shown under Tailscale. */
+    ownNetworkCard: @Composable () -> Unit = {},
 ) {
     Scaffold(modifier = modifier.fillMaxSize()) { padding ->
         Column(
@@ -106,6 +108,7 @@ fun HomeScreen(
                 onPublicChange = remoteActions.setPublic,
                 logs = remoteActions.logs,
             )
+            ownNetworkCard()
             ClientsCard(clients, onRevokeClient, onKillSwitch)
             TokenCard(token, onRotateToken)
             ConnectCard(serverState, token)
