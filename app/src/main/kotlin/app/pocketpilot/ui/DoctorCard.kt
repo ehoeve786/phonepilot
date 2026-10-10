@@ -77,6 +77,7 @@ private fun capabilityLabel(id: CapabilityId): String =
             CapabilityId.INJECT_INPUT -> R.string.capability_inject_input
             CapabilityId.CAPTURE_SCREEN -> R.string.capability_capture_screen
             CapabilityId.LAUNCH_APPS -> R.string.capability_launch_apps
+            CapabilityId.WRITE_SETTINGS -> R.string.capability_write_settings
             else -> R.string.capability_other
         },
     )

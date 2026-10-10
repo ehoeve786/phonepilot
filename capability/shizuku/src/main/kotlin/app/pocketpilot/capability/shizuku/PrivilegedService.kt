@@ -2,6 +2,7 @@ package app.pocketpilot.capability.shizuku
 
 import android.content.Context
 import android.os.ParcelFileDescriptor
+import app.pocketpilot.capability.api.settings.SettingKey
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -79,6 +80,19 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         run("cmd", "statusbar", if (quickSettings) "expand-settings" else "expand-notifications")
     }
 
+    override fun readSetting(key: String): String = settings.get(settingKey(key))
+
+    override fun writeSetting(
+        key: String,
+        value: String,
+    ) {
+        settings.set(settingKey(key), value)
+    }
+
+    private val settings = SettingCommands { argv -> run(*argv.toTypedArray()) }
+
+    private fun settingKey(wire: String): SettingKey = requireNotNull(SettingKey.fromWire(wire)) { "Not an allowed setting: $wire" }
+
     override fun destroy() {
         exitProcess(0)
     }
@@ -114,7 +128,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
 
     companion object {
         /** The AIDL contract version; bump with every change to IPocketPilotPrivileged. */
-        const val VERSION = 1
+        const val VERSION = 2
 
         private const val UI_DUMP_PATH = "/data/local/tmp/pocketpilot-ui.xml"
         private const val COMMAND_TIMEOUT_S = 15L

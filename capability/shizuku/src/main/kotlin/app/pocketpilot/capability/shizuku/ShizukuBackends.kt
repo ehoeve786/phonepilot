@@ -21,6 +21,8 @@ import app.pocketpilot.capability.api.screen.SnapshotOptions
 import app.pocketpilot.capability.api.screen.SwipeDirection
 import app.pocketpilot.capability.api.screen.Target
 import app.pocketpilot.capability.api.screen.swipePoints
+import app.pocketpilot.capability.api.settings.SettingKey
+import app.pocketpilot.capability.api.settings.SettingsController
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.CoroutineScope
@@ -260,5 +262,23 @@ class ShizukuAppController(
 
     override suspend fun openUrl(url: String) {
         shizuku.call { it.openUrl(url) }
+    }
+}
+
+/** WRITE_SETTINGS: allowlisted settings through fixed shell commands (`cmd uimode`, `settings put`, `svc`). */
+class ShizukuSettingsController(
+    private val shizuku: ShizukuConnection,
+    scope: CoroutineScope,
+) : SettingsController {
+    override val backendId: String = BackendIds.SHIZUKU
+    override val available: StateFlow<Boolean> = shizuku.availability(scope)
+
+    override suspend fun get(key: SettingKey): String = shizuku.call { it.readSetting(key.wire) }
+
+    override suspend fun set(
+        key: SettingKey,
+        value: String,
+    ) {
+        shizuku.call { it.writeSetting(key.wire, value) }
     }
 }

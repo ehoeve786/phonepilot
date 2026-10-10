@@ -30,6 +30,12 @@ interface IPocketPilotPrivileged {
 
     void expandStatusBar(boolean quickSettings) = 11;
 
+    // One allowlisted setting (SettingKey.wire); the value comes back in canonical form.
+    String readSetting(String key) = 12;
+
+    // The value must already be canonical for the key.
+    void writeSetting(String key, String value) = 13;
+
     // Required by Shizuku to stop the service.
     void destroy() = 16777114;
 }

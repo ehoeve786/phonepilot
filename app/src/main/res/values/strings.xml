@@ -46,6 +46,7 @@
     <string name="capability_inject_input">Tap, swipe and type</string>
     <string name="capability_capture_screen">Screenshots</string>
     <string name="capability_launch_apps">Open apps</string>
+    <string name="capability_write_settings">Change settings</string>
     <string name="capability_other">Other</string>
     <string name="backend_accessibility">Accessibility</string>
     <string name="backend_shizuku">Shizuku</string>

@@ -20,6 +20,7 @@ import app.pocketpilot.capability.shizuku.ShizukuConnection
 import app.pocketpilot.capability.shizuku.ShizukuInputController
 import app.pocketpilot.capability.shizuku.ShizukuScreenCapturer
 import app.pocketpilot.capability.shizuku.ShizukuScreenReader
+import app.pocketpilot.capability.shizuku.ShizukuSettingsController
 import app.pocketpilot.core.audit.AuditSink
 import app.pocketpilot.core.audit.InMemoryAuditSink
 import app.pocketpilot.core.capabilities.CapabilityGraph
@@ -46,6 +47,8 @@ import app.pocketpilot.core.tools.ScreenFindTool
 import app.pocketpilot.core.tools.ScreenSnapshotTool
 import app.pocketpilot.core.tools.ScreenWaitForChangeTool
 import app.pocketpilot.core.tools.ScreenWaitForTool
+import app.pocketpilot.core.tools.SettingsGetTool
+import app.pocketpilot.core.tools.SettingsSetTool
 import app.pocketpilot.core.tools.UiGlobalActionTool
 import app.pocketpilot.core.tools.UiLongPressTool
 import app.pocketpilot.core.tools.UiPressKeyTool
@@ -151,6 +154,18 @@ object AppModule {
         scope: CoroutineScope,
     ): ShizukuAppController = ShizukuAppController(shizuku, scope)
 
+    @Provides
+    @Singleton
+    fun shizukuSettingsController(
+        shizuku: ShizukuConnection,
+        scope: CoroutineScope,
+    ): ShizukuSettingsController = ShizukuSettingsController(shizuku, scope)
+
+    /** Settings change through Shizuku only; without it the model uses the Settings app. */
+    @Provides
+    @ElementsIntoSet
+    fun settingsTools(settings: ShizukuSettingsController): Set<ToolHandler> = setOf(SettingsGetTool(settings), SettingsSetTool(settings))
+
     // Spec section 3 backend order: READ_UI prefers Accessibility, INJECT_INPUT and CAPTURE_SCREEN
     // prefer Shizuku, LAUNCH_APPS prefers package manager intents.
 
@@ -205,6 +220,7 @@ object AppModule {
         shizukuInput: ShizukuInputController,
         shizukuCapturer: ShizukuScreenCapturer,
         shizukuApps: ShizukuAppController,
+        shizukuSettings: ShizukuSettingsController,
         scope: CoroutineScope,
     ): CapabilityGraph =
         CapabilityGraph(
@@ -213,6 +229,7 @@ object AppModule {
                 CapabilityId.INJECT_INPUT to listOf(shizukuInput, a11yInput),
                 CapabilityId.CAPTURE_SCREEN to listOf(shizukuCapturer, a11yCapturer),
                 CapabilityId.LAUNCH_APPS to listOf(packageManager, shizukuApps),
+                CapabilityId.WRITE_SETTINGS to listOf(shizukuSettings),
             ),
             scope,
         )
