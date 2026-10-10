@@ -64,7 +64,6 @@ dependencies {
     implementation(projects.network.certificates)
     implementation(projects.network.tailscale)
     implementation(projects.network.wireguard)
-    implementation(projects.network.zerotier)
     implementation(projects.server.http)
     implementation(projects.server.mcp)
     implementation(projects.server.oauth)

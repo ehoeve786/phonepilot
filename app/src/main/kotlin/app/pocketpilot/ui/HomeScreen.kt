@@ -76,7 +76,7 @@ fun HomeScreen(
     onRevokeClient: (String) -> Unit,
     onKillSwitch: () -> Unit,
     modifier: Modifier = Modifier,
-    /** WireGuard and ZeroTier with the owner's relay, shown under Tailscale. */
+    /** WireGuard with the owner's relay, shown under Tailscale. */
     ownNetworkCard: @Composable () -> Unit = {},
 ) {
     Scaffold(modifier = modifier.fillMaxSize()) { padding ->

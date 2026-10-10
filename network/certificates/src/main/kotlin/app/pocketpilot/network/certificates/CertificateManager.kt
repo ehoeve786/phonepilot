@@ -32,7 +32,7 @@ data class CertificateState(
 
 /**
  * A publicly trusted certificate for the owner's domain (spec section 7, Certificates), used by the
- * WireGuard and ZeroTier providers, which have no certificate of their own the way Tailscale does.
+ * WireGuard provider, which has no certificate of its own the way Tailscale does.
  * Let's Encrypt checks control of the domain with a DNS record added through a Cloudflare API
  * token. The token lives in the [SecretStore]; the certificate's key never leaves the phone.
  */

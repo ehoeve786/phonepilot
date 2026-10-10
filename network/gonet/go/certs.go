@@ -30,7 +30,7 @@ const (
 
 // CertManager gets and renews a publicly trusted certificate for the owner's own domain from Let's
 // Encrypt, proving control of the domain with a DNS-01 TXT record it adds through the Cloudflare
-// API. WireGuard and ZeroTier listeners present it. Keys are created on the phone and stay in its
+// API. The WireGuard listener presents it. Keys are created on the phone and stay in its
 // app-private storage.
 type CertManager struct {
 	dir  string

@@ -1,3 +1,0 @@
-[submodule "network/zerotier/libzt"]
-	path = network/zerotier/libzt
-	url = https://github.com/zerotier/libzt

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_network_title">Your own network</string>
-    <string name="feature_network_explainer">Reach the phone over your own WireGuard or ZeroTier network instead of Tailscale. Your router or a server forwards your domain to the phone, and the phone keeps the HTTPS certificate.</string>
+    <string name="feature_network_explainer">Reach the phone over your own WireGuard network instead of Tailscale. Your router or a server forwards your domain to the phone, and the phone keeps the HTTPS certificate.</string>
 
     <string name="feature_network_cert_title">Domain and certificate</string>
     <string name="feature_network_cert_domain">Domain for the phone, such as phone.example.com</string>
@@ -25,14 +25,6 @@
     <string name="feature_network_wg_forget">Forget</string>
     <string name="feature_network_public_key">This phone\'s public key: %1$s</string>
     <string name="feature_network_copy_key">Copy key</string>
-
-    <string name="feature_network_zt_title">ZeroTier</string>
-    <string name="feature_network_zt_network">Network ID (16 characters)</string>
-    <string name="feature_network_zt_save">Save network</string>
-    <string name="feature_network_zt_node">This phone\'s node ID: %1$s</string>
-    <string name="feature_network_zt_approve">Approve node %1$s in your ZeroTier network, then wait a few seconds.</string>
-    <string name="feature_network_zt_open">Open ZeroTier Central</string>
-    <string name="feature_network_zt_forget">Leave network</string>
 
     <string name="feature_network_off">Off</string>
     <string name="feature_network_connecting">Connecting…</string>

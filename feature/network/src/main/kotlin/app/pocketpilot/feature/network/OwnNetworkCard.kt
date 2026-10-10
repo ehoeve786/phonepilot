@@ -41,10 +41,8 @@ import androidx.compose.ui.unit.dp
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.certificates.CertificateState
 import app.pocketpilot.network.publicaccess.RelayConfig
-import app.pocketpilot.network.publicaccess.RelayNetwork
 import app.pocketpilot.network.publicaccess.RelayTarget
 import app.pocketpilot.network.wireguard.WireGuardSetup
-import app.pocketpilot.network.zerotier.ZeroTierSetup
 import java.text.DateFormat
 import java.util.Date
 
@@ -56,25 +54,18 @@ data class OwnNetworkActions(
     val configureWireGuard: (String) -> String?,
     val setWireGuard: (on: Boolean) -> Unit,
     val forgetWireGuard: () -> Unit,
-    val configureZeroTier: (String) -> String?,
-    val setZeroTier: (on: Boolean) -> Unit,
-    val forgetZeroTier: () -> Unit,
-    val openUrl: (String) -> Unit,
     val wireGuardLog: () -> String,
-    val zeroTierLog: () -> String,
 )
 
 /**
- * WireGuard and ZeroTier with a self-hosted relay (spec section 7): the owner's domain and its
- * certificate, each network's setup and state, and ready-to-paste relay configs.
+ * WireGuard with a self-hosted relay (spec section 7): the owner's domain and its certificate, the
+ * tunnel's setup and state, and ready-to-paste relay configs.
  */
 @Composable
 fun OwnNetworkCard(
     certificate: CertificateState,
     wireGuard: NetworkState,
     wireGuardSetup: WireGuardSetup,
-    zeroTier: NetworkState,
-    zeroTierSetup: ZeroTierSetup,
     actions: OwnNetworkActions,
     modifier: Modifier = Modifier,
 ) {
@@ -85,8 +76,6 @@ fun OwnNetworkCard(
             CertificateSection(certificate, actions)
             HorizontalDivider()
             WireGuardSection(wireGuard, wireGuardSetup, actions)
-            HorizontalDivider()
-            ZeroTierSection(zeroTier, zeroTierSetup, actions)
         }
     }
 }
@@ -204,7 +193,7 @@ private fun WireGuardSection(
     val address = (state as? NetworkState.Connected)?.address
     val publicKey = setup.publicKey
     val peer = if (publicKey != null && address != null) RelayConfig.wireGuardPeer(publicKey, address) else null
-    RelaySetups(state, RelayNetwork.WIREGUARD, peer)
+    RelaySetups(state, peer)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OnOffButton(state, actions.setWireGuard)
         setup.publicKey?.let { key ->
@@ -215,55 +204,6 @@ private fun WireGuardSection(
             clipboard.setText(AnnotatedString(actions.wireGuardLog()))
         }) { Text(stringResource(R.string.feature_network_copy_log)) }
         TextButton(onClick = actions.forgetWireGuard) { Text(stringResource(R.string.feature_network_wg_forget)) }
-    }
-}
-
-@Composable
-private fun ZeroTierSection(
-    state: NetworkState,
-    setup: ZeroTierSetup,
-    actions: OwnNetworkActions,
-) {
-    val clipboard = LocalClipboardManager.current
-    var networkId by rememberSaveable(setup.networkId) { mutableStateOf(setup.networkId) }
-    var problem by remember { mutableStateOf<String?>(null) }
-
-    Text(stringResource(R.string.feature_network_zt_title), style = MaterialTheme.typography.titleSmall)
-    if (setup.networkId.isEmpty()) {
-        OutlinedTextField(
-            value = networkId,
-            onValueChange = { networkId = it },
-            label = { Text(stringResource(R.string.feature_network_zt_network)) },
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Button(onClick = { problem = actions.configureZeroTier(networkId) }, enabled = networkId.isNotBlank()) {
-            Text(stringResource(R.string.feature_network_zt_save))
-        }
-        problem?.let { Text(stringResource(R.string.feature_network_error, it), color = MaterialTheme.colorScheme.error) }
-        return
-    }
-    Text(setup.networkId, fontFamily = FontFamily.Monospace)
-    if (state is NetworkState.NeedsAuth) {
-        Text(stringResource(R.string.feature_network_zt_approve, state.code.orEmpty()))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { actions.openUrl(state.url) }) { Text(stringResource(R.string.feature_network_zt_open)) }
-            state.code?.let { code ->
-                TextButton(onClick = { clipboard.setText(AnnotatedString(code)) }) { Text(code, fontFamily = FontFamily.Monospace) }
-            }
-        }
-    } else {
-        StateLine(state)
-        setup.nodeId?.let { Text(stringResource(R.string.feature_network_zt_node, it), style = MaterialTheme.typography.bodySmall) }
-    }
-    RelaySetups(state, RelayNetwork.ZEROTIER, peer = null)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OnOffButton(state, actions.setZeroTier)
-        TextButton(onClick = {
-            clipboard.setText(AnnotatedString(actions.zeroTierLog()))
-        }) { Text(stringResource(R.string.feature_network_copy_log)) }
-        TextButton(onClick = actions.forgetZeroTier) { Text(stringResource(R.string.feature_network_zt_forget)) }
     }
 }
 
@@ -310,7 +250,6 @@ private fun OnOffButton(
 @Composable
 private fun RelaySetups(
     state: NetworkState,
-    network: RelayNetwork,
     peer: String?,
 ) {
     val connected = state as? NetworkState.Connected ?: return
@@ -323,7 +262,7 @@ private fun RelaySetups(
     Text(stringResource(R.string.feature_network_router_explainer), style = MaterialTheme.typography.bodySmall)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = { clipboard.setText(AnnotatedString(url)) }) { Text(stringResource(R.string.feature_network_copy_url)) }
-        TextButton(onClick = { clipboard.setText(AnnotatedString(RelayConfig.openWrt(target, network))) }) {
+        TextButton(onClick = { clipboard.setText(AnnotatedString(RelayConfig.openWrt(target))) }) {
             Text(stringResource(R.string.feature_network_router_setup))
         }
         TextButton(onClick = { more = !more }) { Text(stringResource(R.string.feature_network_more)) }

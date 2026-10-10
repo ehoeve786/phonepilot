@@ -19,9 +19,6 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-        with:
-          # network/zerotier builds libzt, the ZeroTier core and lwIP from source.
-          submodules: recursive
 
       - uses: actions/setup-java@v4
         with:

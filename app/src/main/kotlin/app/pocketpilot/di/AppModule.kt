@@ -57,7 +57,6 @@ import app.pocketpilot.network.api.SecretStore
 import app.pocketpilot.network.certificates.CertificateManager
 import app.pocketpilot.network.tailscale.TailscaleProvider
 import app.pocketpilot.network.wireguard.WireGuardProvider
-import app.pocketpilot.network.zerotier.ZeroTierProvider
 import app.pocketpilot.security.KeystoreSecretStore
 import app.pocketpilot.server.LocalTokenStore
 import app.pocketpilot.server.http.McpHttpServer
@@ -324,14 +323,6 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun zeroTierProvider(
-        @ApplicationContext context: Context,
-        scope: CoroutineScope,
-        certificates: CertificateManager,
-    ): ZeroTierProvider = ZeroTierProvider(context, scope, certificates, McpHttpServer.DEFAULT_REMOTE_PORT)
-
-    @Provides
-    @Singleton
     fun localTokenStore(
         @ApplicationContext context: Context,
     ): LocalTokenStore = LocalTokenStore(context.noBackupFilesDir)
@@ -345,7 +336,6 @@ object AppModule {
         oauth: AuthorizationServer,
         tailscale: TailscaleProvider,
         wireGuard: WireGuardProvider,
-        zeroTier: ZeroTierProvider,
     ): McpHttpServer =
         McpHttpServer(
             factory = McpServerFactory(registry, dispatcher, appVersion = BuildConfig.VERSION_NAME),
@@ -353,7 +343,7 @@ object AppModule {
             localToken = tokens::current,
             oauth = oauth,
             remoteHosts = {
-                listOf(tailscale, wireGuard, zeroTier)
+                listOf(tailscale, wireGuard)
                     .mapNotNull { (it.state.value as? NetworkState.Connected)?.hostname }
                     .toSet()
             },

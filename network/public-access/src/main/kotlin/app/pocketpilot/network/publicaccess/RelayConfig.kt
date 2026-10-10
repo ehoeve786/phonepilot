@@ -19,15 +19,6 @@ data class RelayTarget(
     }
 }
 
-/** The private network the relay reaches the phone over, which decides the router's firewall zone. */
-enum class RelayNetwork(
-    /** The zone GL.iNet and stock OpenWrt name for it. */
-    val openWrtZone: String,
-) {
-    WIREGUARD("wgserver"),
-    ZEROTIER("zerotier"),
-}
-
 /**
  * Ready-to-paste relay configurations (spec section 7, Self-hosted relay). Every one forwards raw TCP,
  * so TLS still ends on the phone and the relay never sees requests or tokens.
@@ -35,30 +26,21 @@ enum class RelayNetwork(
 object RelayConfig {
     /**
      * Shell commands for an OpenWrt router (GL.iNet included) that forward the router's public port 443
-     * to the phone. For ZeroTier the zone also masquerades, so the phone's replies return through the
-     * router; a WireGuard phone already sends every reply to the router. The forward also applies on
-     * the home network, where the router would otherwise answer its own address with its admin page.
+     * to the phone over WireGuard. The phone sends every reply back through the router, so no
+     * masquerading is needed. The forward also applies on the home network, where the router would
+     * otherwise answer its own address with its admin page.
      */
-    fun openWrt(
-        target: RelayTarget,
-        network: RelayNetwork,
-    ): String =
+    fun openWrt(target: RelayTarget): String =
         buildString {
             appendLine("# PocketPilot: forward port 443 to ${target.domain} on the phone (${target.address})")
             appendLine("# If the zone name is wrong, list zones with: uci show firewall | grep '\\.name='")
             appendLine("uci add firewall redirect")
-            for ((key, value) in redirectOptions(target, network)) {
+            for ((key, value) in redirectOptions(target)) {
                 appendLine("uci set firewall.@redirect[-1].$key='$value'")
             }
             // Devices at home reach the domain through the router's public address too, the phone's
             // browser included when it signs a client in, so forward their connections as well.
             appendLine("uci add_list firewall.@redirect[-1].reflection_zone='lan'")
-            if (network == RelayNetwork.ZEROTIER) {
-                appendLine(
-                    "for z in \$(uci show firewall | sed -n \"s/^firewall\\.\\([^.]*\\)\\.name='${network.openWrtZone}'\$/\\1/p\"); " +
-                        "do uci set firewall.\$z.masq='1'; done",
-                )
-            }
             appendLine("uci commit firewall")
             append("/etc/init.d/firewall reload")
         }
@@ -109,20 +91,20 @@ object RelayConfig {
         |AllowedIPs = $phoneAddress/32
         """.trimMargin()
 
-    private fun redirectOptions(
-        target: RelayTarget,
-        network: RelayNetwork,
-    ): List<Pair<String, String>> =
+    private fun redirectOptions(target: RelayTarget): List<Pair<String, String>> =
         listOf(
             "name" to "PocketPilot",
             "target" to "DNAT",
             "proto" to "tcp",
             "src" to "wan",
             "src_dport" to HTTPS_PORT.toString(),
-            "dest" to network.openWrtZone,
+            "dest" to WIREGUARD_ZONE,
             "dest_ip" to target.address,
             "dest_port" to target.port.toString(),
         )
 }
 
 private const val HTTPS_PORT = 443
+
+/** The firewall zone GL.iNet routers give their WireGuard server. */
+private const val WIREGUARD_ZONE = "wgserver"

@@ -9,18 +9,14 @@ sealed interface NetworkState {
 
     data object Connecting : NetworkState
 
-    /**
-     * Waiting for the owner to sign in at [url], or to approve this phone there. [code] is what
-     * identifies the phone on that page, such as a ZeroTier node ID, when there is one.
-     */
+    /** Waiting for the owner to sign in at [url]. */
     data class NeedsAuth(
         val url: String,
-        val code: String? = null,
     ) : NetworkState
 
     /**
-     * On the private network at [address], reachable at https://[hostname]. For WireGuard and
-     * ZeroTier the host name is the owner's domain, which the relay forwards to [address].
+     * On the private network at [address], reachable at https://[hostname]. For WireGuard the host
+     * name is the owner's domain, which the relay forwards to [address].
      */
     data class Connected(
         val address: String,
@@ -39,7 +35,7 @@ sealed interface NetworkState {
  * forwards accepted HTTPS connections to the loopback port the MCP server opens for remote traffic.
  */
 interface NetworkProvider {
-    /** `tailscale`, `wireguard` or `zerotier`. */
+    /** `tailscale` or `wireguard`. */
     val id: String
     val state: StateFlow<NetworkState>
 
