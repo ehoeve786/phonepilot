@@ -28,6 +28,8 @@
     <string name="feature_agent_task">Task</string>
     <string name="feature_agent_task_hint">For example: open Settings and turn on Dark theme</string>
     <string name="feature_agent_start">Start</string>
+    <string name="feature_agent_allow_settings">Allow settings changes</string>
+    <string name="feature_agent_allow_settings_hint">Dark mode, Wi-Fi, Bluetooth, Do Not Disturb, brightness, rotation and volume change without asking you first in this run.</string>
     <string name="feature_agent_run_title">Current run</string>
     <string name="feature_agent_pause">Take over</string>
     <string name="feature_agent_resume">Resume</string>

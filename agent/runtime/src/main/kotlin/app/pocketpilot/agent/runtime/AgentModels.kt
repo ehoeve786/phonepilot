@@ -39,6 +39,8 @@ class RunModel(
 data class AgentTask(
     val goal: String,
     val scopes: Set<Scope>,
+    /** Sensitive tools the owner allowed without a prompt for this run, such as `settings.set`. */
+    val preApproved: Set<String> = emptySet(),
 )
 
 @Serializable

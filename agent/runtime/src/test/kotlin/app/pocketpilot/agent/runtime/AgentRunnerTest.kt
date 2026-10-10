@@ -196,6 +196,31 @@ class AgentRunnerTest {
         }
 
     @Test
+    fun `passes the tools the owner allowed to the policy for the run's session`() =
+        runTest {
+            val clock = Clock { testScheduler.currentTime }
+            val registry = ToolRegistry(setOf(info, snapshot), PolicyProfile.OSS)
+            val confirmed = mutableListOf<Pair<String, Set<String>>>()
+            val runner =
+                AgentRunner(
+                    registry,
+                    CallDispatcher(registry, InMemoryAuditSink(), clock = clock),
+                    SessionFactory(clock),
+                    clock = clock,
+                    preConfirm = { id, tools -> confirmed += id.value to tools },
+                )
+            val run =
+                runner.start(
+                    AgentTask("Light mode", scopes, preApproved = setOf("settings.set")),
+                    RunModel(ScriptedProvider(say("Done")), "fake-1"),
+                    AgentBudgets(),
+                    backgroundScope,
+                )
+            run.finished()
+            assertEquals(listOf(run.id to setOf("settings.set")), confirmed)
+        }
+
+    @Test
     fun `refuses a second run while one is active`() =
         runTest {
             val provider = ScriptedProvider({ awaitCancellation() })

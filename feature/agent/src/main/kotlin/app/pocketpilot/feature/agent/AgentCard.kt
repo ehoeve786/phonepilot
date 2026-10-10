@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -26,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
@@ -45,7 +47,8 @@ import java.util.UUID
 
 /** What the owner can do on [AgentCard]. */
 data class AgentActions(
-    val start: (goal: String, profileId: String) -> Unit,
+    /** [allowSettings]: the run may change settings without asking first. */
+    val start: (goal: String, profileId: String, allowSettings: Boolean) -> Unit,
     val pause: () -> Unit,
     val resume: () -> Unit,
     val stop: () -> Unit,
@@ -378,7 +381,15 @@ private fun TaskSection(
             }
         }
     }
-    Button(enabled = goal.isNotBlank() && !running, onClick = { actions.start(goal.trim(), selected.id) }) {
+    var allowSettings by rememberSaveable { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = allowSettings, onCheckedChange = { allowSettings = it })
+        Column {
+            Text(stringResource(R.string.feature_agent_allow_settings))
+            Text(stringResource(R.string.feature_agent_allow_settings_hint), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+    Button(enabled = goal.isNotBlank() && !running, onClick = { actions.start(goal.trim(), selected.id, allowSettings) }) {
         Text(stringResource(R.string.feature_agent_start))
     }
 }

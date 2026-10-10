@@ -84,6 +84,8 @@ class AgentCoordinator(
     fun start(
         goal: String,
         profileId: String,
+        /** The owner ticked "Allow settings changes": settings.set runs without a prompt in this run. */
+        allowSettings: Boolean,
     ) {
         val profile = profiles.profiles.value.firstOrNull { it.id == profileId } ?: return
         if (current.value?.active == true) return
@@ -92,7 +94,12 @@ class AgentCoordinator(
                 while (runCatching { reader.foreground()?.packageName }.getOrNull() == ownPackage) delay(LEAVE_POLL_MS)
             }
             try {
-                runner.start(AgentTask(goal, AGENT_SCOPES), runModel(profile), profile.budgets(), scope)
+                runner.start(
+                    AgentTask(goal, AGENT_SCOPES, preApproved = if (allowSettings) setOf(SETTINGS_SET) else emptySet()),
+                    runModel(profile),
+                    profile.budgets(),
+                    scope,
+                )
             } catch (e: IllegalStateException) {
                 // Another run started in the meantime.
             } catch (e: IllegalArgumentException) {
@@ -212,6 +219,7 @@ class AgentCoordinator(
     private companion object {
         /** Everything the local token gets: raw shell and Termux stay behind their own toggles. */
         val AGENT_SCOPES = Scope.KNOWN - setOf(Scope.SHELL_EXEC, Scope.TERMUX_RUN)
+        const val SETTINGS_SET = "settings.set"
         const val LEAVE_TIMEOUT_MS = 3_000L
         const val LEAVE_POLL_MS = 150L
         const val MAX_PROBLEM_CHARS = 200

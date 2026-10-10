@@ -75,8 +75,8 @@ class MainActivity : ComponentActivity() {
             )
         val agentActions =
             AgentActions(
-                start = { goal, profileId ->
-                    agent.start(goal, profileId)
+                start = { goal, profileId, allowSettings ->
+                    agent.start(goal, profileId, allowSettings)
                     // The service keeps the process alive while the agent works in other apps, and the
                     // policy never lets the agent act on PocketPilot itself, so step out of its way.
                     PocketPilotService.start(this)
