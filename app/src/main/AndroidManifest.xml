@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Consent and confirmation prompts open over other apps, like an incoming call. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- The fingerprint, face or screen lock check before approvals. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <!-- Cleartext is allowed for Agent mode's local model servers (Ollama on the home network);
          every hosted provider and remote access path uses HTTPS. -->
