@@ -16,6 +16,7 @@ import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.apps.PackageAppController
 import app.pocketpilot.capability.device.AndroidDeviceInfoSource
+import app.pocketpilot.capability.files.SafFileStore
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.screencapture.BitmapImageEncoder
 import app.pocketpilot.capability.shizuku.ShizukuAppAdmin
@@ -56,6 +57,9 @@ import app.pocketpilot.core.tools.AppSetEnabledTool
 import app.pocketpilot.core.tools.AppSetPermissionTool
 import app.pocketpilot.core.tools.AppStopTool
 import app.pocketpilot.core.tools.DeviceInfoTool
+import app.pocketpilot.core.tools.FilesListTool
+import app.pocketpilot.core.tools.FilesReadTool
+import app.pocketpilot.core.tools.FilesWriteTool
 import app.pocketpilot.core.tools.NotifyActTool
 import app.pocketpilot.core.tools.NotifyListTool
 import app.pocketpilot.core.tools.ScreenCaptureTool
@@ -288,6 +292,7 @@ object AppModule {
         shizukuApps: ShizukuAppController,
         shizukuSettings: ShizukuSettingsController,
         shizukuShell: ShizukuShellRunner,
+        sharedFolders: SafFileStore,
         scope: CoroutineScope,
     ): CapabilityGraph =
         CapabilityGraph(
@@ -299,6 +304,7 @@ object AppModule {
                 CapabilityId.WRITE_SETTINGS to listOf(shizukuSettings),
                 CapabilityId.RUN_SHELL to listOf(shizukuShell),
                 CapabilityId.READ_NOTIFICATIONS to listOf(ListenerNotificationSource),
+                CapabilityId.READ_FILES to listOf(sharedFolders),
             ),
             scope,
         )
@@ -369,6 +375,16 @@ object AppModule {
         val hidden = { pkg: String -> appPolicy.modeFor(pkg) == AppMode.DENY }
         return setOf(NotifyListTool(ListenerNotificationSource, hidden), NotifyActTool(ListenerNotificationSource, hidden))
     }
+
+    @Provides
+    @Singleton
+    fun sharedFolders(
+        @ApplicationContext context: Context,
+    ): SafFileStore = SafFileStore(context)
+
+    @Provides
+    @ElementsIntoSet
+    fun fileTools(files: SafFileStore): Set<ToolHandler> = setOf(FilesListTool(files), FilesReadTool(files), FilesWriteTool(files))
 
     @Provides
     @Singleton

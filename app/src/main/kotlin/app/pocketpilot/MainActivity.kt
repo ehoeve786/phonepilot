@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.capability.accessibility.A11yBridge
+import app.pocketpilot.capability.files.SafFileStore
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.shizuku.ShizukuConnection
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
@@ -75,6 +76,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var appScope: CoroutineScope
 
+    @Inject lateinit var sharedFolders: SafFileStore
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -116,6 +119,10 @@ class MainActivity : ComponentActivity() {
                 rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
                     PocketPilotService.start(this)
                 }
+            val folderPicker =
+                rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+                    tree?.let { runCatching { sharedFolders.add(it) } }
+                }
             PocketPilotTheme {
                 HomeScreen(
                     policyProfile = policyProfile,
@@ -154,6 +161,9 @@ class MainActivity : ComponentActivity() {
                     },
                     onGrantShizuku = shizuku::requestPermission,
                     onAllowNotifications = ::allowNotifications,
+                    sharedFolders = sharedFolders.sharedFolders.collectAsStateWithLifecycle().value,
+                    onAddFolder = { folderPicker.launch(null) },
+                    onRemoveFolder = { sharedFolders.remove(it.uri) },
                     remoteActions =
                         RemoteActions(
                             turnOn = {

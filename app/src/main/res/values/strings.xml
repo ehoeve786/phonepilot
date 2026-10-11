@@ -108,4 +108,11 @@
     <string name="capability_read_notifications">Read and answer notifications</string>
     <string name="doctor_allow_notifications">Allow notification access</string>
     <string name="backend_notification_listener">Notification access</string>
+    <string name="backend_shared_folders">Shared folders</string>
+    <string name="capability_read_files">Files in shared folders</string>
+    <string name="folders_title">Shared folders</string>
+    <string name="folders_explainer">Folders that Claude and Agent mode can read and write. They can\'t reach any other file.</string>
+    <string name="folders_none">No folders shared yet.</string>
+    <string name="folders_add">Share a folder</string>
+    <string name="folders_remove">Stop sharing</string>
 </resources>

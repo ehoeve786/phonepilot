@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.R
+import app.pocketpilot.capability.files.SharedFolder
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.capabilities.CapabilityStatus
 import app.pocketpilot.core.model.PolicyProfile
@@ -95,6 +96,9 @@ fun HomeScreen(
     clientsStopped: Boolean = false,
     onAllowClients: () -> Unit = {},
     onAllowNotifications: () -> Unit = {},
+    sharedFolders: List<SharedFolder> = emptyList(),
+    onAddFolder: () -> Unit = {},
+    onRemoveFolder: (SharedFolder) -> Unit = {},
     biometricApprovals: Boolean = true,
     onBiometricChange: (Boolean) -> Unit = {},
 ) {
@@ -158,6 +162,7 @@ fun HomeScreen(
                     ownNetworkCard()
                     ClientsCard(clients, onRevokeClient, onKillSwitch)
                     TokenCard(token, onRotateToken)
+                    FoldersCard(sharedFolders, onAddFolder, onRemoveFolder)
                     BiometricCard(biometricApprovals, onBiometricChange)
                     if (policyProfile != PolicyProfile.PLAY) ShellCard(shellEnabled, onShellChange)
                 }
@@ -253,6 +258,28 @@ private fun AccessibilityCard(
                 Text(stringResource(R.string.accessibility_restricted), style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = onOpenAppInfo) { Text(stringResource(R.string.accessibility_open_app_info)) }
             }
+        }
+    }
+}
+
+@Composable
+private fun FoldersCard(
+    folders: List<SharedFolder>,
+    onAdd: () -> Unit,
+    onRemove: (SharedFolder) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.folders_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.folders_explainer), style = MaterialTheme.typography.bodySmall)
+            if (folders.isEmpty()) Text(stringResource(R.string.folders_none), style = MaterialTheme.typography.bodySmall)
+            folders.forEach { folder ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(folder.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { onRemove(folder) }) { Text(stringResource(R.string.folders_remove)) }
+                }
+            }
+            Button(onClick = onAdd) { Text(stringResource(R.string.folders_add)) }
         }
     }
 }

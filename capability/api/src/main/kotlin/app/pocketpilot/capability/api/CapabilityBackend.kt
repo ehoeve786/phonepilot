@@ -19,4 +19,5 @@ object BackendIds {
     const val SHIZUKU = "shizuku"
     const val PACKAGE_MANAGER = "package_manager"
     const val NOTIFICATION_LISTENER = "notification_listener"
+    const val SHARED_FOLDERS = "shared_folders"
 }
