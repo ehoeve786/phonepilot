@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="notifications_listener_label">PocketPilot</string>
+    <string name="capability_notifications_listener_label">PocketPilot</string>
 </resources>
