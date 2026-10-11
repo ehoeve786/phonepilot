@@ -27,7 +27,7 @@ import javax.inject.Inject
 
 /**
  * Keeps the MCP server and the remote networks (Tailscale, WireGuard) running while the
- * app is in the background (spec section 12). Agent runs and the health monitor join it in later milestones.
+ * app is in the background (spec section 12), and after a reboot or update through [StartupReceiver]. Agent runs and the health monitor join it in later milestones.
  */
 @AndroidEntryPoint
 class PocketPilotService : Service() {
@@ -47,6 +47,7 @@ class PocketPilotService : Service() {
         startId: Int,
     ): Int {
         if (intent?.action == ACTION_STOP) {
+            AutoStart.setRunning(this, false)
             scope.launch {
                 pauseNetworks()
                 server.stop()
@@ -64,6 +65,7 @@ class PocketPilotService : Service() {
             server.start()
             val state = server.serverState.value
             if (state is ServerState.Running) {
+                AutoStart.setRunning(this@PocketPilotService, true)
                 tailscale.resume()
                 wireGuard.resume()
                 getSystemService(NotificationManager::class.java)
