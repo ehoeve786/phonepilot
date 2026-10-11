@@ -25,6 +25,7 @@ class PolicyEngineTest {
     private fun engine(
         overrides: Map<String, AppMode> = emptyMap(),
         limiter: RateLimiter = RateLimiter(PolicyEngine.DEFAULT_CALLS_PER_MINUTE),
+        leave: suspend () -> Unit = {},
     ) = PolicyEngine(
         appPolicy = AppPolicy({ overrides }, ownPackages = setOf("app.pocketpilot")),
         foreground = { front },
@@ -33,6 +34,7 @@ class PolicyEngineTest {
             answer
         },
         rateLimiter = limiter,
+        leaveDeniedApp = leave,
     )
 
     private fun spec(
@@ -79,10 +81,12 @@ class PolicyEngineTest {
     @Test
     fun `an action that lands in a denied app does not return its screen`() =
         runTest {
-            val engine = engine()
+            var left = 0
+            val engine = engine(leave = { left++ })
             assertEquals(Decision.Allow, engine.before(session, tap))
             front = "com.paypal.android.p2pmobile"
             assertIs<Decision.Deny>(engine.after(tap))
+            assertEquals(1, left, "the phone leaves the denied app")
         }
 
     @Test

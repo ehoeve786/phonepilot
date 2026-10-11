@@ -9,6 +9,7 @@ import app.pocketpilot.capability.accessibility.A11yScreenCapturer
 import app.pocketpilot.capability.accessibility.A11yScreenReader
 import app.pocketpilot.capability.api.DeviceInfoSource
 import app.pocketpilot.capability.api.apps.AppController
+import app.pocketpilot.capability.api.screen.GlobalAction
 import app.pocketpilot.capability.api.screen.InputController
 import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.capability.api.screen.ScreenReader
@@ -346,12 +347,19 @@ object AppModule {
     fun policyEngine(
         @ApplicationContext context: Context,
         reader: ScreenReader,
+        shizukuReader: ShizukuScreenReader,
+        input: InputController,
         approvals: ApprovalCenter,
     ): PolicyEngine =
         PolicyEngine(
             appPolicy = AppPolicy(ownPackages = setOf(context.packageName)),
-            foreground = { runCatching { reader.foreground()?.packageName }.getOrNull() },
+            // Accessibility can miss a window it may not read (a bank's secure dialog); the activity manager does not.
+            foreground = {
+                runCatching { reader.foreground()?.packageName }.getOrNull()
+                    ?: runCatching { shizukuReader.foreground()?.packageName }.getOrNull()
+            },
             confirmer = approvals,
+            leaveDeniedApp = { input.globalAction(GlobalAction.HOME) },
         )
 
     @Provides

@@ -48,7 +48,8 @@ fun interface Confirmer {
  *
  * - rate limit per session;
  * - app policy for tools that read or touch the screen, checked against the app in front before the
- *   call and again after it, so an action that lands in a denied app does not return its screen;
+ *   call and again after it, so an action that lands in a denied app does not return its screen and
+ *   the phone goes back to the home screen;
  * - confirmation for SENSITIVE tools once per session and DESTRUCTIVE tools on every call.
  *
  * The "PocketPilot is controlling this phone" overlay for INTERACT tools is not here yet.
@@ -59,6 +60,8 @@ class PolicyEngine(
     private val foreground: suspend () -> String?,
     private val confirmer: Confirmer? = null,
     private val rateLimiter: RateLimiter = RateLimiter(DEFAULT_CALLS_PER_MINUTE),
+    /** Leaves a denied app that a call opened, such as by pressing Home. */
+    private val leaveDeniedApp: suspend () -> Unit = {},
 ) {
     private val confirmedSensitive = HashMap<SessionId, MutableSet<String>>()
 
@@ -153,7 +156,14 @@ class PolicyEngine(
     suspend fun after(spec: ToolSpec): Decision {
         if (!spec.touchesScreen() || spec.riskTier == RiskTier.READ) return Decision.Allow
         val front = foreground() ?: return Decision.Allow
-        return if (appPolicy.modeFor(front) == AppMode.DENY) deniedApp(front) else Decision.Allow
+        if (appPolicy.modeFor(front) != AppMode.DENY) return Decision.Allow
+        // A tap on a launcher icon or a link can open a denied app; leave it before anything else can act there.
+        runCatching { leaveDeniedApp() }
+        return Decision.Deny(
+            ToolErrorCode.DENIED_BY_POLICY,
+            "That action opened $front, which PocketPilot does not read or control, so the phone went back to the home screen",
+            "Banking, payment, password and authenticator apps are off limits. Do not open them again.",
+        )
     }
 
     /**
