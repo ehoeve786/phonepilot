@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -344,7 +345,7 @@ private fun TokenCard(
     onRotateToken: () -> Unit,
 ) {
     var visible by rememberSaveable { mutableStateOf(false) }
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.token_title), style = MaterialTheme.typography.titleMedium)
@@ -357,7 +358,7 @@ private fun TokenCard(
                 TextButton(onClick = { visible = !visible }) {
                     Text(stringResource(if (visible) R.string.token_hide else R.string.token_show))
                 }
-                TextButton(onClick = { clipboard.setText(AnnotatedString(token)) }) { Text(stringResource(R.string.token_copy)) }
+                TextButton(onClick = { copySecret(context, token) }) { Text(stringResource(R.string.token_copy)) }
                 TextButton(onClick = onRotateToken) { Text(stringResource(R.string.token_rotate)) }
             }
         }
@@ -369,7 +370,7 @@ private fun ConnectCard(
     state: ServerState,
     token: String,
 ) {
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     val url = (state as? ServerState.Running)?.url ?: "http://127.0.0.1:8765/mcp"
     val command = claudeCodeCommand(url, token)
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -381,7 +382,7 @@ private fun ConnectCard(
                 fontFamily = FontFamily.Monospace,
                 style = MaterialTheme.typography.bodySmall,
             )
-            TextButton(onClick = { clipboard.setText(AnnotatedString(command)) }) { Text(stringResource(R.string.connect_copy)) }
+            TextButton(onClick = { copySecret(context, command) }) { Text(stringResource(R.string.connect_copy)) }
         }
     }
 }

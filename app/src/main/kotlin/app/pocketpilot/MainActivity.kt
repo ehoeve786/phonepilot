@@ -2,8 +2,6 @@ package app.pocketpilot
 
 import android.Manifest
 import android.app.NotificationManager
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
@@ -58,6 +56,7 @@ import app.pocketpilot.ui.HomeScreen
 import app.pocketpilot.ui.PocketPilotTheme
 import app.pocketpilot.ui.RemoteActions
 import app.pocketpilot.ui.claudeCodeCommand
+import app.pocketpilot.ui.copySecret
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -196,9 +195,7 @@ class MainActivity : ComponentActivity() {
                         },
                         copyClaudeCodeCommand = {
                             val url = (serverState as? ServerState.Running)?.url ?: DEFAULT_LOCAL_URL
-                            getSystemService(
-                                ClipboardManager::class.java,
-                            ).setPrimaryClip(ClipData.newPlainText("command", claudeCodeCommand(url, token)))
+                            copySecret(this@MainActivity, claudeCodeCommand(url, token))
                         },
                     ),
                 )

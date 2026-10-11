@@ -172,6 +172,21 @@ class RemoteOAuthTest {
     }
 
     @Test
+    fun `web pages on other sites cannot call the server`() {
+        val fromPage =
+            request(
+                "POST",
+                "/register",
+                body = "{\"redirect_uris\":[\"https://x.example/cb\"]}",
+                contentType = "text/plain",
+                origin = "https://evil.example",
+            )
+        assertEquals(403, fromPage.status)
+        val asForm = request("POST", "/register", body = "{\"redirect_uris\":[\"https://x.example/cb\"]}", contentType = "text/plain")
+        assertEquals(400, asForm.status)
+    }
+
+    @Test
     fun `unknown host names are refused on the remote port`() {
         assertEquals(403, request("GET", "/.well-known/oauth-protected-resource", hostHeader = "evil.example").status)
     }
@@ -191,6 +206,7 @@ class RemoteOAuthTest {
         bearer: String? = null,
         sessionId: String? = null,
         hostHeader: String = host,
+        origin: String? = null,
     ): Response =
         Socket("127.0.0.1", remotePort).use { socket ->
             val bytes = body?.toByteArray() ?: ByteArray(0)
@@ -202,6 +218,7 @@ class RemoteOAuthTest {
                     append("Accept: application/json, text/event-stream\r\n")
                     append("Connection: close\r\n")
                     contentType?.let { append("Content-Type: $it\r\n") }
+                    origin?.let { append("Origin: $it\r\n") }
                     bearer?.let { append("Authorization: Bearer $it\r\n") }
                     sessionId?.let { append("Mcp-Session-Id: $it\r\n") }
                     append("Content-Length: ${bytes.size}\r\n\r\n")

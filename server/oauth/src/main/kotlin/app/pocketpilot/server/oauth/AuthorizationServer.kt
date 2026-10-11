@@ -125,7 +125,7 @@ class AuthorizationServer(
         val client =
             OAuthClient(
                 id = "ppc_" + randomToken(CLIENT_ID_BYTES),
-                name = name?.trim()?.take(MAX_NAME_LENGTH)?.takeIf(String::isNotEmpty) ?: hostOf(redirectUris.first()),
+                name = cleanName(name) ?: hostOf(redirectUris.first()),
                 redirectUris = redirectUris,
                 createdAtMillis = clock.nowMillis(),
             )
@@ -187,6 +187,11 @@ class AuthorizationServer(
                 createdAtMillis = clock.nowMillis(),
             )
         expireStale()
+        // One prompt per client: a newer request replaces the older one, so retrying never stacks prompts.
+        waiting.filterValues { it.request.clientId == client.id && it.result == AuthorizationStatus.Waiting }.keys.forEach(::deny)
+        if (waiting.values.count { it.result == AuthorizationStatus.Waiting } >= MAX_PENDING) {
+            throw OAuthException("temporarily_unavailable", "Too many sign-ins are waiting for the phone's owner; try again later", 429)
+        }
         waiting[id] = PendingAuthorization(request, redirectUri, oauthState, challenge)
         mutablePending.update { it + request }
         return id
@@ -309,7 +314,7 @@ class AuthorizationServer(
         if (record.expiresAtMillis < clock.nowMillis()) return null
         val grant = state.grants.firstOrNull { it.id == record.grantId } ?: return null
         val client = state.clients.firstOrNull { it.id == grant.clientId } ?: return null
-        return AccessGrant(client.id, client.name, grant.id, grant.scopes.map(::Scope).toSet())
+        return AccessGrant(client.id, principalName(client), grant.id, grant.scopes.map(::Scope).toSet())
     }
 
     // Revocation
@@ -372,6 +377,15 @@ class AuthorizationServer(
             )
         }
 
+    /**
+     * How the client shows in confirmations and the control pill: its self-chosen name with the host
+     * it signed in from, so a client calling itself "Claude" from elsewhere cannot pass for Claude.
+     */
+    private fun principalName(client: OAuthClient): String {
+        val host = hostOf(client.redirectUris.first())
+        return if (client.name == host) host else "${client.name} ($host)"
+    }
+
     private fun dropOldestUnusedClient(): Unit? {
         val withGrants = state.grants.map(Grant::clientId).toSet()
         val victim = state.clients.filter { it.id !in withGrants }.minByOrNull(OAuthClient::createdAtMillis) ?: return null
@@ -410,6 +424,20 @@ class AuthorizationServer(
         private const val REQUEST_ID_BYTES = 16
         private const val MAX_CLIENTS = 50
         private const val MAX_NAME_LENGTH = 80
+
+        /** Sign-ins that may wait for the owner at once, across all clients. */
+        private const val MAX_PENDING = 3
+
+        /** A client's name on one line, without control characters, or null when nothing is left. */
+        fun cleanName(name: String?): String? =
+            name
+                ?.map { if (it.isISOControl() || Character.getType(it) == Character.FORMAT.toInt()) ' ' else it }
+                ?.joinToString("")
+                ?.replace(Regex("\\s+"), " ")
+                ?.trim()
+                ?.take(MAX_NAME_LENGTH)
+                ?.takeIf(String::isNotEmpty)
+
         private const val MILLIS_PER_SECOND = 1000L
         private const val MIN_VERIFIER = 43
         private const val MAX_VERIFIER = 128

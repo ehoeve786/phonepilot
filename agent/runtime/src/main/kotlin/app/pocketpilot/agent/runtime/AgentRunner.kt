@@ -212,7 +212,7 @@ class AgentRun internal constructor(
         for (c in reply.calls) {
             if (paused.value) break
             val (result, record) = execute(c.name, c.argsJson)
-            results += Part.ToolResult(c.id, c.name, convert(result), result.isError)
+            results += Part.ToolResult(c.id, c.name, convert(result, c.name), result.isError)
             calls += record
             hash = screenHash(result) ?: hash
         }
@@ -253,7 +253,7 @@ class AgentRun internal constructor(
                 messages += Message(Role.ASSISTANT, listOf(Part.Text(reply.text)))
                 val (result, record) = execute(parsed.action, parsed.args.toString())
                 messages +=
-                    Message(Role.USER, listOf(Part.Text("${TextBudget.JSON_RESULT}${parsed.action}:")) + convert(result))
+                    Message(Role.USER, listOf(Part.Text("${TextBudget.JSON_RESULT}${parsed.action}:")) + convert(result, parsed.action))
                 recordStep(reply.text, listOf(record), screenHash(result))
                 null
             }
@@ -285,7 +285,7 @@ class AgentRun internal constructor(
                     dispatcher.dispatch(session, spec.name, args)
                 }
             }
-        val summary = text(result).take(SUMMARY_CHARS)
+        val summary = summary(result).take(SUMMARY_CHARS)
         return result to StepCall(spec?.name ?: name, argsJson, summary, result.isError)
     }
 
@@ -463,16 +463,31 @@ class AgentRun internal constructor(
         const val SUMMARY_CHARS = 300
         val HASH = Regex("\"hash\"\\s*:\\s*\"([0-9a-f]{16})\"")
 
-        fun text(result: ToolResult): String =
+        /** A tool's output for the model; the output itself is marked as data, the error code and hint are PocketPilot's own. */
+        fun text(
+            result: ToolResult,
+            tool: String = "tool",
+        ): String =
+            buildString {
+                if (result.isError) append("Error ${result.errorCode ?: ""}:\n")
+                append(Prompts.untrusted(tool, result.content.filterIsInstance<ContentPart.Text>().joinToString("\n") { it.text }))
+                result.recoveryHint?.let { append("\nHint: ").append(it) }
+            }
+
+        /** The transcript's one-line view of a result, for the owner. */
+        fun summary(result: ToolResult): String =
             buildString {
                 if (result.isError) append("Error ${result.errorCode ?: ""}: ")
                 append(result.content.filterIsInstance<ContentPart.Text>().joinToString("\n") { it.text })
                 result.recoveryHint?.let { append("\nHint: ").append(it) }
             }
 
-        fun convert(result: ToolResult): List<Part> =
+        fun convert(
+            result: ToolResult,
+            tool: String = "tool",
+        ): List<Part> =
             buildList {
-                add(Part.Text(text(result)))
+                add(Part.Text(text(result, tool)))
                 result.content.filterIsInstance<ContentPart.Image>().forEach { add(image(it)) }
             }
 

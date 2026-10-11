@@ -5,6 +5,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.request.contentType
 import io.ktor.server.request.receiveParameters
 import io.ktor.server.request.receiveText
 import io.ktor.server.response.header
@@ -24,6 +25,10 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
+private const val HOUR_MS = 60 * 60 * 1000L
+private const val MAX_REGISTRATIONS_PER_HOUR = 10
+private const val MAX_AUTHORIZATIONS_PER_HOUR = 20
+
 /** Path of the MCP endpoint these routes protect. */
 const val PROTECTED_RESOURCE_PATH = "/mcp"
 
@@ -42,6 +47,8 @@ fun Route.oauthRoutes(
     lockout: Lockout,
     issuer: (ApplicationCall) -> String,
     clientAddress: (ApplicationCall) -> String,
+    registrations: RequestLimit = RequestLimit(MAX_REGISTRATIONS_PER_HOUR, HOUR_MS),
+    authorizations: RequestLimit = RequestLimit(MAX_AUTHORIZATIONS_PER_HOUR, HOUR_MS),
 ) {
     val metadata: (ApplicationCall) -> JsonObject = { call -> authorizationServerMetadata(issuer(call)) }
     get("/.well-known/oauth-authorization-server") { call.respondJson(metadata(call)) }
@@ -51,6 +58,15 @@ fun Route.oauthRoutes(
     get("/.well-known/oauth-protected-resource/mcp") { call.respondJson(protectedResourceMetadata(issuer(call))) }
 
     post("/register") {
+        if (!registrations.tryAcquire(clientAddress(call))) {
+            call.respondOAuthError(OAuthException("invalid_client_metadata", "Too many registrations; try again later", 429))
+            return@post
+        }
+        // JSON only, so a plain HTML form on another site cannot register without a CORS preflight.
+        if (call.request.contentType().withoutParameters() != ContentType.Application.Json) {
+            call.respondOAuthError(OAuthException("invalid_client_metadata", "Send the registration as application/json"))
+            return@post
+        }
         val body = runCatching { Json.parseToJsonElement(call.receiveText()).jsonObject }.getOrNull()
         if (body == null) {
             call.respondOAuthError(OAuthException("invalid_client_metadata", "The body must be a JSON object"))
@@ -83,6 +99,10 @@ fun Route.oauthRoutes(
     }
 
     get("/authorize") {
+        if (!authorizations.tryAcquire(clientAddress(call))) {
+            call.respondHtml(errorPage("Too many sign-in attempts. Try again later."), HttpStatusCode.TooManyRequests)
+            return@get
+        }
         val params =
             call.request.queryParameters
                 .entries()

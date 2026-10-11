@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import app.pocketpilot.R
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.capability.accessibility.A11yOverlay
@@ -47,9 +48,13 @@ class ControlOverlay(
 
     @Volatile private var lastActing: SessionKind? = null
 
+    /** When a connected app last acted, so Stop halts it even if an agent run acted after it. */
+    @Volatile private var lastClientAt = 0L
+
     @Synchronized
     override fun acting(session: Session) {
         lastActing = session.kind
+        if (session.kind == SessionKind.MCP_CLIENT) lastClientAt = SystemClock.elapsedRealtime()
         val text = context.getString(R.string.control_overlay_text, who(session))
         val stopLabel = context.getString(R.string.control_stop)
         if (!A11yOverlay.show(text, stopLabel, ::stop)) notify(text, stopLabel)
@@ -63,7 +68,8 @@ class ControlOverlay(
 
     /** The overlay's Stop button: ends the agent run, and refuses AI apps until [allowAgain] if one was acting. */
     fun stop() {
-        if (lastActing != SessionKind.AGENT_RUN) {
+        val clientRecently = SystemClock.elapsedRealtime() - lastClientAt < CLIENT_RECENT_MS
+        if (lastActing != SessionKind.AGENT_RUN || clientRecently) {
             prefs.edit().putBoolean(KEY_STOPPED, true).apply()
             stopped.value = true
         }
@@ -121,6 +127,7 @@ class ControlOverlay(
         const val CHANNEL_ID = "control"
         const val NOTIFICATION_ID = 4
         const val HIDE_AFTER_MS = 10_000L
+        const val CLIENT_RECENT_MS = 60_000L
     }
 }
 
