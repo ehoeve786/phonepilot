@@ -6,12 +6,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.pocketpilot.R
 import app.pocketpilot.core.model.RiskTier
 import app.pocketpilot.feature.approvals.ConfirmScreen
 import app.pocketpilot.feature.approvals.ConfirmUi
 import app.pocketpilot.feature.approvals.ConsentScreen
 import app.pocketpilot.feature.approvals.ConsentUi
 import app.pocketpilot.feature.approvals.ScopeOption
+import app.pocketpilot.security.BiometricGate
 import app.pocketpilot.server.oauth.AuthorizationServer
 import app.pocketpilot.ui.PocketPilotTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -21,6 +23,8 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class ApprovalActivity : ComponentActivity() {
     @Inject lateinit var center: ApprovalCenter
+
+    @Inject lateinit var gate: BiometricGate
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,7 +38,11 @@ class ApprovalActivity : ComponentActivity() {
                     is ApprovalItem.Consent -> {
                         ConsentScreen(
                             ui = first.toUi(),
-                            onAllow = { scopes -> center.answerConsent(first.id, scopes) },
+                            onAllow = { scopes ->
+                                confirmIdentity(getString(R.string.approvals_consent_text, first.request.clientName)) {
+                                    center.answerConsent(first.id, scopes)
+                                }
+                            },
                             onDeny = { center.answerConsent(first.id, null) },
                         )
                     }
@@ -50,7 +58,11 @@ class ApprovalActivity : ComponentActivity() {
                                     foregroundPackage = first.request.foregroundPackage,
                                     detail = first.request.detail,
                                 ),
-                            onAllow = { center.answerConfirm(first.id, true) },
+                            onAllow = {
+                                confirmIdentity(getString(R.string.approvals_confirm_text, first.request.principal, first.request.tool)) {
+                                    center.answerConfirm(first.id, true)
+                                }
+                            },
                             onDeny = { center.answerConfirm(first.id, false) },
                         )
                     }
@@ -62,6 +74,11 @@ class ApprovalActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun confirmIdentity(
+        subtitle: String,
+        onConfirmed: () -> Unit,
+    ) = gate.authenticate(this, getString(R.string.approvals_biometric_title), subtitle, onConfirmed)
 
     /** Requested scopes start ticked; when the client asked for none, everything grantable does. */
     private fun ApprovalItem.Consent.toUi(): ConsentUi {

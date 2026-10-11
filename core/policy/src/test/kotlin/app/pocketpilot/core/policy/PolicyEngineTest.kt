@@ -21,6 +21,8 @@ class PolicyEngineTest {
     private var front: String? = "com.android.settings"
     private val asked = mutableListOf<ConfirmationRequest>()
     private var answer = ConfirmationAnswer.APPROVED
+    private val acting = mutableListOf<String>()
+    private var stopped = false
 
     private fun engine(
         overrides: Map<String, AppMode> = emptyMap(),
@@ -35,6 +37,8 @@ class PolicyEngineTest {
         },
         rateLimiter = limiter,
         leaveDeniedApp = leave,
+        indicator = { acting += it.principal },
+        clientsStopped = { stopped },
     )
 
     private fun spec(
@@ -146,5 +150,26 @@ class PolicyEngineTest {
             engine.before(session, snapshot)
             engine.before(session, snapshot)
             assertEquals(ToolErrorCode.RATE_LIMITED, assertIs<Decision.Deny>(engine.before(session, snapshot)).code)
+        }
+
+    @Test
+    fun `the overlay shows for actions, not for reading`() =
+        runTest {
+            val engine = engine()
+            engine.before(session, snapshot)
+            engine.before(session, tap)
+            front = "com.td"
+            engine.before(session, tap)
+            assertEquals(listOf("Claude"), acting, "only the allowed tap shows the overlay")
+        }
+
+    @Test
+    fun `stopped clients are refused, agent runs are not`() =
+        runTest {
+            stopped = true
+            val engine = engine()
+            assertIs<Decision.Deny>(engine.before(session, snapshot))
+            val agent = session.copy(id = SessionId("01JA0000000000000000000001"), kind = SessionKind.AGENT_RUN)
+            assertEquals(Decision.Allow, engine.before(agent, tap))
         }
 }

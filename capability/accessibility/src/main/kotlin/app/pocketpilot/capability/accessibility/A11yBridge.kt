@@ -49,6 +49,9 @@ object A11yBridge {
         changes.value += 1
     }
 
+    /** The running service, or null while it is off. */
+    internal fun service(): PocketPilotA11yService? = current.value
+
     /** The running service, or CAPABILITY_UNAVAILABLE with a hint that says how to turn it on. */
     internal fun require(): PocketPilotA11yService =
         current.value ?: throw ToolException(

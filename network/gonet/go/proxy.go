@@ -11,8 +11,8 @@ import (
 
 // newProxyServer serves HTTP that has already been decrypted by its listener, forwarding every
 // request to the app's loopback-only remote MCP port, 127.0.0.1:targetPort. Each request adds a line
-// to logs.
-func newProxyServer(targetPort int, logs *ring) *http.Server {
+// to logs and, when onRequest is not nil, calls it.
+func newProxyServer(targetPort int, logs *ring, onRequest func()) *http.Server {
 	target := &url.URL{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", targetPort)}
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
@@ -28,7 +28,7 @@ func newProxyServer(targetPort int, logs *ring) *http.Server {
 		},
 	}
 	return &http.Server{
-		Handler:           logRequests(logs, proxy),
+		Handler:           logRequests(logs, onRequest, proxy),
 		ReadHeaderTimeout: 30 * time.Second,
 		// TLS is already terminated by the listener.
 		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
@@ -37,9 +37,12 @@ func newProxyServer(targetPort int, logs *ring) *http.Server {
 
 // logRequests adds a line per request to the log (method, path, status, time taken), so the owner
 // can copy it when a client such as claude.ai cannot connect. Tokens and bodies are not logged.
-func logRequests(logs *ring, next http.Handler) http.Handler {
+func logRequests(logs *ring, onRequest func(), next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		if onRequest != nil {
+			onRequest()
+		}
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
 		logs.logf("ppnet: %s %s %s -> %d in %v (%s)", r.Method, r.Host, r.URL.Path, rec.status,

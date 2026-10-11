@@ -80,7 +80,7 @@ class AgentNotifier(
 
     companion object {
         private const val CHANNEL_ID = "agent"
-        private const val NOTIFICATION_ID = 2
+        private const val NOTIFICATION_ID = 3
         const val ACTION_PAUSE = "app.pocketpilot.action.AGENT_PAUSE"
         const val ACTION_RESUME = "app.pocketpilot.action.AGENT_RESUME"
         const val ACTION_STOP = "app.pocketpilot.action.AGENT_STOP"

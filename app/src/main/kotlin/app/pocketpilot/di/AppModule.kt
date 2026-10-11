@@ -2,6 +2,7 @@ package app.pocketpilot.di
 
 import android.content.Context
 import app.pocketpilot.BuildConfig
+import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.approvals.ApprovalCenter
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.accessibility.A11yInputController
@@ -24,6 +25,7 @@ import app.pocketpilot.capability.shizuku.ShizukuScreenCapturer
 import app.pocketpilot.capability.shizuku.ShizukuScreenReader
 import app.pocketpilot.capability.shizuku.ShizukuSettingsController
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
+import app.pocketpilot.control.ControlOverlay
 import app.pocketpilot.core.audit.AuditSink
 import app.pocketpilot.core.audit.InMemoryAuditSink
 import app.pocketpilot.core.capabilities.CapabilityGraph
@@ -71,6 +73,7 @@ import app.pocketpilot.network.api.SecretStore
 import app.pocketpilot.network.certificates.CertificateManager
 import app.pocketpilot.network.tailscale.TailscaleProvider
 import app.pocketpilot.network.wireguard.WireGuardProvider
+import app.pocketpilot.security.BiometricGate
 import app.pocketpilot.security.KeystoreSecretStore
 import app.pocketpilot.security.ShellSwitch
 import app.pocketpilot.server.LocalTokenStore
@@ -192,6 +195,12 @@ object AppModule {
     fun shellSwitch(
         @ApplicationContext context: Context,
     ): ShellSwitch = ShellSwitch(context)
+
+    @Provides
+    @Singleton
+    fun biometricGate(
+        @ApplicationContext context: Context,
+    ): BiometricGate = BiometricGate(context)
 
     /**
      * Permissions, app ops and package state through fixed Shizuku commands, plus the raw shell, which
@@ -344,12 +353,21 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun controlOverlay(
+        @ApplicationContext context: Context,
+        scope: CoroutineScope,
+        agent: dagger.Lazy<AgentCoordinator>,
+    ): ControlOverlay = ControlOverlay(context, scope, agent)
+
+    @Provides
+    @Singleton
     fun policyEngine(
         @ApplicationContext context: Context,
         reader: ScreenReader,
         shizukuReader: ShizukuScreenReader,
         input: InputController,
         approvals: ApprovalCenter,
+        overlay: ControlOverlay,
     ): PolicyEngine =
         PolicyEngine(
             appPolicy = AppPolicy(ownPackages = setOf(context.packageName)),
@@ -360,6 +378,8 @@ object AppModule {
             },
             confirmer = approvals,
             leaveDeniedApp = { input.globalAction(GlobalAction.HOME) },
+            indicator = overlay,
+            clientsStopped = { overlay.clientsStopped.value },
         )
 
     @Provides

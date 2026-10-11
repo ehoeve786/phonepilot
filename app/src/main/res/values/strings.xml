@@ -75,7 +75,8 @@
     <string name="remote_error">Tailscale problem: %1$s</string>
     <string name="remote_connected">On your tailnet as %1$s</string>
     <string name="remote_public">Public access (Funnel)</string>
-    <string name="remote_public_explainer">Lets cloud apps such as claude.ai reach this phone. Each app still needs your approval here.</string>
+    <string name="remote_public_explainer">Lets cloud apps such as claude.ai reach this phone. Each app still needs your approval here. Turns itself off after an hour without requests.</string>
+    <string name="remote_public_auto_off">Public access turned itself off after %1$d minutes without requests.</string>
     <string name="remote_public_problem">Funnel is not available yet: %1$s</string>
     <string name="remote_public_starting">Opening Funnel…</string>
     <string name="remote_public_url">Connector URL</string>
@@ -92,4 +93,16 @@
     <string name="agent_take_over">Take over</string>
     <string name="agent_resume">Resume</string>
     <string name="agent_stop">Stop</string>
+    <string name="control_overlay_text">%1$s is controlling this phone</string>
+    <string name="control_stop">Stop</string>
+    <string name="control_who_agent">Agent mode</string>
+    <string name="control_who_local">An AI app on this phone</string>
+    <string name="control_channel">AI in control</string>
+    <string name="control_stopped_title">AI apps are stopped</string>
+    <string name="control_stopped_text">You pressed Stop, so apps connected to PocketPilot cannot read or use this phone. Agent mode still works.</string>
+    <string name="control_allow_again">Allow again</string>
+    <string name="approvals_biometric_title">Confirm it\'s you</string>
+    <string name="biometric_title">Fingerprint to approve</string>
+    <string name="biometric_explainer">Ask for your fingerprint, face or screen lock before you allow an app to connect or approve an action.</string>
+    <string name="biometric_setting_subtitle">To change a security setting</string>
 </resources>

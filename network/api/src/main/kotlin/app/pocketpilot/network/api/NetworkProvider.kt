@@ -56,6 +56,8 @@ data class PublicAccessState(
     val url: String? = null,
     /** The setting the owner still has to change, in plain words, when public access cannot work. */
     val problem: String? = null,
+    /** Set when public access turned itself off after this many minutes without requests. */
+    val autoOffAfterMinutes: Int? = null,
 )
 
 /**
