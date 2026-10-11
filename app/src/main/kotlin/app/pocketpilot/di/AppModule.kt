@@ -81,6 +81,7 @@ import app.pocketpilot.network.api.SecretStore
 import app.pocketpilot.network.certificates.CertificateManager
 import app.pocketpilot.network.tailscale.TailscaleProvider
 import app.pocketpilot.network.wireguard.WireGuardProvider
+import app.pocketpilot.onboarding.OnboardingStore
 import app.pocketpilot.security.BiometricGate
 import app.pocketpilot.security.KeystoreSecretStore
 import app.pocketpilot.security.ShellSwitch
@@ -375,6 +376,12 @@ object AppModule {
         val hidden = { pkg: String -> appPolicy.modeFor(pkg) == AppMode.DENY }
         return setOf(NotifyListTool(ListenerNotificationSource, hidden), NotifyActTool(ListenerNotificationSource, hidden))
     }
+
+    @Provides
+    @Singleton
+    fun onboardingStore(
+        @ApplicationContext context: Context,
+    ): OnboardingStore = OnboardingStore(context)
 
     @Provides
     @Singleton

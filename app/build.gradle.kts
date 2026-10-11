@@ -69,6 +69,7 @@ dependencies {
     implementation(projects.feature.approvals)
     implementation(projects.feature.clients)
     implementation(projects.feature.network)
+    implementation(projects.feature.onboarding)
     implementation(projects.network.api)
     implementation(projects.network.certificates)
     implementation(projects.network.tailscale)

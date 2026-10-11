@@ -17,6 +17,8 @@ import app.pocketpilot.capability.api.BackendIds
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.capabilities.CapabilityStatus
 import app.pocketpilot.core.model.CapabilityId
+import app.pocketpilot.feature.onboarding.SetupChecklist
+import app.pocketpilot.feature.onboarding.SetupStep
 
 /**
  * Doctor v1: which backend serves each capability right now, and what Shizuku needs. A capability
@@ -29,10 +31,13 @@ internal fun DoctorCard(
     onGrantShizuku: () -> Unit,
     /** Allows PocketPilot's notification listener, through Shizuku when it is connected. */
     onAllowNotifications: () -> Unit = {},
+    /** Every setup step, re-checked with its one-tap fix. */
+    setupSteps: List<SetupStep> = emptyList(),
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.doctor_title), style = MaterialTheme.typography.titleMedium)
+            SetupChecklist(setupSteps)
             capabilities.forEach { status ->
                 Column {
                     Text(capabilityLabel(status.capability), style = MaterialTheme.typography.bodyMedium)

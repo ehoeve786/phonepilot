@@ -42,6 +42,7 @@ import app.pocketpilot.core.capabilities.CapabilityStatus
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.feature.clients.ClientRow
 import app.pocketpilot.feature.clients.ClientsCard
+import app.pocketpilot.feature.onboarding.SetupStep
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.PublicAccessState
 import app.pocketpilot.server.http.ServerState
@@ -96,13 +97,18 @@ fun HomeScreen(
     clientsStopped: Boolean = false,
     onAllowClients: () -> Unit = {},
     onAllowNotifications: () -> Unit = {},
+    /** Opens on the Settings tab, for setup's remote access step. */
+    startOnSettings: Boolean = false,
+    /** The setup steps, which Doctor re-checks with a fix for each. */
+    setupSteps: List<SetupStep> = emptyList(),
+    onOpenSetup: () -> Unit = {},
     sharedFolders: List<SharedFolder> = emptyList(),
     onAddFolder: () -> Unit = {},
     onRemoveFolder: (SharedFolder) -> Unit = {},
     biometricApprovals: Boolean = true,
     onBiometricChange: (Boolean) -> Unit = {},
 ) {
-    var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
+    var tab by rememberSaveable { mutableStateOf(if (startOnSettings) Tab.SETTINGS else Tab.HOME) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
@@ -137,7 +143,8 @@ fun HomeScreen(
                     crashReport?.let { CrashCard(it, onDismissCrash) }
                     if (clientsStopped) StoppedCard(onAllowClients)
                     ServerCard(serverState, onStart, onStop)
-                    DoctorCard(capabilities, shizukuState, onGrantShizuku, onAllowNotifications)
+                    DoctorCard(capabilities, shizukuState, onGrantShizuku, onAllowNotifications, setupSteps)
+                    TextButton(onClick = onOpenSetup) { Text(stringResource(R.string.home_setup_guide)) }
                     ConnectCard(serverState, token)
                 }
 
