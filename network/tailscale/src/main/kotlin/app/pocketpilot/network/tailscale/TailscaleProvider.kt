@@ -6,6 +6,7 @@ import app.pocketpilot.network.api.NetworkProvider
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.PublicAccess
 import app.pocketpilot.network.api.PublicAccessState
+import app.pocketpilot.network.api.PublicAutoOff
 import app.pocketpilot.network.gonet.gen.ppnet.Node
 import app.pocketpilot.network.gonet.gen.ppnet.Ppnet
 import kotlinx.coroutines.CoroutineScope
@@ -26,11 +27,13 @@ import java.io.File
  * [targetPort] on 127.0.0.1. Public access is Tailscale Funnel on port 443.
  *
  * Whether Tailscale and Funnel are on survives restarts, so the foreground service can call [resume].
+ * Funnel turns itself off after [autoOff]'s minutes without requests.
  */
 class TailscaleProvider(
     context: Context,
     private val scope: CoroutineScope,
     private val targetPort: Int,
+    private val autoOff: PublicAutoOff = PublicAutoOff(),
 ) : NetworkProvider,
     PublicAccess {
     override val id: String = "tailscale"
@@ -62,6 +65,7 @@ class TailscaleProvider(
     override fun start() {
         prefs.edit().putBoolean(KEY_ENABLED, true).apply()
         if (poller?.isActive == true) return
+        autoOff.restart(System.currentTimeMillis())
         mutableState.value = NetworkState.Connecting
         poller =
             scope.launch(Dispatchers.IO) {
@@ -106,9 +110,15 @@ class TailscaleProvider(
         scope.launch(Dispatchers.IO) { runCatching { createdNode?.logout() } }
     }
 
-    override fun setPublic(enabled: Boolean) {
+    override fun setPublic(enabled: Boolean) = applyPublic(enabled, autoOffAfterMinutes = null)
+
+    private fun applyPublic(
+        enabled: Boolean,
+        autoOffAfterMinutes: Int?,
+    ) {
         prefs.edit().putBoolean(KEY_PUBLIC, enabled).apply()
-        mutablePublic.value = mutablePublic.value.copy(enabled = enabled, url = null, problem = null)
+        if (enabled) autoOff.restart(System.currentTimeMillis())
+        mutablePublic.value = PublicAccessState(enabled = enabled, autoOffAfterMinutes = autoOffAfterMinutes)
         scope.launch(Dispatchers.IO) {
             runCatching { createdNode?.setPublic(enabled) }
             refresh()
@@ -173,12 +183,18 @@ class TailscaleProvider(
                 }
             }
         val public = status.optBoolean("public")
+        val lastRequestMs = status.optLong("lastRequestUnix") * MS_PER_SECOND
+        if (public && autoOff.expired(System.currentTimeMillis(), lastRequestMs)) {
+            applyPublic(false, autoOffAfterMinutes = autoOff.minutes)
+            return
+        }
         val problem = status.optString("funnelProblem").takeIf(String::isNotEmpty) ?: error.takeIf { public }
         mutablePublic.value =
             PublicAccessState(
                 enabled = public,
                 url = if (public && problem == null && status.optBoolean("serving")) "https://$dnsName/mcp" else null,
                 problem = if (public) problem else null,
+                autoOffAfterMinutes = mutablePublic.value.autoOffAfterMinutes.takeUnless { public },
             )
     }
 
@@ -189,6 +205,7 @@ class TailscaleProvider(
         const val POLL_STARTING_MS = 1_000L
         const val POLL_CONNECTED_MS = 5_000L
         const val CRASH_LOG_LINES = 80
+        const val MS_PER_SECOND = 1_000L
 
         // ppnet.CrashFile and ppnet.LogFile. Kept here so reading them never loads the Go library.
         const val CRASH_FILE = "crash.txt"

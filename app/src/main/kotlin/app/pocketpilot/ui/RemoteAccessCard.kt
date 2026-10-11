@@ -79,6 +79,9 @@ internal fun RemoteAccessCard(
                         }
                         Switch(checked = public.enabled, onCheckedChange = onPublicChange)
                     }
+                    public.autoOffAfterMinutes?.takeUnless { public.enabled }?.let { minutes ->
+                        Text(stringResource(R.string.remote_public_auto_off, minutes), style = MaterialTheme.typography.bodySmall)
+                    }
                     public.problem?.let {
                         Text(stringResource(R.string.remote_public_problem, it), color = MaterialTheme.colorScheme.error)
                     }

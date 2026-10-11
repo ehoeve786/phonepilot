@@ -15,6 +15,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.shizuku.ShizukuConnection
+import app.pocketpilot.control.ControlOverlay
 import app.pocketpilot.core.capabilities.CapabilityGraph
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.feature.agent.AgentActions
@@ -25,6 +26,7 @@ import app.pocketpilot.feature.network.OwnNetworkCard
 import app.pocketpilot.network.certificates.CertificateManager
 import app.pocketpilot.network.tailscale.TailscaleProvider
 import app.pocketpilot.network.wireguard.WireGuardProvider
+import app.pocketpilot.security.BiometricGate
 import app.pocketpilot.security.ShellSwitch
 import app.pocketpilot.server.LocalTokenStore
 import app.pocketpilot.server.PocketPilotService
@@ -59,6 +61,10 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var agent: AgentCoordinator
 
     @Inject lateinit var shellSwitch: ShellSwitch
+
+    @Inject lateinit var controlOverlay: ControlOverlay
+
+    @Inject lateinit var biometricGate: BiometricGate
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -177,11 +183,25 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     shellEnabled = shellSwitch.enabled.collectAsStateWithLifecycle().value,
-                    onShellChange = shellSwitch::set,
+                    // Loosening a safeguard needs the owner, like approving an action does.
+                    onShellChange = { on -> if (on) withOwner { shellSwitch.set(true) } else shellSwitch.set(false) },
+                    clientsStopped = controlOverlay.clientsStopped.collectAsStateWithLifecycle().value,
+                    onAllowClients = controlOverlay::allowAgain,
+                    biometricApprovals = biometricGate.enabled.collectAsStateWithLifecycle().value,
+                    onBiometricChange = { on -> if (on) biometricGate.set(true) else withOwner { biometricGate.set(false) } },
                 )
             }
         }
     }
+
+    /** Runs [action] once the owner passes the biometric lock. */
+    private fun withOwner(action: () -> Unit) =
+        biometricGate.authenticate(
+            this,
+            getString(R.string.approvals_biometric_title),
+            getString(R.string.biometric_setting_subtitle),
+            action,
+        )
 
     /** Turns a network on and makes sure the foreground service that keeps it running is up. */
     private fun startNetwork(start: () -> Unit) {

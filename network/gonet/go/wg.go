@@ -91,7 +91,7 @@ func (t *Tunnel) Start(config string) error {
 	}
 	t.dev = dev
 	t.addresses = cfg.Addresses
-	t.httpSrv = newProxyServer(t.targetPort, t.logs)
+	t.httpSrv = newProxyServer(t.targetPort, t.logs, nil)
 	srv := t.httpSrv
 	tlsLn := tls.NewListener(ln, t.certs.tlsConfig())
 	go func() {

@@ -17,6 +17,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"tailscale.com/ipn"
@@ -37,6 +38,8 @@ type Node struct {
 	public    bool
 	lastError string
 	logs      *ring
+	// lastRequest is the Unix time in seconds of the last request through the node, or 0.
+	lastRequest atomic.Int64
 }
 
 // NewNode prepares a node that keeps its state in stateDir, asks for hostname on the tailnet and
@@ -192,13 +195,15 @@ type status struct {
 	// FunnelProblem names the tailnet setting Funnel still needs, or is empty when Funnel is allowed.
 	FunnelProblem string `json:"funnelProblem,omitempty"`
 	Error         string `json:"error,omitempty"`
+	// LastRequestUnix is when the last request came through the node, in Unix seconds, or 0.
+	LastRequestUnix int64 `json:"lastRequestUnix"`
 }
 
 // Status reports the node's state as JSON.
 func (n *Node) Status() string {
 	n.mu.Lock()
 	srv := n.srv
-	st := status{Running: srv != nil, Serving: n.httpSrv != nil, Public: n.public, Error: n.lastError}
+	st := status{Running: srv != nil, Serving: n.httpSrv != nil, Public: n.public, Error: n.lastError, LastRequestUnix: n.lastRequest.Load()}
 	n.mu.Unlock()
 	if srv != nil {
 		if lc, err := srv.LocalClient(); err == nil {
@@ -282,7 +287,7 @@ func (n *Node) warmCert(srv *tsnet.Server) {
 }
 
 func (n *Node) serveLocked(ln net.Listener) {
-	httpSrv := newProxyServer(n.targetPort, n.logs)
+	httpSrv := newProxyServer(n.targetPort, n.logs, func() { n.lastRequest.Store(time.Now().Unix()) })
 	n.listener = ln
 	n.httpSrv = httpSrv
 	go func() {

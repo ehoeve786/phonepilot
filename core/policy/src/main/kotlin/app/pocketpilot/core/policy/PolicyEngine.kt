@@ -4,6 +4,7 @@ import app.pocketpilot.core.model.RiskTier
 import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.SessionId
+import app.pocketpilot.core.model.SessionKind
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolSpec
 
@@ -43,6 +44,15 @@ fun interface Confirmer {
 }
 
 /**
+ * Shows the owner who is acting on the phone, with a way to stop them: the "PocketPilot is controlling
+ * this phone" overlay (spec section 8). Called before every allowed INTERACT, SENSITIVE or DESTRUCTIVE
+ * call from a client or an agent run.
+ */
+fun interface ControlIndicator {
+    fun acting(session: Session)
+}
+
+/**
  * Decides allow, deny or confirm for each call (spec section 8), after the orchestrator has checked
  * scopes and arguments:
  *
@@ -50,9 +60,9 @@ fun interface Confirmer {
  * - app policy for tools that read or touch the screen, checked against the app in front before the
  *   call and again after it, so an action that lands in a denied app does not return its screen and
  *   the phone goes back to the home screen;
- * - confirmation for SENSITIVE tools once per session and DESTRUCTIVE tools on every call.
- *
- * The "PocketPilot is controlling this phone" overlay for INTERACT tools is not here yet.
+ * - confirmation for SENSITIVE tools once per session and DESTRUCTIVE tools on every call;
+ * - the [ControlIndicator] for every call that acts on the phone, and a refusal of every MCP client
+ *   call while the owner has stopped clients from it.
  */
 class PolicyEngine(
     private val appPolicy: AppPolicy,
@@ -62,6 +72,9 @@ class PolicyEngine(
     private val rateLimiter: RateLimiter = RateLimiter(DEFAULT_CALLS_PER_MINUTE),
     /** Leaves a denied app that a call opened, such as by pressing Home. */
     private val leaveDeniedApp: suspend () -> Unit = {},
+    private val indicator: ControlIndicator? = null,
+    /** True while the owner has stopped MCP clients, from the overlay's Stop button. */
+    private val clientsStopped: () -> Boolean = { false },
 ) {
     private val confirmedSensitive = HashMap<SessionId, MutableSet<String>>()
 
@@ -74,6 +87,13 @@ class PolicyEngine(
         /** The app the call will open, when the tool knows it in advance. */
         targetPackage: String? = null,
     ): Decision {
+        if (session.kind == SessionKind.MCP_CLIENT && clientsStopped()) {
+            return Decision.Deny(
+                ToolErrorCode.DENIED_BY_POLICY,
+                "The phone's owner stopped AI apps from using this phone",
+                "Do not retry. The owner can allow it again in PocketPilot.",
+            )
+        }
         if (!rateLimiter.tryAcquire(session.id.value)) {
             return Decision.Deny(
                 ToolErrorCode.RATE_LIMITED,
@@ -156,6 +176,7 @@ class PolicyEngine(
                 }
             }
         }
+        if (spec.riskTier > RiskTier.READ && session.kind != SessionKind.LOCAL_UI) indicator?.acting(session)
         return Decision.Allow
     }
 

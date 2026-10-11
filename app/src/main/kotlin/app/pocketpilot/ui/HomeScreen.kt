@@ -91,6 +91,11 @@ fun HomeScreen(
     /** The raw shell switch; the Play build has no shell tool, so it never shows there. */
     shellEnabled: Boolean = false,
     onShellChange: (Boolean) -> Unit = {},
+    /** True after the owner pressed Stop on the "controlling this phone" pill. */
+    clientsStopped: Boolean = false,
+    onAllowClients: () -> Unit = {},
+    biometricApprovals: Boolean = true,
+    onBiometricChange: (Boolean) -> Unit = {},
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     Scaffold(
@@ -125,6 +130,7 @@ fun HomeScreen(
                         style = MaterialTheme.typography.bodySmall,
                     )
                     crashReport?.let { CrashCard(it, onDismissCrash) }
+                    if (clientsStopped) StoppedCard(onAllowClients)
                     ServerCard(serverState, onStart, onStop)
                     DoctorCard(capabilities, shizukuState, onGrantShizuku)
                     ConnectCard(serverState, token)
@@ -151,6 +157,7 @@ fun HomeScreen(
                     ownNetworkCard()
                     ClientsCard(clients, onRevokeClient, onKillSwitch)
                     TokenCard(token, onRotateToken)
+                    BiometricCard(biometricApprovals, onBiometricChange)
                     if (policyProfile != PolicyProfile.PLAY) ShellCard(shellEnabled, onShellChange)
                 }
             }
@@ -194,6 +201,17 @@ private fun CrashCard(
 private const val CRASH_PREVIEW_LINES = 4
 
 @Composable
+private fun StoppedCard(onAllowAgain: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.control_stopped_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.control_stopped_text), style = MaterialTheme.typography.bodySmall)
+            Button(onClick = onAllowAgain) { Text(stringResource(R.string.control_allow_again)) }
+        }
+    }
+}
+
+@Composable
 private fun ServerCard(
     state: ServerState,
     onStart: () -> Unit,
@@ -234,6 +252,26 @@ private fun AccessibilityCard(
                 Text(stringResource(R.string.accessibility_restricted), style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = onOpenAppInfo) { Text(stringResource(R.string.accessibility_open_app_info)) }
             }
+        }
+    }
+}
+
+@Composable
+private fun BiometricCard(
+    enabled: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.biometric_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(checked = enabled, onCheckedChange = onChange)
+            }
+            Text(stringResource(R.string.biometric_explainer), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
