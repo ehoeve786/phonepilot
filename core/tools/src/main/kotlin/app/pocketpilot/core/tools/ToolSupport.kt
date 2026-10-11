@@ -66,7 +66,14 @@ internal suspend fun afterAction(
     // pages that load in steps (Samsung Settings) pause briefly between steps.
     delay(REACTION_MS)
     reader.awaitIdle(quietMs = SETTLE_QUIET_MS, timeoutMs = SETTLE_TIMEOUT_MS)
-    val snapshot = reader.snapshot()
+    // The action already happened; a screen that cannot be read now must not make it look failed.
+    val snapshot =
+        try {
+            reader.snapshot()
+        } catch (e: ToolException) {
+            val hint = e.recoveryHint?.let { " $it" }.orEmpty()
+            return ToolResult.success("$summary\nThe screen could not be read afterwards: ${e.message}.$hint")
+        }
     return ToolResult.success("$summary\nScreen now:\n${snapshot.toJson()}")
 }
 

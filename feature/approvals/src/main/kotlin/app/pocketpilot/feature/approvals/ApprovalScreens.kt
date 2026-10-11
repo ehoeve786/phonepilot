@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 
 /** One permission on the consent screen. */
@@ -100,6 +101,8 @@ data class ConfirmUi(
     val tool: String,
     val destructive: Boolean,
     val foregroundPackage: String?,
+    /** Exactly what will run, such as a shell command. */
+    val detail: String? = null,
 )
 
 @Composable
@@ -118,6 +121,9 @@ fun ConfirmScreen(
             Text("${ui.toolTitle} (${ui.tool})", style = MaterialTheme.typography.bodyLarge)
             ui.foregroundPackage?.let {
                 Text(stringResource(R.string.feature_approvals_confirm_in_app, it), style = MaterialTheme.typography.bodyMedium)
+            }
+            ui.detail?.let {
+                Text(it, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium)
             }
             if (ui.destructive) {
                 Text(

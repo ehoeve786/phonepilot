@@ -27,6 +27,8 @@ data class ConfirmationRequest(
     val riskTier: RiskTier,
     /** Set when the call is confirmed because of the app in front ([AppMode.CONFIRM_ALL]). */
     val foregroundPackage: String? = null,
+    /** What exactly will run, such as a shell command, shown to the owner verbatim. */
+    val detail: String? = null,
 )
 
 enum class ConfirmationAnswer {
@@ -46,7 +48,8 @@ fun interface Confirmer {
  *
  * - rate limit per session;
  * - app policy for tools that read or touch the screen, checked against the app in front before the
- *   call and again after it, so an action that lands in a denied app does not return its screen;
+ *   call and again after it, so an action that lands in a denied app does not return its screen and
+ *   the phone goes back to the home screen;
  * - confirmation for SENSITIVE tools once per session and DESTRUCTIVE tools on every call.
  *
  * The "PocketPilot is controlling this phone" overlay for INTERACT tools is not here yet.
@@ -57,6 +60,8 @@ class PolicyEngine(
     private val foreground: suspend () -> String?,
     private val confirmer: Confirmer? = null,
     private val rateLimiter: RateLimiter = RateLimiter(DEFAULT_CALLS_PER_MINUTE),
+    /** Leaves a denied app that a call opened, such as by pressing Home. */
+    private val leaveDeniedApp: suspend () -> Unit = {},
 ) {
     private val confirmedSensitive = HashMap<SessionId, MutableSet<String>>()
 
@@ -64,12 +69,24 @@ class PolicyEngine(
     suspend fun before(
         session: Session,
         spec: ToolSpec,
+        /** Shown in the confirmation; see [ConfirmationRequest.detail]. */
+        detail: String? = null,
+        /** The app the call will open, when the tool knows it in advance. */
+        targetPackage: String? = null,
     ): Decision {
         if (!rateLimiter.tryAcquire(session.id.value)) {
             return Decision.Deny(
                 ToolErrorCode.RATE_LIMITED,
                 "Too many calls: the limit is $DEFAULT_CALLS_PER_MINUTE a minute per session",
                 "Wait a few seconds, then continue more slowly.",
+            )
+        }
+
+        if (targetPackage != null && appPolicy.modeFor(targetPackage) == AppMode.DENY) {
+            return Decision.Deny(
+                ToolErrorCode.DENIED_BY_POLICY,
+                "PocketPilot does not open $targetPackage",
+                "Banking, payment, password and authenticator apps are off limits. Tell the owner to open it themselves.",
             )
         }
 
@@ -114,6 +131,7 @@ class PolicyEngine(
                         toolTitle = spec.title,
                         riskTier = spec.riskTier,
                         foregroundPackage = front.takeIf { confirmBecauseOfApp },
+                        detail = detail,
                     ),
                 ) ?: ConfirmationAnswer.DECLINED
             when (answer) {
@@ -148,7 +166,26 @@ class PolicyEngine(
     suspend fun after(spec: ToolSpec): Decision {
         if (!spec.touchesScreen() || spec.riskTier == RiskTier.READ) return Decision.Allow
         val front = foreground() ?: return Decision.Allow
-        return if (appPolicy.modeFor(front) == AppMode.DENY) deniedApp(front) else Decision.Allow
+        if (appPolicy.modeFor(front) != AppMode.DENY) return Decision.Allow
+        // A tap on a launcher icon or a link can open a denied app; leave it before anything else can act there.
+        runCatching { leaveDeniedApp() }
+        return Decision.Deny(
+            ToolErrorCode.DENIED_BY_POLICY,
+            "That action opened $front, which PocketPilot does not read or control, so the phone went back to the home screen",
+            "Banking, payment, password and authenticator apps are off limits. Do not open them again.",
+        )
+    }
+
+    /**
+     * Treats [tools] as already confirmed for session [id], for sessions the owner started on the phone
+     * itself. Only sensitive tools are affected; destructive ones are confirmed on every call regardless.
+     */
+    @Synchronized
+    fun preConfirm(
+        id: SessionId,
+        tools: Set<String>,
+    ) {
+        confirmedSensitive.getOrPut(id) { HashSet() } += tools
     }
 
     /** Forgets a session's confirmations and rate-limit window when it ends. */

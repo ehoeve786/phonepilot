@@ -48,6 +48,7 @@ class ApprovalActivity : ComponentActivity() {
                                     tool = first.request.tool,
                                     destructive = first.request.riskTier == RiskTier.DESTRUCTIVE,
                                     foregroundPackage = first.request.foregroundPackage,
+                                    detail = first.request.detail,
                                 ),
                             onAllow = { center.answerConfirm(first.id, true) },
                             onDeny = { center.answerConfirm(first.id, false) },

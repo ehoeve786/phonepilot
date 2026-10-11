@@ -9,11 +9,14 @@
     <!-- Consent and confirmation prompts open over other apps, like an incoming call. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
+    <!-- Cleartext is allowed for Agent mode's local model servers (Ollama on the home network);
+         every hosted provider and remote access path uses HTTPS. -->
     <application
         android:name=".PocketPilotApplication"
         android:allowBackup="false"
         android:label="@string/app_name"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
         <activity
             android:name=".MainActivity"
@@ -30,6 +33,10 @@
             android:exported="false"
             android:launchMode="singleTop"
             android:taskAffinity="app.pocketpilot.approvals" />
+
+        <receiver
+            android:name=".agent.AgentControlReceiver"
+            android:exported="false" />
 
         <service
             android:name=".server.PocketPilotService"

@@ -115,6 +115,9 @@ class AppLaunchTool(
             availability = Availability(Phase.P0),
         )
 
+    override suspend fun targetPackage(call: ToolCall): String =
+        call.arguments.string("package") ?: resolve(null, call.arguments.string("label")).packageName
+
     override suspend fun execute(
         call: ToolCall,
         session: Session,

@@ -1,12 +1,16 @@
 package app.pocketpilot.core.tools
 
+import app.pocketpilot.capability.api.screen.Bounds
+import app.pocketpilot.capability.api.screen.Element
 import app.pocketpilot.capability.api.screen.Frame
+import app.pocketpilot.capability.api.screen.Role
 import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.core.audit.InMemoryAuditSink
 import app.pocketpilot.core.imaging.ImagePipeline
 import app.pocketpilot.core.model.ContentPart
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.core.model.ToolErrorCode
+import app.pocketpilot.core.model.ToolException
 import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.SessionFactory
@@ -91,6 +95,25 @@ class ScreenAndUiToolsTest {
         }
 
     @Test
+    fun `find by text also matches a tile that only has a label`() =
+        runTest {
+            reader.snapshot =
+                settingsSnapshot().copy(
+                    elements =
+                        settingsSnapshot().elements +
+                            Element(
+                                "e9",
+                                "e1",
+                                Role.BUTTON,
+                                description = "Do not disturb, Off",
+                                bounds = Bounds(0, 600, 270, 800),
+                                clickable = true,
+                            ),
+                )
+            assertTrue(call("screen.find", """{"text":"Do Not Disturb","role":"button"}""").text().contains(""""id":"e9""""))
+        }
+
+    @Test
     fun `tap takes an element or a point and returns the settled screen`() =
         runTest {
             val result = call("ui.tap", """{"element":"e3"}""")
@@ -104,12 +127,39 @@ class ScreenAndUiToolsTest {
         }
 
     @Test
+    fun `an action still succeeds when the screen cannot be read afterwards`() =
+        runTest {
+            call("ui.tap", """{"element":"e3"}""")
+            reader.failure = ToolException(ToolErrorCode.DEVICE_BUSY, "This screen keeps moving", "Use screen.capture")
+            val result = call("ui.tap", """{"x":10,"y":20}""")
+            assertFalse(result.isError, result.text())
+            assertTrue(result.text().startsWith("Tapped"))
+            assertTrue("could not be read afterwards: This screen keeps moving. Use screen.capture" in result.text(), result.text())
+        }
+
+    @Test
     fun `swipe needs four coordinates or an element and direction`() =
         runTest {
             assertFalse(call("ui.swipe", """{"fromX":1,"fromY":2,"toX":3,"toY":4}""").isError)
             assertFalse(call("ui.swipe", """{"element":"e2","direction":"up"}""").isError)
             assertEquals(ToolErrorCode.INVALID_ARGUMENTS, call("ui.swipe", """{"element":"e2"}""").errorCode)
             assertEquals(listOf("swipe 1,2 3,4 300", "swipeOn e2 UP"), input.calls)
+        }
+
+    @Test
+    fun `a direction alone swipes across the middle of the screen`() =
+        runTest {
+            assertFalse(call("ui.swipe", """{"direction":"up"}""").isError)
+            assertEquals("swipe 540,2040 540,360 300", input.calls.single())
+        }
+
+    @Test
+    fun `find drops a guessed role when the text matches something else`() =
+        runTest {
+            val result = call("screen.find", """{"text":"display","role":"checkbox"}""")
+            assertFalse(result.isError)
+            assertTrue(result.text().startsWith("No element with role checkbox matched"), result.text())
+            assertTrue(result.text().contains(""""id":"e3""""))
         }
 
     @Test

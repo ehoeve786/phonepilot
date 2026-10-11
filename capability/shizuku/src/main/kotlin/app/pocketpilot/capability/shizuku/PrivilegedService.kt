@@ -2,6 +2,8 @@ package app.pocketpilot.capability.shizuku
 
 import android.content.Context
 import android.os.ParcelFileDescriptor
+import app.pocketpilot.capability.api.apps.AppAdminArgs
+import app.pocketpilot.capability.api.settings.SettingKey
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -10,7 +12,8 @@ import kotlin.system.exitProcess
 /**
  * Runs as the shell user in a process Shizuku starts. Every method runs one fixed command with
  * arguments passed as an argv array, never through a shell, and checks its inputs first, so the app
- * side cannot turn it into a general shell (spec section 6). Raw shell arrives later behind shell:exec.
+ * side cannot turn it into a general shell (spec section 6). The one exception is [runShell], which
+ * backs `shell.exec`: off by default in the app and confirmed by the owner command by command.
  */
 class PrivilegedService() : IPocketPilotPrivileged.Stub() {
     /** Shizuku 13 calls this constructor when it exists. */
@@ -79,6 +82,94 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         run("cmd", "statusbar", if (quickSettings) "expand-settings" else "expand-notifications")
     }
 
+    override fun readSetting(key: String): String = settings.get(settingKey(key))
+
+    override fun writeSetting(
+        key: String,
+        value: String,
+    ) {
+        settings.set(settingKey(key), value)
+    }
+
+    override fun forceStop(packageName: String) {
+        mutable(packageName)
+        run("am", "force-stop", packageName)
+    }
+
+    override fun dumpPackage(packageName: String): String {
+        AppAdminArgs.checkPackage(packageName)
+        return run("dumpsys", "package", packageName).take(MAX_DUMP)
+    }
+
+    override fun appOps(packageName: String): String {
+        AppAdminArgs.checkPackage(packageName)
+        return run("appops", "get", packageName).take(MAX_DUMP)
+    }
+
+    override fun setPermission(
+        packageName: String,
+        permission: String,
+        granted: Boolean,
+    ) {
+        mutable(packageName)
+        AppAdminArgs.checkPermission(permission)
+        run("pm", if (granted) "grant" else "revoke", packageName, permission)
+    }
+
+    override fun setAppOp(
+        packageName: String,
+        op: String,
+        mode: String,
+    ) {
+        mutable(packageName)
+        AppAdminArgs.checkOp(op)
+        AppAdminArgs.checkMode(mode)
+        run("appops", "set", packageName, op, mode)
+    }
+
+    override fun setPackageEnabled(
+        packageName: String,
+        enabled: Boolean,
+    ) {
+        mutable(packageName)
+        AppAdminArgs.checkNotCritical(packageName)
+        if (enabled) run("pm", "enable", packageName) else run("pm", "disable-user", "--user", "0", packageName)
+    }
+
+    override fun clearPackageData(packageName: String) {
+        mutable(packageName)
+        AppAdminArgs.checkNotCritical(packageName)
+        run("pm", "clear", packageName)
+    }
+
+    override fun runShell(
+        command: String,
+        timeoutMs: Long,
+    ): String {
+        require(command.isNotBlank() && command.length <= MAX_COMMAND) { "The command must be 1 to $MAX_COMMAND characters" }
+        val process = ProcessBuilder("sh", "-c", command).start()
+        process.outputStream.close()
+        var stdout = ""
+        var stderr = ""
+        val out = thread(name = "pp-shell-out") { stdout = process.inputStream.bufferedReader().readText() }
+        val err = thread(name = "pp-shell-err") { stderr = process.errorStream.bufferedReader().readText() }
+        val finished = process.waitFor(timeoutMs.coerceIn(1_000, MAX_SHELL_MS), TimeUnit.MILLISECONDS)
+        if (!finished) process.destroyForcibly()
+        out.join(STREAM_JOIN_MS)
+        err.join(STREAM_JOIN_MS)
+        val exit = if (finished) process.exitValue() else -1
+        return "$exit\u0000${stdout.take(MAX_SHELL_OUTPUT)}\u0000${stderr.take(MAX_SHELL_OUTPUT)}"
+    }
+
+    private fun mutable(packageName: String) {
+        AppAdminArgs.checkPackage(packageName)
+        AppAdminArgs.checkNotProtected(packageName)
+    }
+
+    private val settings = SettingCommands { argv -> run(*argv.toTypedArray()) }
+
+    private fun settingKey(wire: String): SettingKey = requireNotNull(SettingKey.fromWire(wire)) { "Not an allowed setting: $wire" }
+
     override fun destroy() {
         exitProcess(0)
     }
@@ -114,7 +205,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
 
     companion object {
         /** The AIDL contract version; bump with every change to IPocketPilotPrivileged. */
-        const val VERSION = 1
+        const val VERSION = 3
 
         private const val UI_DUMP_PATH = "/data/local/tmp/pocketpilot-ui.xml"
         private const val COMMAND_TIMEOUT_S = 15L
@@ -123,6 +214,11 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         private const val MAX_KEYCODE = 400
         private const val MAX_TEXT = 2_000
         private const val MAX_ERROR = 300
+        private const val MAX_DUMP = 200_000
+        private const val MAX_COMMAND = 4_000
+        private const val MAX_SHELL_MS = 120_000L
+        private const val MAX_SHELL_OUTPUT = 60_000
+        private const val STREAM_JOIN_MS = 2_000L
         private val PACKAGE = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$")
     }
 }

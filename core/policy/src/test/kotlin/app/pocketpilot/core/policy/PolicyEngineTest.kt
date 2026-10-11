@@ -25,6 +25,7 @@ class PolicyEngineTest {
     private fun engine(
         overrides: Map<String, AppMode> = emptyMap(),
         limiter: RateLimiter = RateLimiter(PolicyEngine.DEFAULT_CALLS_PER_MINUTE),
+        leave: suspend () -> Unit = {},
     ) = PolicyEngine(
         appPolicy = AppPolicy({ overrides }, ownPackages = setOf("app.pocketpilot")),
         foreground = { front },
@@ -33,6 +34,7 @@ class PolicyEngineTest {
             answer
         },
         rateLimiter = limiter,
+        leaveDeniedApp = leave,
     )
 
     private fun spec(
@@ -70,6 +72,15 @@ class PolicyEngineTest {
         }
 
     @Test
+    fun `a denied app is refused before it is opened`() =
+        runTest {
+            val launch = spec("app.launch", RiskTier.INTERACT, Scope.APPS_CONTROL)
+            val engine = engine()
+            assertIs<Decision.Deny>(engine.before(session, launch, targetPackage = "com.rbc.mobile.android"))
+            assertEquals(Decision.Allow, engine.before(session, launch, targetPackage = "com.android.chrome"))
+        }
+
+    @Test
     fun `pocketpilot itself is off limits`() =
         runTest {
             front = "app.pocketpilot"
@@ -79,10 +90,12 @@ class PolicyEngineTest {
     @Test
     fun `an action that lands in a denied app does not return its screen`() =
         runTest {
-            val engine = engine()
+            var left = 0
+            val engine = engine(leave = { left++ })
             assertEquals(Decision.Allow, engine.before(session, tap))
             front = "com.paypal.android.p2pmobile"
             assertIs<Decision.Deny>(engine.after(tap))
+            assertEquals(1, left, "the phone leaves the denied app")
         }
 
     @Test
@@ -104,6 +117,18 @@ class PolicyEngineTest {
             engine.before(session, destructive)
             engine.before(session, destructive)
             assertEquals(listOf("clipboard.read", "app.stop", "app.stop"), asked.map { it.tool })
+        }
+
+    @Test
+    fun `pre-confirmed sensitive tools skip the prompt, destructive ones never do`() =
+        runTest {
+            val engine = engine()
+            val settings = spec("settings.set", RiskTier.SENSITIVE, Scope.SETTINGS_WRITE)
+            val destructive = spec("shell.exec", RiskTier.DESTRUCTIVE, Scope.SHELL_EXEC)
+            engine.preConfirm(session.id, setOf("settings.set", "shell.exec"))
+            assertEquals(Decision.Allow, engine.before(session, settings))
+            assertEquals(Decision.Allow, engine.before(session, destructive))
+            assertEquals(listOf("shell.exec"), asked.map { it.tool })
         }
 
     @Test
