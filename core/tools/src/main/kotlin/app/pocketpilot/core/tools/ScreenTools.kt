@@ -213,8 +213,9 @@ class ScreenCaptureTool(
             title = "Screenshot",
             description =
                 "Takes a screenshot. The long edge is scaled to maxEdge (default 1280, 512 to native). Password fields " +
-                    "and apps PocketPilot keeps private are blacked out. The text part gives the image size and a transform: screenX = offsetX + imageX * " +
-                    "scaleX, screenY = offsetY + imageY * scaleY; ui.tap takes screen pixels. Use screen.snapshot when " +
+                    "and apps PocketPilot keeps private are blacked out. The text part gives the image size and a " +
+                    "transform: screenX = offsetX + imageX * scaleX, screenY = offsetY + imageY * scaleY; ui.tap takes " +
+                    "screen pixels. Use screen.snapshot when " +
                     "you only need text and element IDs.",
             inputSchema =
                 """{"type":"object","properties":{
