@@ -131,6 +131,44 @@ class AppAdminAndShellToolsTest {
         }
 
     @Test
+    fun `only requested runtime permissions and harmless app ops can be opened up`() =
+        runTest {
+            val d = dispatcher(AppSetPermissionTool(admin), AppSetAppOpTool(admin))
+            val secure =
+                d.dispatch(
+                    session,
+                    "app.set_permission",
+                    args("package" to "com.example.app", "permission" to "android.permission.WRITE_SECURE_SETTINGS", "granted" to true),
+                )
+            val notRequested =
+                d.dispatch(
+                    session,
+                    "app.set_permission",
+                    args("package" to "com.example.app", "permission" to "android.permission.READ_SMS", "granted" to true),
+                )
+            val overlay =
+                d.dispatch(session, "app.set_appop", args("package" to "com.example.app", "op" to "SYSTEM_ALERT_WINDOW", "mode" to "allow"))
+            val restrict =
+                d.dispatch(
+                    session,
+                    "app.set_appop",
+                    args("package" to "com.example.app", "op" to "SYSTEM_ALERT_WINDOW", "mode" to "ignore"),
+                )
+            listOf(secure, notRequested, overlay).forEach { assertEquals(ToolErrorCode.INVALID_ARGUMENTS, it.errorCode) }
+            assertFalse(restrict.isError)
+            assertEquals(listOf("op com.example.app SYSTEM_ALERT_WINDOW ignore"), log)
+        }
+
+    @Test
+    fun `apps on the deny list cannot be changed`() =
+        runTest {
+            val d = dispatcher(AppStopTool(admin))
+            val result = d.dispatch(session, "app.stop", args("package" to "com.td"))
+            assertEquals(ToolErrorCode.DENIED_BY_POLICY, result.errorCode)
+            assertTrue(log.isEmpty())
+        }
+
+    @Test
     fun `destructive app changes are confirmed every time`() =
         runTest {
             val d = dispatcher(AppClearDataTool(admin), AppSetEnabledTool(admin))

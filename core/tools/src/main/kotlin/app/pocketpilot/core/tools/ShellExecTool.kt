@@ -50,7 +50,7 @@ class ShellExecTool(
 
     override val timeoutMs: Long = MAX_TIMEOUT_MS + 5_000
 
-    override fun confirmationDetail(call: ToolCall): String? = call.arguments.string("command")
+    override suspend fun confirmationDetail(call: ToolCall): String? = call.arguments.string("command")
 
     override suspend fun execute(
         call: ToolCall,

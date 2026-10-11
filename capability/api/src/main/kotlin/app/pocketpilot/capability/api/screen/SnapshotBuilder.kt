@@ -16,13 +16,27 @@ object SnapshotBuilder {
     const val LIST_HEAD = 10
     const val LIST_TAIL = 5
 
+    /** Shorter hidden texts, such as "OK", would remove unrelated nodes. */
+    private const val MIN_HIDDEN_TEXT = 4
+
     fun build(
         id: String,
         packageName: String?,
         screen: ScreenSize,
         nodes: List<RawNode>,
         options: SnapshotOptions = SnapshotOptions(),
+        /** Apps whose nodes are left out, with their whole subtree; see [ScreenPrivacy]. */
+        hidePackage: (String) -> Boolean = { false },
+        /** Nodes showing any of these texts are left out; see [ScreenPrivacy.hiddenTexts]. */
+        hiddenTexts: Set<String> = emptySet(),
     ): BuiltSnapshot {
+        val secrets = hiddenTexts.filter { it.length >= MIN_HIDDEN_TEXT }
+        val hidden = mutableListOf<Bounds>()
+
+        fun RawNode.private(): Boolean =
+            this.packageName?.let(hidePackage) == true ||
+                secrets.any { secret -> text?.contains(secret) == true || description?.contains(secret) == true }
+
         val children = Array(nodes.size) { mutableListOf<Int>() }
         val roots = mutableListOf<Int>()
         nodes.forEachIndexed { index, node ->
@@ -35,6 +49,10 @@ object SnapshotBuilder {
             parentRole: Role?,
         ): List<Shaped> {
             val node = nodes[index]
+            if (node.private()) {
+                if (!node.bounds.isEmpty) hidden += node.bounds
+                return emptyList()
+            }
             val isRoot = node.windowTitle != null || node.parent == null
             if (!isRoot && !options.includeInvisible && (!node.visible || node.bounds.isEmpty)) return emptyList()
             val role = roleOf(node, isRoot, parentRole)
@@ -72,7 +90,7 @@ object SnapshotBuilder {
         shaped.forEach { emit(it, null) }
 
         return BuiltSnapshot(
-            snapshot = Snapshot(id, packageName, screen, elements, truncated),
+            snapshot = Snapshot(id, packageName, screen, elements, truncated, hidden),
             sources = sources,
         )
     }

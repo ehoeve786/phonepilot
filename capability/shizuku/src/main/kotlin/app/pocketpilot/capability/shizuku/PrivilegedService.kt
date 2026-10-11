@@ -112,7 +112,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         granted: Boolean,
     ) {
         mutable(packageName)
-        AppAdminArgs.checkPermission(permission)
+        AppAdminArgs.checkRuntimePermission(permission)
         run("pm", if (granted) "grant" else "revoke", packageName, permission)
     }
 
@@ -122,8 +122,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         mode: String,
     ) {
         mutable(packageName)
-        AppAdminArgs.checkOp(op)
-        AppAdminArgs.checkMode(mode)
+        AppAdminArgs.checkOpChange(op, mode)
         run("appops", "set", packageName, op, mode)
     }
 
@@ -205,7 +204,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
 
     companion object {
         /** The AIDL contract version; bump with every change to IPocketPilotPrivileged. */
-        const val VERSION = 3
+        const val VERSION = 4
 
         private const val UI_DUMP_PATH = "/data/local/tmp/pocketpilot-ui.xml"
         private const val COMMAND_TIMEOUT_S = 15L

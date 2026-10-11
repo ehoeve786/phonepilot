@@ -124,6 +124,30 @@ class PolicyEngineTest {
         }
 
     @Test
+    fun `approving one change of a sensitive tool does not approve another`() =
+        runTest {
+            val engine = engine()
+            val grant = spec("app.set_permission", RiskTier.SENSITIVE, Scope.APPS_CONTROL)
+            engine.before(session, grant, detail = "Grant android.permission.CAMERA for com.example")
+            engine.before(session, grant, detail = "Grant android.permission.CAMERA for com.example")
+            engine.before(session, grant, detail = "Grant android.permission.READ_SMS for com.example")
+            assertEquals(
+                listOf("Grant android.permission.CAMERA for com.example", "Grant android.permission.READ_SMS for com.example"),
+                asked.map { it.detail },
+            )
+        }
+
+    @Test
+    fun `a read that ends in a denied app is withheld without leaving it`() =
+        runTest {
+            var left = 0
+            val engine = engine(leave = { left++ })
+            front = "com.td"
+            assertIs<Decision.Deny>(engine.after(snapshot))
+            assertEquals(0, left)
+        }
+
+    @Test
     fun `pre-confirmed sensitive tools skip the prompt, destructive ones never do`() =
         runTest {
             val engine = engine()

@@ -60,7 +60,9 @@ fun interface ControlIndicator {
  * - app policy for tools that read or touch the screen, checked against the app in front before the
  *   call and again after it, so an action that lands in a denied app does not return its screen and
  *   the phone goes back to the home screen;
- * - confirmation for SENSITIVE tools once per session and DESTRUCTIVE tools on every call;
+ * - confirmation for SENSITIVE tools once per session and exact change (the tool with its detail, so
+ *   approving one permission grant or one file does not approve the next) and DESTRUCTIVE tools on
+ *   every call;
  * - the [ControlIndicator] for every call that acts on the phone, and a refusal of every MCP client
  *   call while the owner has stopped clients from it.
  */
@@ -84,7 +86,7 @@ class PolicyEngine(
         spec: ToolSpec,
         /** Shown in the confirmation; see [ConfirmationRequest.detail]. */
         detail: String? = null,
-        /** The app the call will open, when the tool knows it in advance. */
+        /** The app the call will open or change, when the tool knows it in advance. */
         targetPackage: String? = null,
     ): Decision {
         if (session.kind == SessionKind.MCP_CLIENT && clientsStopped()) {
@@ -105,7 +107,7 @@ class PolicyEngine(
         if (targetPackage != null && appPolicy.modeFor(targetPackage) == AppMode.DENY) {
             return Decision.Deny(
                 ToolErrorCode.DENIED_BY_POLICY,
-                "PocketPilot does not open $targetPackage",
+                "PocketPilot does not open or change $targetPackage",
                 "Banking, payment, password and authenticator apps are off limits. Tell the owner to open it themselves.",
             )
         }
@@ -141,7 +143,7 @@ class PolicyEngine(
         val needsConfirmation =
             confirmBecauseOfApp ||
                 spec.riskTier == RiskTier.DESTRUCTIVE ||
-                (spec.riskTier == RiskTier.SENSITIVE && !alreadyConfirmed(session.id, spec.name))
+                (spec.riskTier == RiskTier.SENSITIVE && !alreadyConfirmed(session.id, spec.name, detail))
         if (needsConfirmation) {
             val answer =
                 confirmer?.confirm(
@@ -156,7 +158,7 @@ class PolicyEngine(
                 ) ?: ConfirmationAnswer.DECLINED
             when (answer) {
                 ConfirmationAnswer.APPROVED -> {
-                    if (spec.riskTier == RiskTier.SENSITIVE) rememberConfirmed(session.id, spec.name)
+                    if (spec.riskTier == RiskTier.SENSITIVE) rememberConfirmed(session.id, confirmationKey(spec.name, detail))
                 }
 
                 ConfirmationAnswer.DECLINED -> {
@@ -182,12 +184,15 @@ class PolicyEngine(
 
     /**
      * Checks the app in front after a screen-touching call. If the call moved the phone into a denied
-     * app, the result must not be returned, since it may carry that app's screen.
+     * app, the result must not be returned, since it may carry that app's screen. A read that ends in a
+     * denied app, such as a wait during which the owner opened their bank, is withheld too, but the
+     * phone stays where the owner put it.
      */
     suspend fun after(spec: ToolSpec): Decision {
-        if (!spec.touchesScreen() || spec.riskTier == RiskTier.READ) return Decision.Allow
+        if (!spec.touchesScreen()) return Decision.Allow
         val front = foreground() ?: return Decision.Allow
         if (appPolicy.modeFor(front) != AppMode.DENY) return Decision.Allow
+        if (spec.riskTier == RiskTier.READ) return deniedApp(front)
         // A tap on a launcher icon or a link can open a denied app; leave it before anything else can act there.
         runCatching { leaveDeniedApp() }
         return Decision.Deny(
@@ -198,8 +203,9 @@ class PolicyEngine(
     }
 
     /**
-     * Treats [tools] as already confirmed for session [id], for sessions the owner started on the phone
-     * itself. Only sensitive tools are affected; destructive ones are confirmed on every call regardless.
+     * Treats [tools] as already confirmed for session [id] whatever their detail, for sessions the owner
+     * started on the phone itself. Only sensitive tools are affected; destructive ones are confirmed on
+     * every call regardless.
      */
     @Synchronized
     fun preConfirm(
@@ -220,15 +226,25 @@ class PolicyEngine(
     private fun alreadyConfirmed(
         id: SessionId,
         tool: String,
-    ): Boolean = confirmedSensitive[id]?.contains(tool) == true
+        detail: String?,
+    ): Boolean {
+        val confirmed = confirmedSensitive[id] ?: return false
+        return tool in confirmed || confirmationKey(tool, detail) in confirmed
+    }
 
     @Synchronized
     private fun rememberConfirmed(
         id: SessionId,
-        tool: String,
+        key: String,
     ) {
-        confirmedSensitive.getOrPut(id) { HashSet() } += tool
+        confirmedSensitive.getOrPut(id) { HashSet() } += key
     }
+
+    /** A whole tool when it has no detail, else that exact change of it. */
+    private fun confirmationKey(
+        tool: String,
+        detail: String?,
+    ): String = if (detail == null) tool else "$tool\u0000$detail"
 
     private fun deniedApp(front: String) =
         Decision.Deny(

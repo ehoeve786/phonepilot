@@ -155,7 +155,7 @@ class FilesWriteTool(
             availability = Availability(Phase.P0),
         )
 
-    override fun confirmationDetail(call: ToolCall): String? {
+    override suspend fun confirmationDetail(call: ToolCall): String? {
         val path = call.arguments.string("path") ?: return null
         val replace = if (call.arguments.boolean("replace") == true) " (replacing it)" else ""
         return "$path$replace"

@@ -54,6 +54,7 @@ internal object UiAutomatorXml {
             enabled = this["enabled"] != "false",
             password = flag("password"),
             windowTitle = if (parent == null) this["package"] ?: "window" else null,
+            packageName = this["package"]?.takeIf(String::isNotEmpty),
         )
     }
 

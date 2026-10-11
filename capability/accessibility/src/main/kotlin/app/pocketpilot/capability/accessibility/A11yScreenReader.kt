@@ -9,6 +9,7 @@ import app.pocketpilot.capability.api.BackendIds
 import app.pocketpilot.capability.api.screen.Bounds
 import app.pocketpilot.capability.api.screen.ForegroundApp
 import app.pocketpilot.capability.api.screen.RawNode
+import app.pocketpilot.capability.api.screen.ScreenPrivacy
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.api.screen.ScreenSize
 import app.pocketpilot.capability.api.screen.Snapshot
@@ -22,7 +23,9 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicLong
 
 /** READ_UI through the Accessibility service: walks every interactive window's node tree. */
-class A11yScreenReader : ScreenReader {
+class A11yScreenReader(
+    private val privacy: ScreenPrivacy = ScreenPrivacy.NONE,
+) : ScreenReader {
     override val backendId: String = BackendIds.ACCESSIBILITY
     override val available: StateFlow<Boolean> = A11yBridge.connected
 
@@ -39,6 +42,7 @@ class A11yScreenReader : ScreenReader {
     override suspend fun snapshot(options: SnapshotOptions): Snapshot =
         withContext(Dispatchers.Default) {
             val service = A11yBridge.require()
+            val hiddenTexts = privacy.hiddenTexts()
             val raw = mutableListOf<RawNode>()
             val nodes = mutableListOf<AccessibilityNodeInfo>()
             for (window in orderedWindows(service)) {
@@ -47,7 +51,16 @@ class A11yScreenReader : ScreenReader {
                 if (raw.size >= MAX_RAW_NODES) break
             }
             val id = "a${counter.incrementAndGet()}"
-            val built = SnapshotBuilder.build(id, appWindow(service)?.root?.packageName?.toString(), screenSize(service), raw, options)
+            val built =
+                SnapshotBuilder.build(
+                    id,
+                    appWindow(service)?.root?.packageName?.toString(),
+                    screenSize(service),
+                    raw,
+                    options,
+                    privacy::hidesPackage,
+                    hiddenTexts,
+                )
             recent.put(built.snapshot, Taken(nodes, built.sources))
             built.snapshot
         }
@@ -124,6 +137,7 @@ class A11yScreenReader : ScreenReader {
             enabled = isEnabled,
             password = isPassword,
             windowTitle = windowTitle,
+            packageName = packageName?.toString(),
         )
     }
 

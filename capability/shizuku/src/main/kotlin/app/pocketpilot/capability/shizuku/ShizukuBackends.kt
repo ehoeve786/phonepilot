@@ -15,6 +15,7 @@ import app.pocketpilot.capability.api.screen.GlobalAction
 import app.pocketpilot.capability.api.screen.InputController
 import app.pocketpilot.capability.api.screen.Key
 import app.pocketpilot.capability.api.screen.ScreenCapturer
+import app.pocketpilot.capability.api.screen.ScreenPrivacy
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.api.screen.ScreenSize
 import app.pocketpilot.capability.api.screen.Snapshot
@@ -68,6 +69,7 @@ private fun ShizukuConnection.availability(scope: CoroutineScope): StateFlow<Boo
 class ShizukuScreenReader(
     private val shizuku: ShizukuConnection,
     scope: CoroutineScope,
+    private val privacy: ScreenPrivacy = ScreenPrivacy.NONE,
 ) : ScreenReader {
     override val backendId: String = BackendIds.SHIZUKU
     override val available: StateFlow<Boolean> = shizuku.availability(scope)
@@ -80,7 +82,17 @@ class ShizukuScreenReader(
         val nodes = UiAutomatorXml.parse(xml)
         val root = nodes.firstOrNull()
         val size = root?.bounds?.let { ScreenSize(it.width, it.height) } ?: ScreenSize(0, 0)
-        val snapshot = SnapshotBuilder.build("z${counter.incrementAndGet()}", root?.windowTitle, size, nodes, options).snapshot
+        val snapshot =
+            SnapshotBuilder
+                .build(
+                    "z${counter.incrementAndGet()}",
+                    root?.windowTitle,
+                    size,
+                    nodes,
+                    options,
+                    privacy::hidesPackage,
+                    privacy.hiddenTexts(),
+                ).snapshot
         recent.put(snapshot, Unit)
         return snapshot
     }

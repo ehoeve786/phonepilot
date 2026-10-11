@@ -213,7 +213,7 @@ class ScreenCaptureTool(
             title = "Screenshot",
             description =
                 "Takes a screenshot. The long edge is scaled to maxEdge (default 1280, 512 to native). Password fields " +
-                    "are blacked out. The text part gives the image size and a transform: screenX = offsetX + imageX * " +
+                    "and apps PocketPilot keeps private are blacked out. The text part gives the image size and a transform: screenX = offsetX + imageX * " +
                     "scaleX, screenY = offsetY + imageY * scaleY; ui.tap takes screen pixels. Use screen.snapshot when " +
                     "you only need text and element IDs.",
             inputSchema =
@@ -239,7 +239,8 @@ class ScreenCaptureTool(
                     .also { if (it.isEmpty) invalid("region must have right > left and bottom > top") }
             }
         val format = args.string("format")?.let { ImageFormat.valueOf(it.uppercase()) } ?: ImageFormat.WEBP
-        val passwords = if (reader.available.value) passwordBounds(reader.snapshot()) else emptyList()
+        // Password fields and whatever ScreenPrivacy hid from the snapshot, such as a banking app in split screen.
+        val passwords = if (reader.available.value) reader.snapshot().let { passwordBounds(it) + it.hidden } else emptyList()
         val frame = capturer.capture()
         val image =
             pipeline.process(

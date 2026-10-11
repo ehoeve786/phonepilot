@@ -125,10 +125,14 @@ class NotifyActTool(
             availability = Availability(Phase.P0),
         )
 
-    override fun confirmationDetail(call: ToolCall): String? {
+    /** Names the notification too, so approving one reply does not approve acting on any other. */
+    override suspend fun confirmationDetail(call: ToolCall): String? {
         val action = call.arguments.string("action") ?: return null
         val text = call.arguments.string("text")
-        return if (text == null) action else "$action: \"$text\""
+        val key = call.arguments.string("key")
+        val target = runCatching { source.active().firstOrNull { it.key == key } }.getOrNull()
+        val on = target?.let { " on ${it.packageName}: ${it.title.orEmpty()}" } ?: " on notification $key"
+        return (if (text == null) action else "$action: \"$text\"") + on
     }
 
     override suspend fun execute(

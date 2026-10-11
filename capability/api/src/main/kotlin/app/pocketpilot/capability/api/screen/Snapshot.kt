@@ -2,6 +2,7 @@ package app.pocketpilot.capability.api.screen
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 /**
  * What is on screen, as a flat list of elements with parent links (spec section 6, Snapshot format).
@@ -16,6 +17,8 @@ data class Snapshot(
     val elements: List<Element>,
     /** True when the element limit cut the list short. */
     val truncated: Boolean = false,
+    /** Where [ScreenPrivacy] removed something; screenshots black these areas out. Never sent. */
+    @Transient val hidden: List<Bounds> = emptyList(),
 ) {
     fun element(id: String): Element? = elements.firstOrNull { it.id == id }
 }

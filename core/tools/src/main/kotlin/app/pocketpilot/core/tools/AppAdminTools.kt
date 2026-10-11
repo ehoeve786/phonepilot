@@ -38,6 +38,9 @@ private fun adminSpec(
     availability = Availability(Phase.P0),
 )
 
+/** The app a call changes, so policy refuses apps on the deny list, such as banking and authenticator apps. */
+private fun ToolCall.changedPackage(): String? = arguments.string("package")
+
 private fun JsonObject.packageName(): String {
     val name = string("package") ?: invalid("Give package, for example com.example.app")
     if (!AppAdminArgs.PACKAGE.matches(name)) invalid("Not a package name: $name")
@@ -57,6 +60,8 @@ class AppStopTool(
             "\"package\"",
             RiskTier.SENSITIVE,
         )
+
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
 
     override suspend fun execute(
         call: ToolCall,
@@ -99,13 +104,15 @@ class AppSetPermissionTool(
             "app.set_permission",
             "Grant or revoke permission",
             "Grants or revokes a runtime permission (pm grant/revoke), for example android.permission.CAMERA. " +
-                "Only runtime permissions listed by app.permissions can change.",
+                "Only runtime permissions the app requests, as listed by app.permissions, can change.",
             """$PACKAGE_PROP,"permission":{"type":"string"},"granted":{"type":"boolean"}""",
             "\"package\",\"permission\",\"granted\"",
             RiskTier.SENSITIVE,
         )
 
-    override fun confirmationDetail(call: ToolCall): String =
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
+
+    override suspend fun confirmationDetail(call: ToolCall): String =
         "${if (call.arguments.boolean("granted") == true) "Grant" else "Revoke"} ${call.arguments.string("permission")} " +
             "for ${call.arguments.string("package")}"
 
@@ -115,8 +122,9 @@ class AppSetPermissionTool(
     ): ToolResult {
         val pkg = call.arguments.packageName()
         val permission = call.arguments.string("permission") ?: invalid("Give permission")
-        if (!AppAdminArgs.PERMISSION.matches(permission)) invalid("Not a permission name: $permission")
+        if (permission !in AppAdminArgs.RUNTIME_PERMISSIONS) invalid("$permission is not a runtime permission; only those can change")
         val granted = call.arguments.boolean("granted") ?: invalid("Give granted: true or false")
+        if (permission !in admin.permissions(pkg).runtime) invalid("$pkg does not request $permission")
         admin.setPermission(pkg, permission, granted)
         return ToolResult.success("${if (granted) "Granted" else "Revoked"} $permission for $pkg.")
     }
@@ -131,7 +139,7 @@ class AppSetAppOpTool(
             "app.set_appop",
             "Set app op",
             "Sets an app op (appops set), for example RUN_IN_BACKGROUND to ignore to stop background running, " +
-                "or SYSTEM_ALERT_WINDOW to allow. Modes: ${AppAdminArgs.MODES.joinToString()}.",
+                "or CAMERA to allow. Ops such as SYSTEM_ALERT_WINDOW or PROJECT_MEDIA can only be restricted. Modes: ${AppAdminArgs.MODES.joinToString()}.",
             """$PACKAGE_PROP,"op":{"type":"string"},"mode":{"type":"string","enum":[${AppAdminArgs.MODES.joinToString(
                 ",",
             ) { "\"$it\"" }}]}""",
@@ -139,7 +147,9 @@ class AppSetAppOpTool(
             RiskTier.SENSITIVE,
         )
 
-    override fun confirmationDetail(call: ToolCall): String =
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
+
+    override suspend fun confirmationDetail(call: ToolCall): String =
         "Set ${call.arguments.string("op")} to ${call.arguments.string("mode")} for ${call.arguments.string("package")}"
 
     override suspend fun execute(
@@ -148,8 +158,8 @@ class AppSetAppOpTool(
     ): ToolResult {
         val pkg = call.arguments.packageName()
         val op = call.arguments.string("op") ?: invalid("Give op")
-        if (!AppAdminArgs.OP.matches(op)) invalid("Not an app op name: $op")
         val mode = call.arguments.string("mode") ?: invalid("Give mode")
+        runCatching { AppAdminArgs.checkOpChange(op, mode) }.onFailure { invalid(it.message ?: "Not allowed: $op $mode") }
         admin.setAppOp(pkg, op, mode)
         return ToolResult.success("Set $op to $mode for $pkg.")
     }
@@ -169,7 +179,9 @@ class AppSetEnabledTool(
             RiskTier.DESTRUCTIVE,
         )
 
-    override fun confirmationDetail(call: ToolCall): String =
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
+
+    override suspend fun confirmationDetail(call: ToolCall): String =
         "${if (call.arguments.boolean("enabled") == true) "Enable" else "Disable"} ${call.arguments.string("package")}"
 
     override suspend fun execute(
@@ -197,7 +209,9 @@ class AppClearDataTool(
             RiskTier.DESTRUCTIVE,
         )
 
-    override fun confirmationDetail(call: ToolCall): String = "Delete all data of ${call.arguments.string("package")}"
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
+
+    override suspend fun confirmationDetail(call: ToolCall): String = "Delete all data of ${call.arguments.string("package")}"
 
     override suspend fun execute(
         call: ToolCall,

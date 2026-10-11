@@ -13,6 +13,7 @@ import app.pocketpilot.capability.api.apps.AppController
 import app.pocketpilot.capability.api.screen.GlobalAction
 import app.pocketpilot.capability.api.screen.InputController
 import app.pocketpilot.capability.api.screen.ScreenCapturer
+import app.pocketpilot.capability.api.screen.ScreenPrivacy
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.apps.PackageAppController
 import app.pocketpilot.capability.device.AndroidDeviceInfoSource
@@ -125,9 +126,31 @@ object AppModule {
     @Singleton
     fun appScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /**
+     * Keeps apps on the deny list out of every snapshot and screenshot, including a banking app in split
+     * screen and its notifications in the shade.
+     */
     @Provides
     @Singleton
-    fun a11yScreenReader(): A11yScreenReader = A11yScreenReader()
+    fun screenPrivacy(appPolicy: AppPolicy): ScreenPrivacy =
+        object : ScreenPrivacy {
+            override fun hidesPackage(packageName: String) = appPolicy.modeFor(packageName) == AppMode.DENY
+
+            override suspend fun hiddenTexts(): Set<String> =
+                if (!ListenerNotificationSource.available.value) {
+                    emptySet()
+                } else {
+                    ListenerNotificationSource
+                        .active()
+                        .filter { hidesPackage(it.packageName) }
+                        .flatMap { listOfNotNull(it.title, it.text) }
+                        .toSet()
+                }
+        }
+
+    @Provides
+    @Singleton
+    fun a11yScreenReader(privacy: ScreenPrivacy): A11yScreenReader = A11yScreenReader(privacy)
 
     @Provides
     @Singleton
@@ -154,7 +177,8 @@ object AppModule {
     fun shizukuScreenReader(
         shizuku: ShizukuConnection,
         scope: CoroutineScope,
-    ): ShizukuScreenReader = ShizukuScreenReader(shizuku, scope)
+        privacy: ScreenPrivacy,
+    ): ShizukuScreenReader = ShizukuScreenReader(shizuku, scope, privacy)
 
     @Provides
     @Singleton
