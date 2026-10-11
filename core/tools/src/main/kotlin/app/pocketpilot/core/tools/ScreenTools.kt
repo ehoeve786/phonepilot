@@ -58,14 +58,14 @@ class ScreenSnapshotTool(
             name = "screen.snapshot",
             title = "Screen snapshot",
             description =
-                "Returns what is on screen as JSON: snapshotId, the foreground package, screen size and a flat list " +
-                    "of elements with id, parent, role, text, desc, rid (resource ID), bounds [left,top,right,bottom] " +
-                    "and state flags. Use element IDs with ui.* tools; they are only valid for this snapshot. " +
-                    "Prefer this over screen.capture: it is cheaper and exact.",
+                "Returns what is on screen. ${SnapshotText.FORMAT} Use element IDs with ui.* tools; they are only " +
+                    "valid for this snapshot. The status and navigation bars are left out unless includeSystemBars is " +
+                    "true. Prefer this over screen.capture: it is cheaper and exact.",
             inputSchema =
                 """{"type":"object","properties":{
                 "maxNodes":{"type":"integer","description":"Element limit (default 300)"},
-                "includeInvisible":{"type":"boolean","description":"Include elements not visible to the user"}
+                "includeInvisible":{"type":"boolean","description":"Include elements not visible to the user"},
+                "includeSystemBars":{"type":"boolean","description":"Include the status bar, navigation bar and taskbar"}
                 },"additionalProperties":false}""",
         )
 
@@ -75,8 +75,13 @@ class ScreenSnapshotTool(
     ): ToolResult {
         val max = call.arguments.int("maxNodes") ?: SnapshotOptions.DEFAULT_MAX_ELEMENTS
         if (max !in 1..MAX_NODES) invalid("maxNodes must be between 1 and $MAX_NODES")
-        val options = SnapshotOptions(maxElements = max, includeInvisible = call.arguments.boolean("includeInvisible") ?: false)
-        return ToolResult.success(reader.snapshot(options).toJson())
+        val options =
+            SnapshotOptions(
+                maxElements = max,
+                includeInvisible = call.arguments.boolean("includeInvisible") ?: false,
+                includeSystemBars = call.arguments.boolean("includeSystemBars") ?: false,
+            )
+        return ToolResult.success(reader.snapshot(options).toText())
     }
 
     private companion object {
@@ -95,8 +100,8 @@ class ScreenFindTool(
             description =
                 "Finds elements on the current screen. text and description match case-insensitively by substring; " +
                     "text also matches an element's accessibility label, where icons and Quick Settings tiles keep theirs. " +
-                    "resourceId by suffix (\"title\" matches \"android:id/title\"), role exactly. Returns the snapshotId " +
-                    "and the matching elements.",
+                    "resourceId by suffix (\"title\" matches \"android:id/title\"), role exactly. Returns the snapshot ID " +
+                    "and one line per match, in screen.snapshot's format.",
             inputSchema = selectorSchema(),
         )
 
@@ -111,7 +116,7 @@ class ScreenFindTool(
             // Models often guess the role (checkbox for a switch tile); the text is the stronger hint.
             val loose = selector.copy(role = null).match(snapshot)
             if (loose.isNotEmpty()) {
-                val found = compactJson.encodeToString(FindResult.serializer(), FindResult(snapshot.id, loose))
+                val found = SnapshotText.matches(snapshot.id, loose)
                 return ToolResult.success("No element with role ${selector.role.name.lowercase()} matched; these match the rest:\n$found")
             }
         }
@@ -122,7 +127,7 @@ class ScreenFindTool(
                 "Take a screen.snapshot to see what is there, or scroll with ui.swipe and try again",
             )
         }
-        return ToolResult.success(compactJson.encodeToString(FindResult.serializer(), FindResult(snapshot.id, matches)))
+        return ToolResult.success(SnapshotText.matches(snapshot.id, matches))
     }
 }
 
@@ -163,7 +168,7 @@ class ScreenWaitForTool(
             "Nothing matched $selector within $wait ms",
             "Take a screen.snapshot to see what is on screen instead",
         )
-        return ToolResult.success(compactJson.encodeToString(FindResult.serializer(), found))
+        return ToolResult.success(SnapshotText.matches(found.snapshotId, found.matches))
     }
 
     private companion object {
@@ -197,7 +202,7 @@ class ScreenWaitForChangeTool(
         val changed = reader.awaitChange(wait)
         val snapshot = reader.snapshot()
         val lead = if (changed) "The screen changed." else "No change within $wait ms."
-        return ToolResult.success("$lead\n${snapshot.toJson()}")
+        return ToolResult.success("$lead\n${snapshot.toText()}")
     }
 }
 

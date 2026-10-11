@@ -117,6 +117,11 @@ data class Element(
 data class SnapshotOptions(
     val maxElements: Int = DEFAULT_MAX_ELEMENTS,
     val includeInvisible: Boolean = false,
+    /**
+     * Keeps the status bar, navigation bar and taskbar windows, which are left out by default to save
+     * tokens; the time, battery and notifications are also in device.info and notify.list.
+     */
+    val includeSystemBars: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_MAX_ELEMENTS = 300

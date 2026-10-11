@@ -16,6 +16,9 @@ object SnapshotBuilder {
     const val LIST_HEAD = 10
     const val LIST_TAIL = 5
 
+    /** System bars are at most this share of the screen's height; a heads-up notification is taller. */
+    private const val SYSTEM_BAR_PERCENT = 6
+
     /** Shorter hidden texts, such as "OK", would remove unrelated nodes. */
     private const val MIN_HIDDEN_TEXT = 4
 
@@ -54,6 +57,7 @@ object SnapshotBuilder {
                 return emptyList()
             }
             val isRoot = node.windowTitle != null || node.parent == null
+            if (isRoot && !options.includeSystemBars && node.isSystemBar(screen, packageName)) return emptyList()
             if (!isRoot && !options.includeInvisible && (!node.visible || node.bounds.isEmpty)) return emptyList()
             val role = roleOf(node, isRoot, parentRole)
             val kids = children[index].flatMap { shape(it, role) }
@@ -126,6 +130,19 @@ object SnapshotBuilder {
             password = node.password,
             omitted = omitted,
         )
+
+    /**
+     * A thin window along the top or bottom edge that is not the app in front: the status bar, the
+     * navigation bar or a taskbar. Heads-up notifications and the shade are taller and stay.
+     */
+    private fun RawNode.isSystemBar(
+        screen: ScreenSize,
+        frontPackage: String?,
+    ): Boolean {
+        if (screen.height <= 0 || (frontPackage != null && packageName == frontPackage)) return false
+        val thin = bounds.height <= screen.height * SYSTEM_BAR_PERCENT / 100
+        return thin && (bounds.top <= 0 || bounds.bottom >= screen.height)
+    }
 
     private val RawNode.actionable: Boolean
         get() = clickable || longClickable || editable || scrollable || checkable
