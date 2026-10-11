@@ -1,5 +1,7 @@
 package app.pocketpilot.capability.shizuku
 
+import app.pocketpilot.capability.api.apps.ActivityEntry
+
 /** Reads `dumpsys package` and `appops get` output. */
 internal object AppAdminParsers {
     private val GRANT = Regex("^\\s+([A-Za-z0-9_.]+): granted=(true|false)")
@@ -34,5 +36,41 @@ internal object AppAdminParsers {
             if (line.trimStart().startsWith("Uid mode:")) result.putIfAbsent(op, mode) else result[op] = mode
         }
         return result
+    }
+
+    private val COMPONENT = Regex("^\\s+[0-9a-f]+ ([A-Za-z0-9_.]+/[A-Za-z0-9_.$]+)")
+    private val FILTER_LINE = Regex("^\\s+(Action|Category|Scheme): \"([^\"]+)\"")
+
+    /** Activities with intent filters, from the "Activity Resolver Table" of `dumpsys package <pkg>`. */
+    fun activities(
+        dump: String,
+        packageName: String,
+    ): List<ActivityEntry> {
+        val found = LinkedHashMap<String, Triple<MutableSet<String>, MutableSet<String>, MutableSet<String>>>()
+        var inTable = false
+        var current: String? = null
+        for (line in dump.lineSequence()) {
+            if (line.startsWith("Activity Resolver Table:")) {
+                inTable = true
+                continue
+            }
+            if (!inTable) continue
+            if (line.isNotEmpty() && !line[0].isWhitespace()) break
+            val component = COMPONENT.find(line)?.groupValues?.get(1)
+            if (component != null) {
+                current = component.takeIf { it.startsWith("$packageName/") }
+                current?.let { found.getOrPut(it) { Triple(LinkedHashSet(), LinkedHashSet(), LinkedHashSet()) } }
+                continue
+            }
+            val entry = current?.let(found::get) ?: continue
+            val match = FILTER_LINE.find(line) ?: continue
+            val (kind, value) = match.destructured
+            when (kind) {
+                "Action" -> entry.first += value
+                "Category" -> entry.second += value
+                else -> entry.third += value
+            }
+        }
+        return found.map { (component, sets) -> ActivityEntry(component, sets.first.toList(), sets.second.toList(), sets.third.toList()) }
     }
 }

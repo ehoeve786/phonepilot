@@ -57,6 +57,19 @@ interface IPocketPilotPrivileged {
     // the exit code is -1 when the command timed out.
     String runShell(String command, long timeoutMs) = 21;
 
+    // adb.query and adb.logs: a read-only command AdbQuery allows, run as argv without a shell. Only
+    // lines containing filter (ignoring case) are kept when it is not empty. Same result format as runShell.
+    String runReadOnly(in String[] argv, String filter, long timeoutMs) = 22;
+
+    // Battery optimization: `cmd deviceidle whitelist +package` (exempt) or `-package`.
+    void setDozeExempt(String packageName, boolean exempt) = 23;
+
+    // `am set-standby-bucket`; bucket is one of AppAdminArgs.STANDBY_BUCKETS.
+    void setStandbyBucket(String packageName, String bucket) = 24;
+
+    // `am start -W` or `am broadcast` with arguments IntentArgs checks; returns what am printed.
+    String startIntent(in String[] args, boolean broadcast) = 25;
+
     // Required by Shizuku to stop the service.
     void destroy() = 16777114;
 }

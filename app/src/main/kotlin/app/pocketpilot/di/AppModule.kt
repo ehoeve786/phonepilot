@@ -28,6 +28,7 @@ import app.pocketpilot.capability.shizuku.ShizukuScreenCapturer
 import app.pocketpilot.capability.shizuku.ShizukuScreenReader
 import app.pocketpilot.capability.shizuku.ShizukuSettingsController
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
+import app.pocketpilot.capability.shizuku.ShizukuSystemReader
 import app.pocketpilot.control.ControlOverlay
 import app.pocketpilot.core.audit.AuditSink
 import app.pocketpilot.core.audit.InMemoryAuditSink
@@ -47,15 +48,22 @@ import app.pocketpilot.core.orchestrator.ToolRegistry
 import app.pocketpilot.core.policy.AppMode
 import app.pocketpilot.core.policy.AppPolicy
 import app.pocketpilot.core.policy.PolicyEngine
+import app.pocketpilot.core.tools.AdbLogsTool
+import app.pocketpilot.core.tools.AdbQueryTool
+import app.pocketpilot.core.tools.AppActivitiesTool
 import app.pocketpilot.core.tools.AppClearDataTool
 import app.pocketpilot.core.tools.AppCurrentTool
 import app.pocketpilot.core.tools.AppLaunchTool
 import app.pocketpilot.core.tools.AppListTool
 import app.pocketpilot.core.tools.AppOpenUrlTool
 import app.pocketpilot.core.tools.AppPermissionsTool
+import app.pocketpilot.core.tools.AppSendBroadcastTool
 import app.pocketpilot.core.tools.AppSetAppOpTool
+import app.pocketpilot.core.tools.AppSetBatteryOptimizationTool
 import app.pocketpilot.core.tools.AppSetEnabledTool
 import app.pocketpilot.core.tools.AppSetPermissionTool
+import app.pocketpilot.core.tools.AppSetStandbyBucketTool
+import app.pocketpilot.core.tools.AppStartActivityTool
 import app.pocketpilot.core.tools.AppStopTool
 import app.pocketpilot.core.tools.DeviceInfoTool
 import app.pocketpilot.core.tools.FilesListTool
@@ -225,6 +233,13 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun shizukuSystemReader(
+        shizuku: ShizukuConnection,
+        scope: CoroutineScope,
+    ): ShizukuSystemReader = ShizukuSystemReader(shizuku, scope)
+
+    @Provides
+    @Singleton
     fun shellSwitch(
         @ApplicationContext context: Context,
     ): ShellSwitch = ShellSwitch(context)
@@ -236,13 +251,15 @@ object AppModule {
     ): BiometricGate = BiometricGate(context)
 
     /**
-     * Permissions, app ops and package state through fixed Shizuku commands, plus the raw shell, which
-     * stays off until the owner turns it on and asks before every command.
+     * Permissions, app ops, package state, intents and read-only adb commands through fixed Shizuku
+     * commands, plus the raw shell, which stays off until the owner turns it on and asks once per command.
      */
     @Provides
     @ElementsIntoSet
     fun appAdminAndShellTools(
         admin: ShizukuAppAdmin,
+        system: ShizukuSystemReader,
+        reader: ScreenReader,
         shell: ShizukuShellRunner,
         shellSwitch: ShellSwitch,
     ): Set<ToolHandler> =
@@ -253,6 +270,13 @@ object AppModule {
             AppSetAppOpTool(admin),
             AppSetEnabledTool(admin),
             AppClearDataTool(admin),
+            AppSetBatteryOptimizationTool(admin),
+            AppSetStandbyBucketTool(admin),
+            AppActivitiesTool(admin),
+            AppStartActivityTool(admin, reader),
+            AppSendBroadcastTool(admin),
+            AdbQueryTool(system),
+            AdbLogsTool(system),
             ShellExecTool(shell) { shellSwitch.enabled.value },
         )
 

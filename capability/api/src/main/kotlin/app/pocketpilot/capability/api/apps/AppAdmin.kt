@@ -30,6 +30,30 @@ interface AppAdmin : CapabilityBackend {
     )
 
     suspend fun clearData(packageName: String)
+
+    /** Activities the app exposes to other apps, with their intent filters. */
+    suspend fun activities(packageName: String): List<ActivityEntry>
+
+    /**
+     * Starts an activity (`am start -W`) or sends a broadcast (`am broadcast`) with [args] from
+     * [IntentArgs.build]. Returns what `am` printed.
+     */
+    suspend fun startIntent(
+        args: List<String>,
+        broadcast: Boolean,
+    ): String
+
+    /** Battery optimization on or off (`cmd deviceidle whitelist`); off lets the app run in Doze. */
+    suspend fun setBatteryOptimized(
+        packageName: String,
+        optimized: Boolean,
+    )
+
+    /** `am set-standby-bucket`; see [AppAdminArgs.STANDBY_BUCKETS]. */
+    suspend fun setStandbyBucket(
+        packageName: String,
+        bucket: String,
+    )
 }
 
 @Serializable
@@ -54,6 +78,12 @@ object AppAdminArgs {
     fun checkOp(op: String) = require(OP.matches(op)) { "Not an app op name: $op" }
 
     fun checkMode(mode: String) = require(mode in MODES) { "Mode must be one of ${MODES.joinToString()}" }
+
+    /** App standby buckets, from most to least allowed to run in the background. */
+    val STANDBY_BUCKETS = listOf("active", "working_set", "frequent", "rare", "restricted")
+
+    fun checkStandbyBucket(bucket: String) =
+        require(bucket in STANDBY_BUCKETS) { "Bucket must be one of ${STANDBY_BUCKETS.joinToString()}" }
 
     /**
      * Android's runtime ("dangerous") permissions, the only ones that may be granted or revoked, so a

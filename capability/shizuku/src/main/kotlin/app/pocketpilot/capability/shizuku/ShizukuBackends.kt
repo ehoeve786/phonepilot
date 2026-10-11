@@ -2,11 +2,13 @@ package app.pocketpilot.capability.shizuku
 
 import android.os.ParcelFileDescriptor
 import app.pocketpilot.capability.api.BackendIds
+import app.pocketpilot.capability.api.apps.ActivityEntry
 import app.pocketpilot.capability.api.apps.AppAdmin
 import app.pocketpilot.capability.api.apps.AppAdminArgs
 import app.pocketpilot.capability.api.apps.AppController
 import app.pocketpilot.capability.api.apps.AppInfo
 import app.pocketpilot.capability.api.apps.AppPermissions
+import app.pocketpilot.capability.api.apps.IntentArgs
 import app.pocketpilot.capability.api.screen.Bounds
 import app.pocketpilot.capability.api.screen.Element
 import app.pocketpilot.capability.api.screen.ForegroundApp
@@ -29,6 +31,7 @@ import app.pocketpilot.capability.api.settings.SettingKey
 import app.pocketpilot.capability.api.settings.SettingsController
 import app.pocketpilot.capability.api.shell.ShellResult
 import app.pocketpilot.capability.api.shell.ShellRunner
+import app.pocketpilot.capability.api.shell.SystemReader
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.CoroutineScope
@@ -371,6 +374,44 @@ class ShizukuAppAdmin(
         shizuku.call { it.clearPackageData(packageName) }
     }
 
+    override suspend fun activities(packageName: String): List<ActivityEntry> {
+        AppAdminArgs.checkPackage(packageName)
+        val dump = shizuku.call { it.dumpPackage(packageName) }
+        if (!dump.contains("Package [$packageName]")) {
+            throw ToolException(ToolErrorCode.ELEMENT_NOT_FOUND, "$packageName is not installed", "Find the package with app.list")
+        }
+        return AppAdminParsers.activities(dump, packageName)
+    }
+
+    override suspend fun startIntent(
+        args: List<String>,
+        broadcast: Boolean,
+    ): String {
+        try {
+            IntentArgs.check(args)
+        } catch (e: IllegalArgumentException) {
+            throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, e.message ?: "Not a valid intent")
+        }
+        return shizuku.call { it.startIntent(args.toTypedArray(), broadcast) }
+    }
+
+    override suspend fun setBatteryOptimized(
+        packageName: String,
+        optimized: Boolean,
+    ) {
+        mutable(packageName)
+        shizuku.call { it.setDozeExempt(packageName, !optimized) }
+    }
+
+    override suspend fun setStandbyBucket(
+        packageName: String,
+        bucket: String,
+    ) {
+        mutable(packageName)
+        AppAdminArgs.checkStandbyBucket(bucket)
+        shizuku.call { it.setStandbyBucket(packageName, bucket) }
+    }
+
     private fun mutable(packageName: String) {
         try {
             AppAdminArgs.checkPackage(packageName)
@@ -394,6 +435,30 @@ class ShizukuShellRunner(
         timeoutMs: Long,
     ): ShellResult {
         val parts = shizuku.call { it.runShell(command, timeoutMs) }.split('\u0000', limit = 3)
+        val exit = parts[0].toIntOrNull() ?: -1
+        return ShellResult(
+            exitCode = exit,
+            stdout = parts.getOrElse(1) { "" },
+            stderr = parts.getOrElse(2) { "" },
+            timedOut = exit == -1,
+        )
+    }
+}
+
+/** Read-only adb commands for `adb.query` and `adb.logs`; the privileged service checks them again. */
+class ShizukuSystemReader(
+    private val shizuku: ShizukuConnection,
+    scope: CoroutineScope,
+) : SystemReader {
+    override val backendId: String = BackendIds.SHIZUKU
+    override val available: StateFlow<Boolean> = shizuku.availability(scope)
+
+    override suspend fun read(
+        argv: List<String>,
+        filter: String,
+        timeoutMs: Long,
+    ): ShellResult {
+        val parts = shizuku.call { it.runReadOnly(argv.toTypedArray(), filter, timeoutMs) }.split('\u0000', limit = 3)
         val exit = parts[0].toIntOrNull() ?: -1
         return ShellResult(
             exitCode = exit,

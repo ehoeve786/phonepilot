@@ -16,9 +16,9 @@ import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.orchestrator.ToolHandler
 import kotlinx.serialization.json.JsonObject
 
-private const val PACKAGE_PROP = """"package":{"type":"string","description":"Package name, for example com.example.app"}"""
+internal const val PACKAGE_PROP = """"package":{"type":"string","description":"Package name, for example com.example.app"}"""
 
-private fun adminSpec(
+internal fun adminSpec(
     name: String,
     title: String,
     description: String,
@@ -41,7 +41,7 @@ private fun adminSpec(
 /** The app a call changes, so policy refuses apps on the deny list, such as banking and authenticator apps. */
 private fun ToolCall.changedPackage(): String? = arguments.string("package")
 
-private fun JsonObject.packageName(): String {
+internal fun JsonObject.packageName(): String {
     val name = string("package") ?: invalid("Give package, for example com.example.app")
     if (!AppAdminArgs.PACKAGE.matches(name)) invalid("Not a package name: $name")
     return name
@@ -220,5 +220,75 @@ class AppClearDataTool(
         val pkg = call.arguments.packageName()
         admin.clearData(pkg)
         return ToolResult.success("Cleared all data of $pkg.")
+    }
+}
+
+/** `app.set_battery_optimization`: lets an app run in Doze, or optimizes it again. */
+class AppSetBatteryOptimizationTool(
+    private val admin: AppAdmin,
+) : ToolHandler {
+    override val spec =
+        adminSpec(
+            "app.set_battery_optimization",
+            "Set battery optimization",
+            "Turns battery optimization off or on for an app (cmd deviceidle whitelist). Off keeps it running in Doze, " +
+                "for example Termux, Tailscale or a messaging app that misses notifications.",
+            """$PACKAGE_PROP,"optimized":{"type":"boolean","description":"false lets the app run in the background"}""",
+            "\"package\",\"optimized\"",
+            RiskTier.SENSITIVE,
+        )
+
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
+
+    override suspend fun confirmationDetail(call: ToolCall): String =
+        "Turn battery optimization ${if (call.arguments.boolean(
+                "optimized",
+            ) == true
+        ) {
+            "on"
+        } else {
+            "off"
+        }} for ${call.arguments.string("package")}"
+
+    override suspend fun execute(
+        call: ToolCall,
+        session: Session,
+    ): ToolResult {
+        val pkg = call.arguments.packageName()
+        val optimized = call.arguments.boolean("optimized") ?: invalid("Give optimized: true or false")
+        admin.setBatteryOptimized(pkg, optimized)
+        return ToolResult.success("Battery optimization is ${if (optimized) "on" else "off"} for $pkg.")
+    }
+}
+
+/** `app.set_standby_bucket`: how freely an app may run in the background. */
+class AppSetStandbyBucketTool(
+    private val admin: AppAdmin,
+) : ToolHandler {
+    override val spec =
+        adminSpec(
+            "app.set_standby_bucket",
+            "Set standby bucket",
+            "Sets an app's standby bucket (am set-standby-bucket), from active (runs freely) to restricted. " +
+                "Read the current one with adb.query: am get-standby-bucket <package>.",
+            """$PACKAGE_PROP,"bucket":{"type":"string","enum":[${AppAdminArgs.STANDBY_BUCKETS.joinToString(",") { "\"$it\"" }}]}""",
+            "\"package\",\"bucket\"",
+            RiskTier.SENSITIVE,
+        )
+
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
+
+    override suspend fun confirmationDetail(call: ToolCall): String =
+        "Put ${call.arguments.string("package")} in the ${call.arguments.string("bucket")} standby bucket"
+
+    override suspend fun execute(
+        call: ToolCall,
+        session: Session,
+    ): ToolResult {
+        val pkg = call.arguments.packageName()
+        val bucket = call.arguments.string("bucket") ?: invalid("Give bucket")
+        if (bucket !in AppAdminArgs.STANDBY_BUCKETS) invalid("Bucket must be one of ${AppAdminArgs.STANDBY_BUCKETS.joinToString()}")
+        admin.setStandbyBucket(pkg, bucket)
+        return ToolResult.success("$pkg is now in the $bucket standby bucket.")
     }
 }

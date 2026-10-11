@@ -1,5 +1,6 @@
 package app.pocketpilot.capability.shizuku
 
+import app.pocketpilot.capability.api.apps.ActivityEntry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -42,6 +43,52 @@ class AppAdminParsersTest {
         assertEquals(
             mapOf("COARSE_LOCATION" to "allow", "RUN_IN_BACKGROUND" to "ignore", "CAMERA" to "allow"),
             AppAdminParsers.appOps(output),
+        )
+    }
+
+    @Test
+    fun `reads an app's activities with their intent filters`() {
+        val dump =
+            """
+            Activity Resolver Table:
+              Non-Data Actions:
+                  android.intent.action.MAIN:
+                    5a3b2c1 com.example.clock/.DeskClock filter 8f9e0d
+                      Action: "android.intent.action.MAIN"
+                      Category: "android.intent.category.LAUNCHER"
+                  com.example.action.STOPWATCH:
+                    1b2c3d4 com.example.clock/.StopwatchActivity filter 2e3f4a
+                      Action: "com.example.action.STOPWATCH"
+                      Category: "android.intent.category.DEFAULT"
+                    7c8d9e0 com.other.app/.Spy filter 3f4a5b
+                      Action: "com.example.action.STOPWATCH"
+              Schemes:
+                  clock:
+                    5a3b2c1 com.example.clock/.DeskClock filter 9a8b7c
+                      Action: "android.intent.action.VIEW"
+                      Scheme: "clock"
+
+            Receiver Resolver Table:
+              Non-Data Actions:
+                  android.intent.action.BOOT_COMPLETED:
+                    6d7e8f9 com.example.clock/.BootReceiver filter 1a2b3c
+                      Action: "android.intent.action.BOOT_COMPLETED"
+            """.trimIndent()
+        assertEquals(
+            listOf(
+                ActivityEntry(
+                    "com.example.clock/.DeskClock",
+                    listOf("android.intent.action.MAIN", "android.intent.action.VIEW"),
+                    listOf("android.intent.category.LAUNCHER"),
+                    listOf("clock"),
+                ),
+                ActivityEntry(
+                    "com.example.clock/.StopwatchActivity",
+                    listOf("com.example.action.STOPWATCH"),
+                    listOf("android.intent.category.DEFAULT"),
+                ),
+            ),
+            AppAdminParsers.activities(dump, "com.example.clock"),
         )
     }
 }

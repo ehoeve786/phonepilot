@@ -43,10 +43,13 @@ class McpServerFactory(
             """
             PocketPilot controls the Android phone it runs on. Tool contract version $TOOL_CONTRACT_VERSION.
             Start with device.info to learn what the phone is and what it can do.
-            Work in the background whenever a tool can: settings.*, app.* (permissions, app ops, stop, enable),
-            notify.* and files.* run through Shizuku without opening any app. Do this even when the task says to
-            open Settings or another app, and leave those apps closed. If shell.exec is available, it comes next;
-            the owner confirms each command. Drive the screen only when neither can do the job.
+            Work in the background whenever a tool can: settings.*, app.* (permissions, app ops, stop, enable,
+            battery), notify.*, files.* and adb.query (any read-only adb command) run through Shizuku without
+            opening any app. Do this even when the task says to open Settings or another app, and leave those apps
+            closed. If shell.exec is available, it comes next; the owner approves each new command once. Drive the
+            screen only when neither can do the job.
+            To reach a screen inside an app, find it with app.activities and open it with app.start_activity.
+            To troubleshoot, read state with adb.query and logs with adb.logs.
             To work in an app's screens: app.launch it, read the screen with screen.snapshot, act with ui.* tools using element IDs
             from the latest snapshot, and read the screen each action returns. Use screen.capture only when the snapshot
             is not enough, for example for images or games.
