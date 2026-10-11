@@ -53,6 +53,7 @@ dependencies {
     implementation(projects.capability.api)
     implementation(projects.capability.apps)
     implementation(projects.capability.device)
+    implementation(projects.capability.notifications)
     implementation(projects.capability.screencapture)
     implementation(projects.capability.shizuku)
     implementation(projects.core.audit)

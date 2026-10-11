@@ -105,4 +105,7 @@
     <string name="biometric_title">Fingerprint to approve</string>
     <string name="biometric_explainer">Ask for your fingerprint, face or screen lock before you allow an app to connect or approve an action.</string>
     <string name="biometric_setting_subtitle">To change a security setting</string>
+    <string name="capability_read_notifications">Read and answer notifications</string>
+    <string name="doctor_allow_notifications">Allow notification access</string>
+    <string name="backend_notification_listener">Notification access</string>
 </resources>

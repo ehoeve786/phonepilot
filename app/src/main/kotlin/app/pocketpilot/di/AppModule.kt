@@ -16,6 +16,7 @@ import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.apps.PackageAppController
 import app.pocketpilot.capability.device.AndroidDeviceInfoSource
+import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.screencapture.BitmapImageEncoder
 import app.pocketpilot.capability.shizuku.ShizukuAppAdmin
 import app.pocketpilot.capability.shizuku.ShizukuAppController
@@ -41,6 +42,7 @@ import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.SessionFactory
 import app.pocketpilot.core.orchestrator.ToolHandler
 import app.pocketpilot.core.orchestrator.ToolRegistry
+import app.pocketpilot.core.policy.AppMode
 import app.pocketpilot.core.policy.AppPolicy
 import app.pocketpilot.core.policy.PolicyEngine
 import app.pocketpilot.core.tools.AppClearDataTool
@@ -54,6 +56,8 @@ import app.pocketpilot.core.tools.AppSetEnabledTool
 import app.pocketpilot.core.tools.AppSetPermissionTool
 import app.pocketpilot.core.tools.AppStopTool
 import app.pocketpilot.core.tools.DeviceInfoTool
+import app.pocketpilot.core.tools.NotifyActTool
+import app.pocketpilot.core.tools.NotifyListTool
 import app.pocketpilot.core.tools.ScreenCaptureTool
 import app.pocketpilot.core.tools.ScreenFindTool
 import app.pocketpilot.core.tools.ScreenSnapshotTool
@@ -294,6 +298,7 @@ object AppModule {
                 CapabilityId.LAUNCH_APPS to listOf(packageManager, shizukuApps),
                 CapabilityId.WRITE_SETTINGS to listOf(shizukuSettings),
                 CapabilityId.RUN_SHELL to listOf(shizukuShell),
+                CapabilityId.READ_NOTIFICATIONS to listOf(ListenerNotificationSource),
             ),
             scope,
         )
@@ -353,6 +358,20 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun appPolicy(
+        @ApplicationContext context: Context,
+    ): AppPolicy = AppPolicy(ownPackages = setOf(context.packageName))
+
+    /** Notifications from apps PocketPilot keeps away from, such as banks and authenticators, never leave the phone. */
+    @Provides
+    @ElementsIntoSet
+    fun notifyTools(appPolicy: AppPolicy): Set<ToolHandler> {
+        val hidden = { pkg: String -> appPolicy.modeFor(pkg) == AppMode.DENY }
+        return setOf(NotifyListTool(ListenerNotificationSource, hidden), NotifyActTool(ListenerNotificationSource, hidden))
+    }
+
+    @Provides
+    @Singleton
     fun controlOverlay(
         @ApplicationContext context: Context,
         scope: CoroutineScope,
@@ -362,7 +381,7 @@ object AppModule {
     @Provides
     @Singleton
     fun policyEngine(
-        @ApplicationContext context: Context,
+        appPolicy: AppPolicy,
         reader: ScreenReader,
         shizukuReader: ShizukuScreenReader,
         input: InputController,
@@ -370,7 +389,7 @@ object AppModule {
         overlay: ControlOverlay,
     ): PolicyEngine =
         PolicyEngine(
-            appPolicy = AppPolicy(ownPackages = setOf(context.packageName)),
+            appPolicy = appPolicy,
             // Accessibility can miss a window it may not read (a bank's secure dialog); the activity manager does not.
             foreground = {
                 runCatching { reader.foreground()?.packageName }.getOrNull()

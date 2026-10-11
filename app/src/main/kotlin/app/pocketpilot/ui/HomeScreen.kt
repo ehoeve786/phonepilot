@@ -94,6 +94,7 @@ fun HomeScreen(
     /** True after the owner pressed Stop on the "controlling this phone" pill. */
     clientsStopped: Boolean = false,
     onAllowClients: () -> Unit = {},
+    onAllowNotifications: () -> Unit = {},
     biometricApprovals: Boolean = true,
     onBiometricChange: (Boolean) -> Unit = {},
 ) {
@@ -132,7 +133,7 @@ fun HomeScreen(
                     crashReport?.let { CrashCard(it, onDismissCrash) }
                     if (clientsStopped) StoppedCard(onAllowClients)
                     ServerCard(serverState, onStart, onStop)
-                    DoctorCard(capabilities, shizukuState, onGrantShizuku)
+                    DoctorCard(capabilities, shizukuState, onGrantShizuku, onAllowNotifications)
                     ConnectCard(serverState, token)
                 }
 

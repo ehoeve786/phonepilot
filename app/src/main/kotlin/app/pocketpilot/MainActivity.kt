@@ -14,7 +14,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.capability.accessibility.A11yBridge
+import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.shizuku.ShizukuConnection
+import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.control.ControlOverlay
 import app.pocketpilot.core.capabilities.CapabilityGraph
 import app.pocketpilot.core.model.PolicyProfile
@@ -36,6 +38,9 @@ import app.pocketpilot.ui.HomeScreen
 import app.pocketpilot.ui.PocketPilotTheme
 import app.pocketpilot.ui.RemoteActions
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -65,6 +70,10 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var controlOverlay: ControlOverlay
 
     @Inject lateinit var biometricGate: BiometricGate
+
+    @Inject lateinit var shizukuShell: ShizukuShellRunner
+
+    @Inject lateinit var appScope: CoroutineScope
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -144,6 +153,7 @@ class MainActivity : ComponentActivity() {
                         startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
                     },
                     onGrantShizuku = shizuku::requestPermission,
+                    onAllowNotifications = ::allowNotifications,
                     remoteActions =
                         RemoteActions(
                             turnOn = {
@@ -194,6 +204,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Allows the notification listener through Shizuku, or opens the system page where the owner allows it. */
+    private fun allowNotifications() {
+        appScope.launch(Dispatchers.Main) {
+            val component = ListenerNotificationSource.component(this@MainActivity).flattenToString()
+            val allowed =
+                shizukuShell.available.value &&
+                    runCatching { shizukuShell.run("cmd notification allow_listener $component", SHIZUKU_TIMEOUT_MS).exitCode == 0 }
+                        .getOrDefault(false)
+            if (!allowed) startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
+    }
+
     /** Runs [action] once the owner passes the biometric lock. */
     private fun withOwner(action: () -> Unit) =
         biometricGate.authenticate(
@@ -207,5 +229,9 @@ class MainActivity : ComponentActivity() {
     private fun startNetwork(start: () -> Unit) {
         start()
         PocketPilotService.start(this)
+    }
+
+    private companion object {
+        const val SHIZUKU_TIMEOUT_MS = 10_000L
     }
 }
