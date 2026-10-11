@@ -92,7 +92,14 @@ class CallDispatcher(
                 AuditDecision.DENY
         }
 
-        policy?.before(session, handler.spec, handler.confirmationDetail(call))?.let { decision ->
+        // A target that cannot be resolved (an unknown label) fails in execute with a proper error instead.
+        val target =
+            try {
+                handler.targetPackage(call)
+            } catch (e: ToolException) {
+                null
+            }
+        policy?.before(session, handler.spec, handler.confirmationDetail(call), target)?.let { decision ->
             if (decision is Decision.Deny) {
                 return ToolResult.error(decision.code, decision.message, decision.hint) to AuditDecision.DENY
             }

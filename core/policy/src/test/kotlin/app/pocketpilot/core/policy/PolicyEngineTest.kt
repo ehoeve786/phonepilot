@@ -72,6 +72,15 @@ class PolicyEngineTest {
         }
 
     @Test
+    fun `a denied app is refused before it is opened`() =
+        runTest {
+            val launch = spec("app.launch", RiskTier.INTERACT, Scope.APPS_CONTROL)
+            val engine = engine()
+            assertIs<Decision.Deny>(engine.before(session, launch, targetPackage = "com.rbc.mobile.android"))
+            assertEquals(Decision.Allow, engine.before(session, launch, targetPackage = "com.android.chrome"))
+        }
+
+    @Test
     fun `pocketpilot itself is off limits`() =
         runTest {
             front = "app.pocketpilot"

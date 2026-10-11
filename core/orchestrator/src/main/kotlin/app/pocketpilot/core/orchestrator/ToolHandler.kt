@@ -18,6 +18,9 @@ interface ToolHandler {
     /** What the owner sees in a confirmation for [call], such as the exact shell command; null for none. */
     fun confirmationDetail(call: ToolCall): String? = null
 
+    /** The app [call] will bring to the front, such as the one app.launch opens, so policy can refuse it first. */
+    suspend fun targetPackage(call: ToolCall): String? = null
+
     /** Throw [app.pocketpilot.core.model.ToolException] to fail with a specific error code. */
     suspend fun execute(
         call: ToolCall,

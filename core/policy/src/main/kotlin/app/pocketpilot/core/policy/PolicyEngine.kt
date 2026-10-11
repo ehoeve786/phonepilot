@@ -71,12 +71,22 @@ class PolicyEngine(
         spec: ToolSpec,
         /** Shown in the confirmation; see [ConfirmationRequest.detail]. */
         detail: String? = null,
+        /** The app the call will open, when the tool knows it in advance. */
+        targetPackage: String? = null,
     ): Decision {
         if (!rateLimiter.tryAcquire(session.id.value)) {
             return Decision.Deny(
                 ToolErrorCode.RATE_LIMITED,
                 "Too many calls: the limit is $DEFAULT_CALLS_PER_MINUTE a minute per session",
                 "Wait a few seconds, then continue more slowly.",
+            )
+        }
+
+        if (targetPackage != null && appPolicy.modeFor(targetPackage) == AppMode.DENY) {
+            return Decision.Deny(
+                ToolErrorCode.DENIED_BY_POLICY,
+                "PocketPilot does not open $targetPackage",
+                "Banking, payment, password and authenticator apps are off limits. Tell the owner to open it themselves.",
             )
         }
 
