@@ -164,12 +164,11 @@ class AgentRunnerTest {
             assertTrue(first.tools.none { it.name == "shell_exec" }, "tools outside the run's scopes are hidden")
             assertTrue(first.tools.none { it.name == "screen_capture" }, "no screenshots for a model without vision")
             val opening =
-                (
-                    first.messages
-                        .single()
-                        .parts
-                        .single() as Part.Text
-                ).text
+                first.messages
+                    .single()
+                    .parts
+                    .filterIsInstance<Part.Text>()
+                    .joinToString("\n") { it.text }
             assertTrue("Open the app" in opening && "Galaxy S23 Ultra" in opening && "Home screen" in opening)
 
             val second = provider.requests[1].messages

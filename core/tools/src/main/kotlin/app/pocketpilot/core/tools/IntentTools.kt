@@ -148,7 +148,10 @@ class AppStartActivityTool(
             "Opens a specific screen of an app with an intent (am start), for example a clock app's stopwatch or a " +
                 "Settings page, so you do not have to navigate there. Give component (from app.activities) or package " +
                 "with an action. Short actions in app.activities output are android.intent.action.* and categories " +
-                "android.intent.category.*. Returns the screen once it opened.",
+                "android.intent.category.*. Standard intents most apps answer: android.intent.action.SET_TIMER (extras " +
+                "android.intent.extra.alarm.LENGTH in seconds, android.intent.extra.alarm.SKIP_UI true) and SET_ALARM " +
+                "(android.intent.extra.alarm.HOUR, MINUTES, MESSAGE, SKIP_UI) to the clock app; SHOW_TIMERS, SHOW_ALARMS; " +
+                "VIEW with a geo:, tel: or https: URI. Returns the screen once it opened.",
             "$INTENT_PROPS,$RETURN_SNAPSHOT",
             "",
             RiskTier.INTERACT,

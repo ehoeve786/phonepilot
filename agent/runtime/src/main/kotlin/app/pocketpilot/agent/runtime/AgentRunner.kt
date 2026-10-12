@@ -186,7 +186,10 @@ class AgentRun internal constructor(
     private suspend fun firstParts(goal: String): List<Part> {
         val info = if (tools.has(DEVICE_INFO)) text(call(DEVICE_INFO)) else null
         val snapshot = if (tools.has(SCREEN_SNAPSHOT)) text(call(SCREEN_SNAPSHOT)) else null
-        return listOf(Part.Text(Prompts.firstMessage(goal, info, snapshot))) + screenshot()
+        // The screen goes in its own part so it can be dropped once a newer screen arrives.
+        return listOf(Part.Text(Prompts.firstMessage(goal, info, null))) +
+            listOfNotNull(snapshot?.let { Part.Text(Prompts.firstScreen(it)) }) +
+            screenshot()
     }
 
     /** A screenshot for models with vision, as message parts. */

@@ -6,10 +6,11 @@ import app.pocketpilot.agent.providers.api.Part
 /**
  * Keeps requests small as a run grows: every action returns the whole screen, and old screens are
  * not worth resending. Long texts in tool results older than the last [KEEP_RECENT] result messages
- * are cut to their start. The first message, which holds the task, is never cut.
+ * are cut to their start. The first part of the first message, which holds the task, is never cut;
+ * the screen after it is, once a tool result shows a newer one.
  */
 internal object TextBudget {
-    const val KEEP_RECENT = 2
+    const val KEEP_RECENT = 1
     const val LONG = 600
     const val KEEP_CHARS = 240
     const val MARKER = " … [older screen removed]"
@@ -18,7 +19,11 @@ internal object TextBudget {
         val resultMessages = messages.indices.filter { i -> messages[i].parts.any { it is Part.ToolResult } || isJsonResult(messages[i]) }
         val cutBefore = resultMessages.dropLast(KEEP_RECENT).toSet()
         return messages.mapIndexed { i, message ->
-            if (i == 0 || i !in cutBefore) message else message.copy(parts = message.parts.map(::cut))
+            when {
+                i == 0 && resultMessages.isNotEmpty() -> message.copy(parts = message.parts.take(1) + message.parts.drop(1).map(::cut))
+                i == 0 || i !in cutBefore -> message
+                else -> message.copy(parts = message.parts.map(::cut))
+            }
         }
     }
 
