@@ -142,11 +142,12 @@ class FilesWriteTool(
             title = "Write a file",
             description =
                 "Writes text to a file in a shared folder, creating it in an existing folder. " +
-                    "An existing file is replaced only with replace: true.",
+                    "An existing file is replaced only with replace: true. append: true adds the text to the end " +
+                    "instead, on a new line, and leaves the rest of the file as it was.",
             inputSchema =
                 schema(
                     """{"type":"object","properties":{"path":{"type":"string"},"text":{"type":"string"},
-                    "replace":{"type":"boolean"}},"required":["path","text"],"additionalProperties":false}""",
+                    "replace":{"type":"boolean"},"append":{"type":"boolean"}},"required":["path","text"],"additionalProperties":false}""",
                 ),
             riskTier = RiskTier.SENSITIVE,
             requiredScopes = setOf(Scope.FILES_WRITE),
@@ -157,8 +158,13 @@ class FilesWriteTool(
 
     override suspend fun confirmationDetail(call: ToolCall): String? {
         val path = call.arguments.string("path") ?: return null
-        val replace = if (call.arguments.boolean("replace") == true) " (replacing it)" else ""
-        return "$path$replace"
+        val how =
+            when {
+                call.arguments.boolean("append") == true -> " (adding to the end)"
+                call.arguments.boolean("replace") == true -> " (replacing it)"
+                else -> ""
+            }
+        return "$path$how"
     }
 
     override suspend fun execute(
@@ -167,7 +173,19 @@ class FilesWriteTool(
     ): ToolResult {
         val path = checked(call.arguments.string("path") ?: invalid("Give path"))
         if (path.count { it == '/' } == 0) invalid("Give a file inside a shared folder, like Documents/notes.txt")
-        val bytes = (call.arguments.string("text") ?: invalid("Give text")).toByteArray()
+        val text = call.arguments.string("text") ?: invalid("Give text")
+        val append = call.arguments.boolean("append") == true
+        if (append && call.arguments.boolean("replace") == true) invalid("Give append or replace, not both")
+        if (append) {
+            val (old, size) = files.read(path, MAX_BYTES)
+            if (size > old.size) invalid("$path is over $MAX_BYTES bytes, too big to add to")
+            val separator = if (old.isEmpty() || old.last() == '\n'.code.toByte()) "" else "\n"
+            val added = (separator + text).toByteArray()
+            if (old.size + added.size > MAX_BYTES) invalid("The file would be over $MAX_BYTES bytes")
+            files.write(path, old + added, replace = true)
+            return ToolResult.success("Added ${added.size} bytes to the end of $path")
+        }
+        val bytes = text.toByteArray()
         if (bytes.size > MAX_BYTES) invalid("text is over $MAX_BYTES bytes")
         files.write(path, bytes, replace = call.arguments.boolean("replace") == true)
         return ToolResult.success("Wrote ${bytes.size} bytes to $path")
