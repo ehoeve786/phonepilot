@@ -54,6 +54,7 @@ import app.pocketpilot.core.tools.AdbQueryTool
 import app.pocketpilot.core.tools.AppActivitiesTool
 import app.pocketpilot.core.tools.AppClearDataTool
 import app.pocketpilot.core.tools.AppCurrentTool
+import app.pocketpilot.core.tools.AppDirectionsTool
 import app.pocketpilot.core.tools.AppLaunchTool
 import app.pocketpilot.core.tools.AppListTool
 import app.pocketpilot.core.tools.AppOpenUrlTool
@@ -262,6 +263,7 @@ object AppModule {
         admin: ShizukuAppAdmin,
         system: ShizukuSystemReader,
         reader: ScreenReader,
+        input: InputController,
         shell: ShizukuShellRunner,
         shellSwitch: ShellSwitch,
     ): Set<ToolHandler> =
@@ -276,6 +278,7 @@ object AppModule {
             AppSetStandbyBucketTool(admin),
             AppActivitiesTool(admin),
             AppStartActivityTool(admin, reader),
+            AppDirectionsTool(admin, reader, input),
             AppSendBroadcastTool(admin),
             AdbQueryTool(system),
             AdbLogsTool(system),

@@ -51,6 +51,7 @@ class McpServerFactory(
             closed. If shell.exec is available, it comes next; the owner approves each new command once. Drive the
             screen only when neither can do the job.
             To reach a screen inside an app, find it with app.activities and open it with app.start_activity.
+            For a route to the nearest place of a kind (gas station, pharmacy), use app.directions.
             To troubleshoot, read state with adb.query and logs with adb.logs.
             To work in an app's screens: app.launch it, read the screen with screen.snapshot, act with ui.* tools using element IDs
             from the latest snapshot, and read the screen each action returns. Use screen.capture only when the snapshot

@@ -436,6 +436,6 @@ private fun toolGroup(spec: ToolSpec): ToolGroup =
         }
     }
 
-private val INTENT_TOOLS = setOf("app.start_activity", "app.send_broadcast", "app.open_url", "app.activities")
+private val INTENT_TOOLS = setOf("app.start_activity", "app.send_broadcast", "app.open_url", "app.activities", "app.directions")
 private const val RECENT_CALLS = 5
 private const val PROTECTED_PREVIEW = 6
