@@ -76,12 +76,12 @@ internal fun CatalogPickerSheet(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                label = { Text(stringResource(R.string.auto_search)) },
+                label = { Text(stringResource(R.string.feature_automations_search)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(selected = category == null, onClick = { category = null }, label = { Text(stringResource(R.string.auto_all)) })
+                FilterChip(selected = category == null, onClick = { category = null }, label = { Text(stringResource(R.string.feature_automations_all)) })
                 categories.forEach { c ->
                     FilterChip(selected = category == c, onClick = { category = if (category == c) null else c }, label = { Text(c.title) })
                 }
@@ -152,8 +152,8 @@ internal fun FieldsSheet(
             }
             extra()
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.auto_cancel)) }
-                Button(onClick = { onDone(values.filterValues { it.isNotEmpty() }) }) { Text(stringResource(R.string.auto_done)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.feature_automations_cancel)) }
+                Button(onClick = { onDone(values.filterValues { it.isNotEmpty() }) }) { Text(stringResource(R.string.feature_automations_done)) }
             }
         }
     }
@@ -169,7 +169,7 @@ private fun FieldEditor(
     context: FieldContext,
     onChange: (String) -> Unit,
 ) {
-    val label = field.label + if (field.required) "" else " " + stringResource(R.string.auto_optional)
+    val label = field.label + if (field.required) "" else " " + stringResource(R.string.feature_automations_optional)
     when (field.kind) {
         FieldKind.CHOICE -> {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -221,7 +221,7 @@ private fun FieldEditor(
             val others = context.rules.filter { it.id != context.currentRuleId && !it.pending }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(label, style = MaterialTheme.typography.labelLarge)
-                if (others.isEmpty()) Text(stringResource(R.string.auto_no_other_rules), style = MaterialTheme.typography.bodySmall)
+                if (others.isEmpty()) Text(stringResource(R.string.feature_automations_no_other_rules), style = MaterialTheme.typography.bodySmall)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     others.forEach { rule ->
                         FilterChip(selected = value == rule.id, onClick = { onChange(rule.id) }, label = { Text(rule.name) })
@@ -303,7 +303,7 @@ private fun AppField(
             },
             modifier = Modifier.fillMaxWidth(),
         )
-        TextButton(onClick = { picking = true }) { Text(stringResource(R.string.auto_choose_apps)) }
+        TextButton(onClick = { picking = true }) { Text(stringResource(R.string.feature_automations_choose_apps)) }
     }
     if (picking) {
         LaunchedEffect(Unit) { context.loadApps() }
@@ -314,11 +314,11 @@ private fun AppField(
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    label = { Text(stringResource(R.string.auto_search)) },
+                    label = { Text(stringResource(R.string.feature_automations_search)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (context.apps.isEmpty()) Text(stringResource(R.string.auto_loading_apps), style = MaterialTheme.typography.bodyMedium)
+                if (context.apps.isEmpty()) Text(stringResource(R.string.feature_automations_loading_apps), style = MaterialTheme.typography.bodyMedium)
                 LazyColumn(Modifier.weight(1f)) {
                     items(
                         context.apps.filter {
@@ -351,13 +351,13 @@ private fun AppField(
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 16.dp)) {
-                    TextButton(onClick = { picking = false }) { Text(stringResource(R.string.auto_cancel)) }
+                    TextButton(onClick = { picking = false }) { Text(stringResource(R.string.feature_automations_cancel)) }
                     Button(
                         onClick = {
                             onChange(chosen.joinToString(","))
                             picking = false
                         },
-                    ) { Text(stringResource(R.string.auto_done)) }
+                    ) { Text(stringResource(R.string.feature_automations_done)) }
                 }
             }
         }

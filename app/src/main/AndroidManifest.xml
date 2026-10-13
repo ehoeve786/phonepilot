@@ -90,7 +90,7 @@
         <service
             android:name=".automation.RuleTile1"
             android:exported="true"
-            android:icon="@drawable/pp_ic_bolt"
+            android:icon="@drawable/core_designsystem_ic_bolt"
             android:label="@string/automation_tile_1"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
@@ -101,7 +101,7 @@
         <service
             android:name=".automation.RuleTile2"
             android:exported="true"
-            android:icon="@drawable/pp_ic_bolt"
+            android:icon="@drawable/core_designsystem_ic_bolt"
             android:label="@string/automation_tile_2"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
@@ -112,7 +112,7 @@
         <service
             android:name=".automation.RuleTile3"
             android:exported="true"
-            android:icon="@drawable/pp_ic_bolt"
+            android:icon="@drawable/core_designsystem_ic_bolt"
             android:label="@string/automation_tile_3"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>

@@ -105,7 +105,7 @@ fun McpLiveStatusHeader(
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = onCopyEndpoint, enabled = running) {
-                    Icon(painterResource(R.drawable.pp_ic_copy), contentDescription = stringResource(R.string.designsystem_status_copy))
+                    Icon(painterResource(R.drawable.core_designsystem_ic_copy), contentDescription = stringResource(R.string.core_designsystem_status_copy))
                 }
             }
             if (status.clients.isNotEmpty() || status.remote.isNotEmpty()) {
@@ -119,7 +119,7 @@ fun McpLiveStatusHeader(
                             label = { Text(client.name) },
                             leadingIcon = {
                                 Icon(
-                                    painterResource(R.drawable.pp_ic_link),
+                                    painterResource(R.drawable.core_designsystem_ic_link),
                                     contentDescription = null,
                                     modifier = Modifier.size(AssistChipDefaults.IconSize),
                                 )
@@ -139,11 +139,11 @@ fun McpLiveStatusHeader(
                             onClick = {},
                             enabled = link.up,
                             label = {
-                                Text(if (link.up) link.name else stringResource(R.string.designsystem_status_remote_off, link.name))
+                                Text(if (link.up) link.name else stringResource(R.string.core_designsystem_status_remote_off, link.name))
                             },
                             leadingIcon = {
                                 Icon(
-                                    painterResource(R.drawable.pp_ic_lock),
+                                    painterResource(R.drawable.core_designsystem_ic_lock),
                                     contentDescription = null,
                                     modifier = Modifier.size(AssistChipDefaults.IconSize),
                                 )
@@ -154,13 +154,13 @@ fun McpLiveStatusHeader(
                 }
             }
             val switchState =
-                stringResource(if (running) R.string.designsystem_status_server_on else R.string.designsystem_status_server_off)
+                stringResource(if (running) R.string.core_designsystem_status_server_on else R.string.core_designsystem_status_server_off)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.semantics { stateDescription = switchState },
             ) {
                 Text(
-                    stringResource(R.string.designsystem_status_server),
+                    stringResource(R.string.core_designsystem_status_server),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
@@ -187,7 +187,7 @@ private fun StatusDot(
         animationSpec = infiniteRepeatable(tween(PULSE_MS), RepeatMode.Reverse),
         label = "pulse",
     )
-    val description = if (pulsing) stringResource(R.string.designsystem_status_acting) else phase.name
+    val description = if (pulsing) stringResource(R.string.core_designsystem_status_acting) else phase.name
     Box(
         Modifier
             .size(12.dp)
@@ -201,17 +201,17 @@ private fun StatusDot(
 private fun headline(status: McpStatus): String =
     when (status.phase) {
         ServerPhase.Stopped -> {
-            stringResource(R.string.designsystem_status_stopped)
+            stringResource(R.string.core_designsystem_status_stopped)
         }
 
         ServerPhase.Idle -> {
-            stringResource(R.string.designsystem_status_idle)
+            stringResource(R.string.core_designsystem_status_idle)
         }
 
         ServerPhase.Running -> {
             when (val n = status.clients.size) {
-                1 -> stringResource(R.string.designsystem_status_running_one)
-                else -> stringResource(R.string.designsystem_status_running_many, n)
+                1 -> stringResource(R.string.core_designsystem_status_running_one)
+                else -> stringResource(R.string.core_designsystem_status_running_many, n)
             }
         }
     }

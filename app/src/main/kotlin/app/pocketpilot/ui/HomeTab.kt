@@ -195,7 +195,7 @@ private fun NeedsYou(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 ListItem(
-                    leadingContent = { Icon(painterResource(DsR.drawable.pp_ic_warning), contentDescription = null) },
+                    leadingContent = { Icon(painterResource(DsR.drawable.core_designsystem_ic_warning), contentDescription = null) },
                     headlineContent = { Text(step.title) },
                     supportingContent = { Text(step.reason, maxLines = 2) },
                     trailingContent =
@@ -230,7 +230,7 @@ private fun ApprovalRow(
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(DsR.drawable.pp_ic_shield), contentDescription = null)
+                Icon(painterResource(DsR.drawable.core_designsystem_ic_shield), contentDescription = null)
                 Text(
                     approval.title,
                     style = MaterialTheme.typography.titleSmall,

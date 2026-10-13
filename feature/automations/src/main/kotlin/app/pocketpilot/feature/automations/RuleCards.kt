@@ -57,10 +57,10 @@ internal fun TierTag(tier: RiskTier) {
         Text(
             stringResource(
                 when (tier) {
-                    RiskTier.READ -> R.string.auto_tier_read
-                    RiskTier.INTERACT -> R.string.auto_tier_interact
-                    RiskTier.SENSITIVE -> R.string.auto_tier_sensitive
-                    RiskTier.DESTRUCTIVE -> R.string.auto_tier_destructive
+                    RiskTier.READ -> R.string.feature_automations_tier_read
+                    RiskTier.INTERACT -> R.string.feature_automations_tier_interact
+                    RiskTier.SENSITIVE -> R.string.feature_automations_tier_sensitive
+                    RiskTier.DESTRUCTIVE -> R.string.feature_automations_tier_destructive
                 },
             ),
             style = MaterialTheme.typography.labelSmall,
@@ -94,8 +94,8 @@ fun AutomationRuleCard(
                 Text(rule.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 IconButton(onClick = { onPinnedChange(!rule.pinned) }) {
                     Icon(
-                        painterResource(R.drawable.auto_ic_pin),
-                        contentDescription = stringResource(if (rule.pinned) R.string.auto_unpin else R.string.auto_pin),
+                        painterResource(R.drawable.feature_automations_ic_pin),
+                        contentDescription = stringResource(if (rule.pinned) R.string.feature_automations_unpin else R.string.feature_automations_pin),
                         tint = if (rule.pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                     )
                 }
@@ -106,7 +106,7 @@ fun AutomationRuleCard(
                         if (rule.enabled) {
                             {
                                 Icon(
-                                    painterResource(R.drawable.auto_ic_check),
+                                    painterResource(R.drawable.feature_automations_ic_check),
                                     contentDescription = null,
                                     Modifier.size(SwitchDefaults.IconSize),
                                 )
@@ -121,24 +121,24 @@ fun AutomationRuleCard(
                 Text(
                     rule.lastRun?.let { last ->
                         stringResource(
-                            R.string.auto_last_run,
+                            R.string.feature_automations_last_run,
                             DateUtils.getRelativeTimeSpanString(last.atMillis).toString(),
                             outcomeLabel(last.outcome),
                         )
-                    } ?: stringResource(R.string.auto_never_ran),
+                    } ?: stringResource(R.string.feature_automations_never_ran),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
                 if (running) {
                     OutlinedButton(onClick = onStop) {
-                        Icon(painterResource(R.drawable.auto_ic_stop), contentDescription = null, Modifier.size(18.dp))
-                        Text(stringResource(R.string.auto_stop), modifier = Modifier.padding(start = 4.dp))
+                        Icon(painterResource(R.drawable.feature_automations_ic_stop), contentDescription = null, Modifier.size(18.dp))
+                        Text(stringResource(R.string.feature_automations_stop), modifier = Modifier.padding(start = 4.dp))
                     }
                 } else {
                     FilledTonalButton(onClick = onRun) {
-                        Icon(painterResource(R.drawable.auto_ic_play), contentDescription = null, Modifier.size(18.dp))
-                        Text(stringResource(R.string.auto_run), modifier = Modifier.padding(start = 4.dp))
+                        Icon(painterResource(R.drawable.feature_automations_ic_play), contentDescription = null, Modifier.size(18.dp))
+                        Text(stringResource(R.string.feature_automations_run), modifier = Modifier.padding(start = 4.dp))
                     }
                 }
             }
@@ -150,15 +150,15 @@ fun AutomationRuleCard(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun RuleSummary(rule: Rule) {
-    Section(stringResource(R.string.auto_when)) {
+    Section(stringResource(R.string.feature_automations_when)) {
         rule.triggers.forEach { StepText(Describe.trigger(it)) }
     }
     if (!rule.constraints.isEmpty) {
-        Section(stringResource(R.string.auto_only_if)) { StepText(Describe.group(rule.constraints)) }
+        Section(stringResource(R.string.feature_automations_only_if)) { StepText(Describe.group(rule.constraints)) }
     }
-    Section(stringResource(R.string.auto_then)) {
+    Section(stringResource(R.string.feature_automations_then)) {
         if (rule.runAs == RunMode.AGENT) {
-            StepText(stringResource(R.string.auto_agent_summary, rule.agentPrompt.take(PROMPT_PREVIEW)))
+            StepText(stringResource(R.string.feature_automations_agent_summary, rule.agentPrompt.take(PROMPT_PREVIEW)))
         } else {
             rule.actions.forEachIndexed { i, step ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -206,22 +206,22 @@ internal fun ProposalCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(rule.name, style = MaterialTheme.typography.titleMedium)
             Text(
-                stringResource(R.string.auto_proposed_by, rule.proposedBy.orEmpty()),
+                stringResource(R.string.feature_automations_proposed_by, rule.proposedBy.orEmpty()),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.tertiary,
             )
             RuleSummary(rule)
             if (rule.actions.any { it.tier() >= RiskTier.SENSITIVE } || rule.runAs == RunMode.AGENT) {
                 Text(
-                    stringResource(R.string.auto_proposal_warning),
+                    stringResource(R.string.feature_automations_proposal_warning),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onDecline) { Text(stringResource(R.string.auto_decline), color = MaterialTheme.colorScheme.error) }
-                OutlinedButton(onClick = onEdit) { Text(stringResource(R.string.auto_edit)) }
-                Button(onClick = onAccept) { Text(stringResource(R.string.auto_accept)) }
+                TextButton(onClick = onDecline) { Text(stringResource(R.string.feature_automations_decline), color = MaterialTheme.colorScheme.error) }
+                OutlinedButton(onClick = onEdit) { Text(stringResource(R.string.feature_automations_edit)) }
+                Button(onClick = onAccept) { Text(stringResource(R.string.feature_automations_accept)) }
             }
         }
     }

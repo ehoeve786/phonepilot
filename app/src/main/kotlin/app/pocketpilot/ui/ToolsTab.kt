@@ -109,7 +109,7 @@ internal fun ToolsTab(
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text(stringResource(R.string.tools_search)) },
-                leadingIcon = { Icon(painterResource(DsR.drawable.pp_ic_search), contentDescription = null) },
+                leadingIcon = { Icon(painterResource(DsR.drawable.core_designsystem_ic_search), contentDescription = null) },
                 singleLine = true,
                 shape = MaterialTheme.shapes.medium,
             )
@@ -228,9 +228,9 @@ private fun ToolGroupSection(
 private fun TierIcon(tier: RiskTier) {
     val (icon, tint) =
         when (tier) {
-            RiskTier.DESTRUCTIVE -> DsR.drawable.pp_ic_warning to MaterialTheme.colorScheme.error
-            RiskTier.SENSITIVE -> DsR.drawable.pp_ic_shield to MaterialTheme.colorScheme.secondary
-            else -> DsR.drawable.pp_ic_build to MaterialTheme.colorScheme.onSurfaceVariant
+            RiskTier.DESTRUCTIVE -> DsR.drawable.core_designsystem_ic_warning to MaterialTheme.colorScheme.error
+            RiskTier.SENSITIVE -> DsR.drawable.core_designsystem_ic_shield to MaterialTheme.colorScheme.secondary
+            else -> DsR.drawable.core_designsystem_ic_build to MaterialTheme.colorScheme.onSurfaceVariant
         }
     Icon(painterResource(icon), contentDescription = riskTierLabel(tier), tint = tint)
 }
@@ -335,7 +335,7 @@ private fun ProtectedAppsCard(
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(painterResource(DsR.drawable.pp_ic_lock), contentDescription = null)
+                Icon(painterResource(DsR.drawable.core_designsystem_ic_lock), contentDescription = null)
                 Text(stringResource(R.string.tools_protected_title), style = MaterialTheme.typography.titleMedium)
             }
             Text(stringResource(R.string.tools_protected_explainer), style = MaterialTheme.typography.bodySmall)

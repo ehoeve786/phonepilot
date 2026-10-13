@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="designsystem_tier_read">Read</string>
-    <string name="designsystem_tier_interact">Interact</string>
-    <string name="designsystem_tier_sensitive">Sensitive</string>
-    <string name="designsystem_tier_destructive">Destructive</string>
+    <string name="core_designsystem_tier_read">Read</string>
+    <string name="core_designsystem_tier_interact">Interact</string>
+    <string name="core_designsystem_tier_sensitive">Sensitive</string>
+    <string name="core_designsystem_tier_destructive">Destructive</string>
 
-    <string name="designsystem_status_stopped">Stopped</string>
-    <string name="designsystem_status_idle">Idle, no clients</string>
-    <string name="designsystem_status_running_one">Running, 1 client</string>
-    <string name="designsystem_status_running_many">Running, %1$d clients</string>
-    <string name="designsystem_status_server">Server</string>
-    <string name="designsystem_status_server_on">Server on</string>
-    <string name="designsystem_status_server_off">Server off</string>
-    <string name="designsystem_status_copy">Copy the endpoint</string>
-    <string name="designsystem_status_remote_off">%1$s off</string>
-    <string name="designsystem_status_acting">A tool call is running</string>
+    <string name="core_designsystem_status_stopped">Stopped</string>
+    <string name="core_designsystem_status_idle">Idle, no clients</string>
+    <string name="core_designsystem_status_running_one">Running, 1 client</string>
+    <string name="core_designsystem_status_running_many">Running, %1$d clients</string>
+    <string name="core_designsystem_status_server">Server</string>
+    <string name="core_designsystem_status_server_on">Server on</string>
+    <string name="core_designsystem_status_server_off">Server off</string>
+    <string name="core_designsystem_status_copy">Copy the endpoint</string>
+    <string name="core_designsystem_status_remote_off">%1$s off</string>
+    <string name="core_designsystem_status_acting">A tool call is running</string>
 
-    <string name="designsystem_pinned_title">Pinned automations</string>
-    <string name="designsystem_pinned_see_all">See all</string>
-    <string name="designsystem_pinned_none">Pin a rule in Automations to switch it from here.</string>
+    <string name="core_designsystem_pinned_title">Pinned automations</string>
+    <string name="core_designsystem_pinned_see_all">See all</string>
+    <string name="core_designsystem_pinned_none">Pin a rule in Automations to switch it from here.</string>
 </resources>

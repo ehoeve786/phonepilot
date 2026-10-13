@@ -63,7 +63,7 @@ class AutomationNotifier(
         val notification =
             Notification
                 .Builder(context, channel)
-                .setSmallIcon(DsR.drawable.pp_ic_bolt)
+                .setSmallIcon(DsR.drawable.core_designsystem_ic_bolt)
                 .setContentTitle(title)
                 .apply { if (!text.isNullOrBlank()) setContentText(text).setStyle(Notification.BigTextStyle().bigText(text)) }
                 .setContentIntent(intent)

@@ -172,16 +172,16 @@ internal fun RuleEditor(
 
     Column(modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text(stringResource(if (isNew) R.string.auto_new_rule else R.string.auto_edit_rule)) },
+            title = { Text(stringResource(if (isNew) R.string.feature_automations_new_rule else R.string.feature_automations_edit_rule)) },
             navigationIcon = {
                 IconButton(onClick = onClose) {
-                    Icon(painterResource(R.drawable.auto_ic_close), contentDescription = stringResource(R.string.auto_cancel))
+                    Icon(painterResource(R.drawable.feature_automations_ic_close), contentDescription = stringResource(R.string.feature_automations_cancel))
                 }
             },
             actions = {
                 if (onDelete != null) {
                     IconButton(onClick = onDelete) {
-                        Icon(painterResource(R.drawable.auto_ic_delete), contentDescription = stringResource(R.string.auto_delete))
+                        Icon(painterResource(R.drawable.feature_automations_ic_delete), contentDescription = stringResource(R.string.feature_automations_delete))
                     }
                 }
             },
@@ -197,12 +197,12 @@ internal fun RuleEditor(
             OutlinedTextField(
                 value = rule.name,
                 onValueChange = { rule = rule.copy(name = it) },
-                label = { Text(stringResource(R.string.auto_name)) },
+                label = { Text(stringResource(R.string.feature_automations_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            EditorSection(stringResource(R.string.auto_when), stringResource(R.string.auto_when_text)) {
+            EditorSection(stringResource(R.string.feature_automations_when), stringResource(R.string.feature_automations_when_text)) {
                 rule.triggers.forEachIndexed { i, spec ->
                     val def = AutomationCatalog.trigger(spec.type)
                     ItemRow(
@@ -217,23 +217,23 @@ internal fun RuleEditor(
                         onDelete = { rule = rule.copy(triggers = rule.triggers.without(i)) },
                     )
                 }
-                val add = stringResource(R.string.auto_add_trigger)
+                val add = stringResource(R.string.feature_automations_add_trigger)
                 AddButton(add) { sheets.pickTrigger(add) { rule = rule.copy(triggers = rule.triggers + it) } }
                 val variables = rule.triggers.flatMap { AutomationCatalog.trigger(it.type)?.variables.orEmpty() }.distinct()
                 if (variables.isNotEmpty()) {
                     Text(
-                        stringResource(R.string.auto_variables, variables.joinToString(" ") { "{trigger.$it}" }),
+                        stringResource(R.string.feature_automations_variables, variables.joinToString(" ") { "{trigger.$it}" }),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
 
-            EditorSection(stringResource(R.string.auto_only_if), stringResource(R.string.auto_only_if_text)) {
+            EditorSection(stringResource(R.string.feature_automations_only_if), stringResource(R.string.feature_automations_only_if_text)) {
                 ConstraintGroupEditor(rule.constraints, sheets, depth = 0) { rule = rule.copy(constraints = it) }
             }
 
-            EditorSection(stringResource(R.string.auto_then), null) {
+            EditorSection(stringResource(R.string.feature_automations_then), null) {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     RunMode.entries.forEachIndexed { i, mode ->
                         SegmentedButton(
@@ -241,7 +241,7 @@ internal fun RuleEditor(
                             onClick = { rule = rule.copy(runAs = mode) },
                             shape = SegmentedButtonDefaults.itemShape(i, RunMode.entries.size),
                         ) {
-                            Text(stringResource(if (mode == RunMode.DIRECT) R.string.auto_run_direct else R.string.auto_run_agent))
+                            Text(stringResource(if (mode == RunMode.DIRECT) R.string.feature_automations_run_direct else R.string.feature_automations_run_agent))
                         }
                     }
                 }
@@ -249,8 +249,8 @@ internal fun RuleEditor(
                     OutlinedTextField(
                         value = rule.agentPrompt,
                         onValueChange = { rule = rule.copy(agentPrompt = it) },
-                        label = { Text(stringResource(R.string.auto_agent_prompt)) },
-                        supportingText = { Text(stringResource(R.string.auto_agent_prompt_text)) },
+                        label = { Text(stringResource(R.string.feature_automations_agent_prompt)) },
+                        supportingText = { Text(stringResource(R.string.feature_automations_agent_prompt_text)) },
                         minLines = 3,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -267,7 +267,7 @@ internal fun RuleEditor(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(stringResource(R.string.auto_problems), style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.feature_automations_problems), style = MaterialTheme.typography.titleSmall)
                         problems.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
                     }
                 }
@@ -330,7 +330,7 @@ private fun ItemRow(
         Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(vertical = 12.dp))
             IconButton(onClick = onDelete) {
-                Icon(painterResource(R.drawable.auto_ic_close), contentDescription = stringResource(R.string.auto_remove))
+                Icon(painterResource(R.drawable.feature_automations_ic_close), contentDescription = stringResource(R.string.feature_automations_remove))
             }
         }
     }
@@ -342,7 +342,7 @@ private fun AddButton(
     onClick: () -> Unit,
 ) {
     TextButton(onClick = onClick) {
-        Icon(painterResource(R.drawable.auto_ic_add), contentDescription = null, Modifier.size(18.dp))
+        Icon(painterResource(R.drawable.feature_automations_ic_add), contentDescription = null, Modifier.size(18.dp))
         Text(label, modifier = Modifier.padding(start = 4.dp))
     }
 }
@@ -395,14 +395,14 @@ private fun ConstraintGroupEditor(
                         Column(Modifier.padding(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    stringResource(R.string.auto_group),
+                                    stringResource(R.string.feature_automations_group),
                                     style = MaterialTheme.typography.labelLarge,
                                     modifier = Modifier.weight(1f),
                                 )
                                 IconButton(onClick = { onChange(group.copy(items = group.items.without(i))) }) {
                                     Icon(
-                                        painterResource(R.drawable.auto_ic_close),
-                                        contentDescription = stringResource(R.string.auto_remove),
+                                        painterResource(R.drawable.feature_automations_ic_close),
+                                        contentDescription = stringResource(R.string.feature_automations_remove),
                                     )
                                 }
                             }
@@ -415,10 +415,10 @@ private fun ConstraintGroupEditor(
             }
         }
         Row {
-            val add = stringResource(R.string.auto_add_condition)
+            val add = stringResource(R.string.feature_automations_add_condition)
             AddButton(add) { sheets.pickConstraint(add) { onChange(group.copy(items = group.items + ConstraintNode.Check(it))) } }
             if (depth < MAX_DEPTH) {
-                AddButton(stringResource(R.string.auto_add_group)) {
+                AddButton(stringResource(R.string.feature_automations_add_group)) {
                     onChange(group.copy(items = group.items + ConstraintNode.Group(ConstraintGroup(mode = GroupMode.ANY))))
                 }
             }
@@ -432,10 +432,10 @@ private const val MAX_DEPTH = 2
 private fun modeLabel(mode: GroupMode): String =
     stringResource(
         when (mode) {
-            GroupMode.ALL -> R.string.auto_mode_all
-            GroupMode.ANY -> R.string.auto_mode_any
-            GroupMode.NONE -> R.string.auto_mode_none
-            GroupMode.ONE -> R.string.auto_mode_one
+            GroupMode.ALL -> R.string.feature_automations_mode_all
+            GroupMode.ANY -> R.string.feature_automations_mode_any
+            GroupMode.NONE -> R.string.feature_automations_mode_none
+            GroupMode.ONE -> R.string.feature_automations_mode_one
         },
     )
 
@@ -463,7 +463,7 @@ private fun ActionListEditor(
                 onDelete = { onChange(steps.without(i)) },
             )
         }
-        val add = stringResource(R.string.auto_add_action)
+        val add = stringResource(R.string.feature_automations_add_action)
         AddButton(add) { sheets.pickAction(add, sideload) { onChange(steps + it) } }
     }
 }
@@ -511,20 +511,20 @@ private fun ActionStepCard(
                     }
                 }
                 IconButton(onClick = { onMove(-1) }, enabled = canMoveUp) {
-                    Icon(painterResource(R.drawable.auto_ic_up), contentDescription = stringResource(R.string.auto_move_up))
+                    Icon(painterResource(R.drawable.feature_automations_ic_up), contentDescription = stringResource(R.string.feature_automations_move_up))
                 }
                 IconButton(onClick = { onMove(1) }, enabled = canMoveDown) {
-                    Icon(painterResource(R.drawable.auto_ic_down), contentDescription = stringResource(R.string.auto_move_down))
+                    Icon(painterResource(R.drawable.feature_automations_ic_down), contentDescription = stringResource(R.string.feature_automations_move_down))
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(painterResource(R.drawable.auto_ic_delete), contentDescription = stringResource(R.string.auto_remove))
+                    Icon(painterResource(R.drawable.feature_automations_ic_delete), contentDescription = stringResource(R.string.feature_automations_remove))
                 }
             }
 
             val conditional = def?.conditional == true
             if (conditional) {
                 Text(
-                    stringResource(if (step.type == "flow.if") R.string.auto_if_condition else R.string.auto_step_condition_required),
+                    stringResource(if (step.type == "flow.if") R.string.feature_automations_if_condition else R.string.feature_automations_step_condition_required),
                     style = MaterialTheme.typography.labelLarge,
                 )
                 ConstraintGroupEditor(step.constraints, sheets, depth = 1) { onChange(step.copy(constraints = it)) }
@@ -532,12 +532,12 @@ private fun ActionStepCard(
             if (def?.container == true) {
                 Column(Modifier.padding(start = 8.dp, top = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        stringResource(if (step.type == "flow.if") R.string.auto_then else R.string.auto_inner_actions),
+                        stringResource(if (step.type == "flow.if") R.string.feature_automations_then else R.string.feature_automations_inner_actions),
                         style = MaterialTheme.typography.labelLarge,
                     )
                     ActionListEditor(step.children, sheets, sideload, depth + 1) { onChange(step.copy(children = it)) }
                     if (step.type == "flow.if") {
-                        Text(stringResource(R.string.auto_else), style = MaterialTheme.typography.labelLarge)
+                        Text(stringResource(R.string.feature_automations_else), style = MaterialTheme.typography.labelLarge)
                         ActionListEditor(step.elseChildren, sheets, sideload, depth + 1) { onChange(step.copy(elseChildren = it)) }
                     }
                 }
@@ -545,28 +545,28 @@ private fun ActionStepCard(
 
             if (!conditional) {
                 TextButton(onClick = { more = !more }) {
-                    Text(stringResource(if (more) R.string.auto_less else R.string.auto_more_options))
+                    Text(stringResource(if (more) R.string.feature_automations_less else R.string.feature_automations_more_options))
                 }
                 if (more) {
                     Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(stringResource(R.string.auto_step_condition), style = MaterialTheme.typography.labelLarge)
+                        Text(stringResource(R.string.feature_automations_step_condition), style = MaterialTheme.typography.labelLarge)
                         ConstraintGroupEditor(step.constraints, sheets, depth = 1) { onChange(step.copy(constraints = it)) }
                     }
                 }
             }
             if (more || conditional) {
                 Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(stringResource(R.string.auto_on_error), style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.feature_automations_on_error), style = MaterialTheme.typography.labelLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         FilterChip(
                             selected = step.onError == OnError.STOP,
                             onClick = { onChange(step.copy(onError = OnError.STOP)) },
-                            label = { Text(stringResource(R.string.auto_on_error_stop)) },
+                            label = { Text(stringResource(R.string.feature_automations_on_error_stop)) },
                         )
                         FilterChip(
                             selected = step.onError == OnError.CONTINUE,
                             onClick = { onChange(step.copy(onError = OnError.CONTINUE)) },
-                            label = { Text(stringResource(R.string.auto_on_error_continue)) },
+                            label = { Text(stringResource(R.string.feature_automations_on_error_continue)) },
                         )
                     }
                 }

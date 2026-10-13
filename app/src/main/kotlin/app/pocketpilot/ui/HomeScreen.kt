@@ -211,7 +211,7 @@ fun HomeScreen(
                 }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { settingsOpen = true }, modifier = Modifier.padding(bottom = 16.dp)) {
-                    Icon(painterResource(DsR.drawable.pp_ic_settings), contentDescription = stringResource(R.string.tab_settings))
+                    Icon(painterResource(DsR.drawable.core_designsystem_ic_settings), contentDescription = stringResource(R.string.tab_settings))
                 }
             }
         }
@@ -223,7 +223,7 @@ fun HomeScreen(
                     actions = {
                         IconButton(onClick = { confirmKill = true }) {
                             Icon(
-                                painterResource(DsR.drawable.pp_ic_power),
+                                painterResource(DsR.drawable.core_designsystem_ic_power),
                                 contentDescription = stringResource(R.string.nav_kill_switch),
                                 tint = MaterialTheme.colorScheme.error,
                             )
@@ -231,7 +231,7 @@ fun HomeScreen(
                         if (!wide) {
                             IconButton(onClick = { settingsOpen = true }) {
                                 Icon(
-                                    painterResource(DsR.drawable.pp_ic_settings),
+                                    painterResource(DsR.drawable.core_designsystem_ic_settings),
                                     contentDescription = stringResource(R.string.tab_settings),
                                 )
                             }
@@ -366,10 +366,10 @@ private enum class Destination(
     @param:StringRes val label: Int,
     @param:DrawableRes val icon: Int,
 ) {
-    HOME(R.string.tab_home, DsR.drawable.pp_ic_dashboard),
-    AUTOMATIONS(R.string.nav_automations, DsR.drawable.pp_ic_bolt),
-    TOOLS(R.string.nav_tools, DsR.drawable.pp_ic_build),
-    ACTIVITY(R.string.nav_activity, DsR.drawable.pp_ic_history),
+    HOME(R.string.tab_home, DsR.drawable.core_designsystem_ic_dashboard),
+    AUTOMATIONS(R.string.nav_automations, DsR.drawable.core_designsystem_ic_bolt),
+    TOOLS(R.string.nav_tools, DsR.drawable.core_designsystem_ic_build),
+    ACTIVITY(R.string.nav_activity, DsR.drawable.core_designsystem_ic_history),
 }
 
 /** Windows at least this wide (Medium and up) get a navigation rail instead of the bottom bar. */

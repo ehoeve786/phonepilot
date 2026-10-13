@@ -82,7 +82,7 @@ class AutomationService : Service() {
                 )
             return Notification
                 .Builder(context, CHANNEL_ID)
-                .setSmallIcon(DsR.drawable.pp_ic_bolt)
+                .setSmallIcon(DsR.drawable.core_designsystem_ic_bolt)
                 .setContentTitle(context.getString(R.string.automation_service_title))
                 .apply {
                     if (count > 0) setContentText(context.resources.getQuantityString(R.plurals.automation_service_text, count, count))

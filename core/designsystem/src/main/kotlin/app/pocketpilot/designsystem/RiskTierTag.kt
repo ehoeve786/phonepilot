@@ -56,10 +56,10 @@ fun riskTierColors(tier: RiskTier): Pair<Color, Color> {
 fun riskTierLabel(tier: RiskTier): String =
     stringResource(
         when (tier) {
-            RiskTier.READ -> R.string.designsystem_tier_read
-            RiskTier.INTERACT -> R.string.designsystem_tier_interact
-            RiskTier.SENSITIVE -> R.string.designsystem_tier_sensitive
-            RiskTier.DESTRUCTIVE -> R.string.designsystem_tier_destructive
+            RiskTier.READ -> R.string.core_designsystem_tier_read
+            RiskTier.INTERACT -> R.string.core_designsystem_tier_interact
+            RiskTier.SENSITIVE -> R.string.core_designsystem_tier_sensitive
+            RiskTier.DESTRUCTIVE -> R.string.core_designsystem_tier_destructive
         },
     )
 

@@ -42,11 +42,11 @@ fun PinnedRulesSection(
     Column(modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                stringResource(R.string.designsystem_pinned_title),
+                stringResource(R.string.core_designsystem_pinned_title),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onSeeAll) { Text(stringResource(R.string.designsystem_pinned_see_all)) }
+            TextButton(onClick = onSeeAll) { Text(stringResource(R.string.core_designsystem_pinned_see_all)) }
         }
         Surface(
             shape = MaterialTheme.shapes.large,
@@ -56,7 +56,7 @@ fun PinnedRulesSection(
             Column {
                 if (rules.isEmpty()) {
                     Text(
-                        stringResource(R.string.designsystem_pinned_none),
+                        stringResource(R.string.core_designsystem_pinned_none),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(16.dp),
@@ -67,7 +67,7 @@ fun PinnedRulesSection(
                         headlineContent = { Text(rule.name) },
                         leadingContent = {
                             Icon(
-                                painterResource(R.drawable.pp_ic_bolt),
+                                painterResource(R.drawable.core_designsystem_ic_bolt),
                                 contentDescription = null,
                                 tint =
                                     if (rule.enabled) {
@@ -85,7 +85,7 @@ fun PinnedRulesSection(
                                     if (rule.enabled) {
                                         {
                                             Icon(
-                                                painterResource(R.drawable.pp_ic_check),
+                                                painterResource(R.drawable.core_designsystem_ic_check),
                                                 contentDescription = null,
                                                 modifier = Modifier.size(SwitchDefaults.IconSize),
                                             )

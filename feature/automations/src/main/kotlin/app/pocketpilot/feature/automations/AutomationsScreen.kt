@@ -154,21 +154,21 @@ fun AutomationsScreen(
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             SecondaryTabRow(selectedTabIndex = tab) {
-                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.auto_tab_rules)) })
+                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.feature_automations_tab_rules)) })
                 Tab(
                     selected = tab == 1,
                     onClick = { tab = 1 },
                     text = {
                         if (proposals.isEmpty()) {
-                            Text(stringResource(R.string.auto_tab_proposals))
+                            Text(stringResource(R.string.feature_automations_tab_proposals))
                         } else {
                             BadgedBox(badge = { Badge { Text(proposals.size.toString()) } }) {
-                                Text(stringResource(R.string.auto_tab_proposals))
+                                Text(stringResource(R.string.feature_automations_tab_proposals))
                             }
                         }
                     },
                 )
-                Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text(stringResource(R.string.auto_tab_history)) })
+                Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text(stringResource(R.string.feature_automations_tab_history)) })
             }
             when (tab) {
                 0 -> {
@@ -193,8 +193,8 @@ fun AutomationsScreen(
         if (tab == 0) {
             ExtendedFloatingActionButton(
                 onClick = { editing = Rule(id = actions.newId(), name = "") },
-                icon = { Icon(painterResource(R.drawable.auto_ic_add), contentDescription = null) },
-                text = { Text(stringResource(R.string.auto_new_rule)) },
+                icon = { Icon(painterResource(R.drawable.feature_automations_ic_add), contentDescription = null) },
+                text = { Text(stringResource(R.string.feature_automations_new_rule)) },
                 modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
             )
         }
@@ -215,10 +215,10 @@ private fun RulesList(
     ) {
         if (rules.isEmpty()) {
             item {
-                Text(stringResource(R.string.auto_empty), style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.feature_automations_empty), style = MaterialTheme.typography.bodyLarge)
             }
             item {
-                Text(stringResource(R.string.auto_templates), style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.feature_automations_templates), style = MaterialTheme.typography.titleSmall)
             }
             items(Templates.all, key = { "t" + it.id }) { template ->
                 Card(onClick = { onNewFrom(template) }, modifier = Modifier.fillMaxWidth()) {
@@ -242,7 +242,7 @@ private fun RulesList(
         }
         if (rules.isNotEmpty()) {
             item { Spacer(Modifier.height(8.dp)) }
-            item { Text(stringResource(R.string.auto_templates), style = MaterialTheme.typography.titleSmall) }
+            item { Text(stringResource(R.string.feature_automations_templates), style = MaterialTheme.typography.titleSmall) }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Templates.all.take(2).forEach { template ->
@@ -270,31 +270,31 @@ private fun SettingsCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.auto_pause_all), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.auto_pause_all_text), style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.feature_automations_pause_all), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.feature_automations_pause_all_text), style = MaterialTheme.typography.bodyMedium)
                 }
                 Switch(
                     checked = state.settings.paused,
                     onCheckedChange = { actions.setSettings(state.settings.copy(paused = it)) },
                 )
             }
-            Text(stringResource(R.string.auto_ai_cap), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.feature_automations_ai_cap), style = MaterialTheme.typography.titleMedium)
             Text(
-                stringResource(R.string.auto_ai_cap_text, "%.2f".format(state.agentSpentThisMonthUsd)),
+                stringResource(R.string.feature_automations_ai_cap_text, "%.2f".format(state.agentSpentThisMonthUsd)),
                 style = MaterialTheme.typography.bodyMedium,
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = cap,
                     onValueChange = { cap = it },
-                    label = { Text(stringResource(R.string.auto_ai_cap_label)) },
+                    label = { Text(stringResource(R.string.feature_automations_ai_cap_label)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     onClick = { actions.setSettings(state.settings.copy(agentMonthlyCapUsd = cap.trim().toDoubleOrNull())) },
-                ) { Text(stringResource(R.string.auto_save)) }
+                ) { Text(stringResource(R.string.feature_automations_save)) }
             }
         }
     }
@@ -311,7 +311,7 @@ private fun ProposalsList(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (proposals.isEmpty()) {
-            item { Text(stringResource(R.string.auto_no_proposals), style = MaterialTheme.typography.bodyLarge) }
+            item { Text(stringResource(R.string.feature_automations_no_proposals), style = MaterialTheme.typography.bodyLarge) }
         }
         items(proposals, key = { it.id }) { rule ->
             ProposalCard(
@@ -331,7 +331,7 @@ private fun HistoryList(runs: List<RunRecord>) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (runs.isEmpty()) {
-            item { Text(stringResource(R.string.auto_no_runs), style = MaterialTheme.typography.bodyLarge) }
+            item { Text(stringResource(R.string.feature_automations_no_runs), style = MaterialTheme.typography.bodyLarge) }
         }
         items(runs, key = { it.id }) { run -> RunCard(run) }
     }
@@ -372,10 +372,10 @@ private fun RunCard(run: RunRecord) {
 internal fun outcomeLabel(outcome: RunOutcome): String =
     stringResource(
         when (outcome) {
-            RunOutcome.OK -> R.string.auto_outcome_ok
-            RunOutcome.FAILED -> R.string.auto_outcome_failed
-            RunOutcome.STOPPED -> R.string.auto_outcome_stopped
-            RunOutcome.SKIPPED -> R.string.auto_outcome_skipped
+            RunOutcome.OK -> R.string.feature_automations_outcome_ok
+            RunOutcome.FAILED -> R.string.feature_automations_outcome_failed
+            RunOutcome.STOPPED -> R.string.feature_automations_outcome_stopped
+            RunOutcome.SKIPPED -> R.string.feature_automations_outcome_skipped
         },
     )
 
@@ -386,9 +386,9 @@ internal fun SaveAndTestRow(
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = onTest) {
-            Icon(painterResource(R.drawable.auto_ic_play), contentDescription = null)
-            Text(stringResource(R.string.auto_test_run), modifier = Modifier.padding(start = 4.dp))
+            Icon(painterResource(R.drawable.feature_automations_ic_play), contentDescription = null)
+            Text(stringResource(R.string.feature_automations_test_run), modifier = Modifier.padding(start = 4.dp))
         }
-        Button(onClick = onSave) { Text(stringResource(R.string.auto_save)) }
+        Button(onClick = onSave) { Text(stringResource(R.string.feature_automations_save)) }
     }
 }

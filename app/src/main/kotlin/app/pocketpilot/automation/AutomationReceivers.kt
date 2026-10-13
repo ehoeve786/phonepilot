@@ -78,7 +78,7 @@ abstract class RuleTileService(
         val tile = qsTile ?: return
         val rule = applicationContext.automations().tileRule(slot)
         tile.label = rule?.name ?: getString(R.string.automation_tile, slot)
-        tile.icon = Icon.createWithResource(this, DsR.drawable.pp_ic_bolt)
+        tile.icon = Icon.createWithResource(this, DsR.drawable.core_designsystem_ic_bolt)
         tile.state = if (rule?.enabled == true) Tile.STATE_INACTIVE else Tile.STATE_UNAVAILABLE
         tile.updateTile()
     }
