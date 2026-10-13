@@ -124,13 +124,25 @@ class AgentRunnerTest {
 
     private fun fail(code: ModelErrorCode): suspend (ModelRequest) -> List<ModelEvent> = { listOf(ModelEvent.Error(code, "boom")) }
 
-    private fun TestScope.runner(): AgentRunner {
+    private fun TestScope.runner(beforeScreenWork: suspend () -> Unit = {}): AgentRunner {
         val clock = Clock { testScheduler.currentTime }
         val registry = ToolRegistry(setOf(info, snapshot, capture, tap, broken, shell), PolicyProfile.OSS)
-        return AgentRunner(registry, CallDispatcher(registry, InMemoryAuditSink(), clock = clock), SessionFactory(clock), clock = clock)
+        return AgentRunner(
+            registry,
+            CallDispatcher(registry, InMemoryAuditSink(), clock = clock),
+            SessionFactory(clock),
+            clock = clock,
+            beforeScreenWork = beforeScreenWork,
+        )
     }
 
+    /** A chat's state once it has answered [replies] messages. */
+    private suspend fun AgentRun.answered(replies: Int): RunState =
+        state.first { it.status == RunStatus.WAITING && it.steps.count { step -> step.reply != null } >= replies }
+
     private suspend fun AgentRun.finished(): RunState = state.first { !it.active }
+
+    private suspend fun AgentRun.ended(): RunState = state.first { !it.open }
 
     @Test
     fun `calls a tool natively, then finishes with the model's summary`() =
@@ -413,6 +425,103 @@ class AgentRunnerTest {
                     .last()
                     .text
             assertTrue("Settings screen" in resumed)
+        }
+
+    @Test
+    fun `a chat answers, waits for the next message and keeps the conversation`() =
+        runTest {
+            val provider = ScriptedProvider(say("Hi, how can I help?"), callTool("ui_tap"), say("Tapped it"))
+            val chat = AgentTask("Hello", scopes, conversation = true)
+            val run = runner().start(chat, RunModel(provider, "fake-1"), AgentBudgets(), backgroundScope)
+
+            val first = run.answered(1)
+            assertEquals("Hi, how can I help?", first.outcome)
+            assertEquals("Hi, how can I help?", first.steps.last().reply)
+            assertEquals(0, snapshot.calls.size, "a chat does not read the screen before it is asked to")
+            assertTrue(
+                provider.requests
+                    .first()
+                    .system
+                    .contains("This is a chat"),
+            )
+
+            assertTrue(run.send("Tap the button"))
+            val second = run.answered(2)
+            assertEquals("Tapped it", second.outcome)
+            assertEquals("Tap the button", second.steps.first { it.user != null }.user)
+            assertEquals(1, tap.calls.size)
+            val history = provider.requests[1].messages
+            assertEquals(listOf(Role.USER, Role.ASSISTANT, Role.USER), history.map(Message::role))
+            assertEquals("Hi, how can I help?", (history[1].parts.single() as Part.Text).text)
+            assertTrue((history[2].parts.single() as Part.Text).text.endsWith("Tap the button"))
+
+            run.close()
+            val end = run.ended()
+            assertEquals(RunStatus.FINISHED, end.status)
+            assertEquals("Tapped it", end.outcome)
+            assertTrue(end.endedAtMillis != null)
+        }
+
+    @Test
+    fun `each chat turn gets the full step budget, and a turn that runs out leaves the chat open`() =
+        runTest {
+            val provider = ScriptedProvider(callTool("ui_tap"), callTool("ui_tap"))
+            val chat = AgentTask("Tap twice", scopes, conversation = true)
+            val run = runner().start(chat, RunModel(provider, "fake-1"), AgentBudgets(maxSteps = 1), backgroundScope)
+
+            val first = run.state.first { it.status == RunStatus.WAITING }
+            assertEquals("Reached the limit of 1 steps", first.outcome)
+            assertTrue(run.send("Go on"))
+            run.state.first { it.status == RunStatus.WAITING && it.steps.size > first.steps.size + 2 }
+            assertEquals(2, tap.calls.size)
+            val history = provider.requests[1].messages
+            assertEquals(listOf(Role.USER, Role.ASSISTANT, Role.USER), history.map(Message::role))
+            assertTrue(
+                history
+                    .last()
+                    .parts
+                    .filterIsInstance<Part.Text>()
+                    .single()
+                    .text
+                    .endsWith("Go on"),
+                "the message joins the last tool results",
+            )
+            run.stop()
+            assertEquals(RunStatus.STOPPED, run.ended().status)
+        }
+
+    @Test
+    fun `steps out of the way before screen tools only`() =
+        runTest {
+            var calls = 0
+            val provider = ScriptedProvider(say("Hello"), callTool("ui_tap"), say("Done"))
+            val chat = AgentTask("Hi", scopes + Scope.SCREEN_READ, conversation = true)
+            val run = runner(beforeScreenWork = { calls++ }).start(chat, RunModel(provider, "fake-1"), AgentBudgets(), backgroundScope)
+            run.answered(1)
+            assertEquals(0, calls, "device.info is not a screen tool")
+            run.send("Tap")
+            run.answered(2)
+            assertEquals(1, calls)
+        }
+
+    @Test
+    fun `a new run ends a waiting chat, and only a waiting chat takes messages`() =
+        runTest {
+            val provider = ScriptedProvider(say("Hello"), say("Done"))
+            val runner = runner()
+            val chat =
+                runner.start(
+                    AgentTask("Hi", scopes, conversation = true),
+                    RunModel(provider, "fake-1"),
+                    AgentBudgets(),
+                    backgroundScope,
+                )
+            chat.answered(1)
+            val task = runner.start(AgentTask("Task", scopes), RunModel(provider, "fake-1"), AgentBudgets(), backgroundScope)
+            assertEquals(RunStatus.FINISHED, chat.ended().status)
+            assertTrue(!chat.send("Still there?"))
+            task.finished()
+            assertTrue(!task.send("More"), "a one-shot task takes no messages")
         }
 
     private fun images(message: Message): Int = message.parts.sumOf(::images)

@@ -18,8 +18,8 @@ import app.pocketpilot.agent.runtime.ProfileStore
 import app.pocketpilot.agent.runtime.ProviderKind
 import app.pocketpilot.agent.runtime.RunModel
 import app.pocketpilot.agent.runtime.RunState
+import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.agent.runtime.ToolMode
-import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.core.model.Scope
 import app.pocketpilot.feature.agent.ModelList
 import app.pocketpilot.feature.agent.ModelOption
@@ -54,11 +54,12 @@ class AgentCoordinator(
     val profiles: ProfileStore,
     private val runs: FileRunStore,
     private val secrets: SecretStore,
-    private val reader: ScreenReader,
-    private val ownPackage: String,
+    private val handoff: ScreenHandoff,
     private val scope: CoroutineScope,
     /** Shows the live run outside the app, so the owner can take over or stop it from anywhere. */
     private val onRunState: (RunState?) -> Unit = {},
+    /** A chat answered while the owner was in another app. */
+    private val onReply: (RunState) -> Unit = {},
     /** Scopes the owner turned on beyond [AGENT_SCOPES], such as the raw shell. Read when a run starts. */
     private val extraScopes: () -> Set<Scope> = { emptySet() },
 ) {
@@ -73,10 +74,14 @@ class AgentCoordinator(
     init {
         scope.launch {
             refreshHistory()
+            var previous: RunState? = null
             // A run's transcript lands in the history when it ends.
             current.collect {
                 onRunState(it)
-                if (it != null && !it.active) refreshHistory()
+                if (it != null && !it.open) refreshHistory()
+                val answered = it?.status == RunStatus.WAITING && previous?.id == it.id && previous?.status != RunStatus.WAITING
+                if (answered && !handoff.inFront()) onReply(it)
+                previous = it
             }
         }
     }
@@ -92,18 +97,28 @@ class AgentCoordinator(
         allowSettings: Boolean,
         /** When the model runs out, go on with the owner's other models in their listed order. */
         useFallbacks: Boolean,
+        /** A chat: the run answers and waits for [send] instead of ending. */
+        conversation: Boolean = false,
     ) {
         val all = profiles.profiles.value
         val profile = all.firstOrNull { it.id == profileId } ?: return
         val chain = listOf(profile) + if (useFallbacks) all.filter { it.id != profileId && usable(it) } else emptyList()
         if (current.value?.active == true) return
         scope.launch {
-            withTimeoutOrNull(LEAVE_TIMEOUT_MS) {
-                while (runCatching { reader.foreground()?.packageName }.getOrNull() == ownPackage) delay(LEAVE_POLL_MS)
+            // A chat stays on screen while the model thinks; the runner steps aside when it needs the screen.
+            if (!conversation) {
+                withTimeoutOrNull(LEAVE_TIMEOUT_MS) {
+                    while (handoff.inFront()) delay(LEAVE_POLL_MS)
+                }
             }
             try {
                 runner.start(
-                    AgentTask(goal, AGENT_SCOPES + extraScopes(), preApproved = if (allowSettings) setOf(SETTINGS_SET) else emptySet()),
+                    AgentTask(
+                        goal,
+                        AGENT_SCOPES + extraScopes(),
+                        preApproved = if (allowSettings) setOf(SETTINGS_SET) else emptySet(),
+                        conversation = conversation,
+                    ),
                     chainedModel(chain),
                     // The tightest cost limit in the chain holds for the whole run.
                     profile.budgets().copy(maxCostUsd = chain.mapNotNull { it.budgets().maxCostUsd }.minOrNull()),
@@ -145,6 +160,15 @@ class AgentCoordinator(
     fun resume() = runner.current.value?.resume()
 
     fun stop() = runner.current.value?.stop()
+
+    /** The owner's next message in the waiting chat; false when there is none to send it to. */
+    fun send(text: String): Boolean = runner.current.value?.send(text) == true
+
+    /** Ends the chat: a waiting one closes, a working one stops. */
+    fun endChat() {
+        val run = runner.current.value ?: return
+        if (run.state.value.active) run.stop() else run.close()
+    }
 
     /** Saves [profile]; [newKeys] join its saved keys, or replace them when [clearSaved]. */
     fun saveProfile(

@@ -7,6 +7,8 @@ internal object Prompts {
     fun system(
         toolMode: ToolMode,
         tools: List<ToolDef>,
+        /** A chat with the owner rather than a one-shot task. */
+        chat: Boolean = false,
     ): String =
         buildString {
             appendLine(
@@ -28,6 +30,15 @@ internal object Prompts {
                 When the task is done, or cannot be done, stop calling tools and reply with a one or two sentence summary for the owner.
                 """.trimIndent(),
             )
+            if (chat) {
+                appendLine()
+                appendLine(
+                    """
+                    This is a chat with the owner. Answer questions that need nothing from the phone directly, without calling tools. When a message asks for something on the phone, do it as you would a task, reading the screen first since you have not seen it yet.
+                    End each turn by replying to the owner in plain words. They may then send another message, which can refer to earlier ones.
+                    """.trimIndent(),
+                )
+            }
             if (toolMode == ToolMode.JSON_FALLBACK) {
                 appendLine()
                 appendLine(JsonFallback.instructions(tools))
@@ -38,9 +49,10 @@ internal object Prompts {
         goal: String,
         deviceInfo: String?,
         snapshot: String?,
+        chat: Boolean = false,
     ): String =
         buildString {
-            appendLine("Task from the owner: $goal")
+            appendLine(if (chat) followUp(goal) else "Task from the owner: $goal")
             deviceInfo?.let {
                 appendLine()
                 appendLine("Device:")
@@ -55,6 +67,9 @@ internal object Prompts {
 
     /** The screen at the start of a run, sent after [firstMessage]. */
     fun firstScreen(snapshot: String): String = "Current screen snapshot:\n${untrusted("screen.snapshot", snapshot)}"
+
+    /** The owner's message in a chat. */
+    fun followUp(text: String): String = "Message from the owner: $text"
 
     fun resumed(snapshot: String?): String =
         "The owner paused you, may have changed things by hand, and has now resumed. " +

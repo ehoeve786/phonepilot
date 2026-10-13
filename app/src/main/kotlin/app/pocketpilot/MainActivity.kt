@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.pocketpilot.agent.AgentCoordinator
+import app.pocketpilot.agent.ScreenHandoff
 import app.pocketpilot.approvals.ApprovalActivity
 import app.pocketpilot.approvals.ApprovalCenter
 import app.pocketpilot.approvals.ApprovalItem
@@ -45,6 +47,8 @@ import app.pocketpilot.designsystem.PocketPilotTheme
 import app.pocketpilot.designsystem.automation.PinnedRuleUi
 import app.pocketpilot.feature.agent.AgentActions
 import app.pocketpilot.feature.agent.AgentCard
+import app.pocketpilot.feature.agent.AgentChat
+import app.pocketpilot.feature.agent.ChatActions
 import app.pocketpilot.feature.automations.AutomationsActions
 import app.pocketpilot.feature.automations.AutomationsScreen
 import app.pocketpilot.feature.automations.AutomationsState
@@ -102,6 +106,8 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var agent: AgentCoordinator
 
+    @Inject lateinit var handoff: ScreenHandoff
+
     @Inject lateinit var shellSwitch: ShellSwitch
 
     @Inject lateinit var controlOverlay: ControlOverlay
@@ -134,6 +140,9 @@ class MainActivity : ComponentActivity() {
     /** Counts requests from notifications to show the Automations tab. */
     private val openAutomations = mutableIntStateOf(0)
 
+    /** Counts requests from reply notifications to show the Chat tab. */
+    private val openChat = mutableIntStateOf(0)
+
     /** A proposal notification asked for the Proposals list. */
     private var openProposals by mutableStateOf(false)
 
@@ -151,6 +160,10 @@ class MainActivity : ComponentActivity() {
 
             OPEN_AUTOMATIONS -> {
                 openAutomations.intValue++
+            }
+
+            OPEN_CHAT -> {
+                openChat.intValue++
             }
         }
     }
@@ -179,13 +192,6 @@ class MainActivity : ComponentActivity() {
             )
         val agentActions =
             AgentActions(
-                start = { goal, profileId, allowSettings, useFallbacks ->
-                    agent.start(goal, profileId, allowSettings, useFallbacks)
-                    // The service keeps the process alive while the agent works in other apps, and the
-                    // policy never lets the agent act on PocketPilot itself, so step out of its way.
-                    PocketPilotService.start(this)
-                    moveTaskToBack(true)
-                },
                 pause = { agent.pause() },
                 resume = { agent.resume() },
                 stop = { agent.stop() },
@@ -194,6 +200,20 @@ class MainActivity : ComponentActivity() {
                 keyCount = agent::keyCount,
                 moveUp = agent::moveUp,
                 listModels = agent::listModels,
+            )
+        val chatActions =
+            ChatActions(
+                start = { text, profileId, allowSettings, useFallbacks ->
+                    agent.start(text, profileId, allowSettings, useFallbacks, conversation = true)
+                    // The service keeps the process alive while the agent works in other apps.
+                    PocketPilotService.start(this)
+                },
+                send = agent::send,
+                pause = { agent.pause() },
+                resume = { agent.resume() },
+                stop = { agent.stop() },
+                endChat = agent::endChat,
+                openModels = {},
             )
         val automationActions =
             AutomationsActions(
@@ -211,6 +231,9 @@ class MainActivity : ComponentActivity() {
                 loadApps = automations::loadApps,
             )
         setContent {
+            // The policy never lets the agent act on PocketPilot itself, so step out of its way when a
+            // chat needs the screen.
+            LaunchedEffect(Unit) { handoff.requests.collect { moveTaskToBack(true) } }
             // The foreground service notification needs this permission on Android 13+; the server
             // runs either way, the notification is just hidden without it.
             val notificationPermission =
@@ -406,6 +429,18 @@ class MainActivity : ComponentActivity() {
                                 .map { PinnedRuleUi(it.id, it.name, it.enabled) },
                         onPinnedToggle = automations.store::setEnabled,
                         openAutomations = openAutomations.intValue,
+                        chatContent = { openModels ->
+                            AgentChat(
+                                profiles =
+                                    agent.profiles.profiles
+                                        .collectAsStateWithLifecycle()
+                                        .value,
+                                current = agent.current.collectAsStateWithLifecycle().value,
+                                history = agent.history.collectAsStateWithLifecycle().value,
+                                actions = chatActions.copy(openModels = openModels),
+                            )
+                        },
+                        openChat = openChat.intValue,
                     )
                 }
             }
@@ -526,9 +561,10 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        /** Which part of the app a notification opens: [OPEN_AUTOMATIONS] or [OPEN_PROPOSALS]. */
+        /** Which part of the app a notification opens: [OPEN_AUTOMATIONS], [OPEN_PROPOSALS] or [OPEN_CHAT]. */
         const val EXTRA_OPEN = "open"
         const val OPEN_AUTOMATIONS = "automations"
+        const val OPEN_CHAT = "chat"
         const val OPEN_PROPOSALS = "proposals"
         private const val SHIZUKU_TIMEOUT_MS = 10_000L
         private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"

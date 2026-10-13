@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -48,11 +47,6 @@ import java.util.UUID
 
 /** What the owner can do on [AgentCard]. */
 data class AgentActions(
-    /**
-     * [allowSettings]: the run may change settings without asking first. [useFallbacks]: when the
-     * model runs out, the run goes on with the other models in their listed order.
-     */
-    val start: (goal: String, profileId: String, allowSettings: Boolean, useFallbacks: Boolean) -> Unit,
     val pause: () -> Unit,
     val resume: () -> Unit,
     val stop: () -> Unit,
@@ -91,8 +85,8 @@ sealed interface ModelList {
 }
 
 /**
- * Agent mode (spec section 9): model profiles, a new task, the current run with takeover and stop,
- * and earlier runs' transcripts.
+ * Agent mode (spec section 9): model profiles, the current run with takeover and stop, and earlier
+ * runs' transcripts. New tasks start in the Chat tab ([AgentChat]).
  */
 @Composable
 fun AgentCard(
@@ -107,10 +101,6 @@ fun AgentCard(
             Text(stringResource(R.string.feature_agent_title), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.feature_agent_explainer), style = MaterialTheme.typography.bodySmall)
             ProfilesSection(profiles, actions)
-            if (profiles.isNotEmpty()) {
-                HorizontalDivider()
-                TaskSection(profiles, running = current?.active == true, actions)
-            }
             current?.let {
                 HorizontalDivider()
                 Text(stringResource(R.string.feature_agent_run_title), style = MaterialTheme.typography.titleSmall)
@@ -400,56 +390,6 @@ private fun ModelField(
 }
 
 @Composable
-private fun TaskSection(
-    profiles: List<AgentProfile>,
-    running: Boolean,
-    actions: AgentActions,
-) {
-    var goal by rememberSaveable { mutableStateOf("") }
-    var profileId by rememberSaveable { mutableStateOf(profiles.first().id) }
-    val selected = profiles.firstOrNull { it.id == profileId } ?: profiles.first()
-    OutlinedTextField(
-        goal,
-        { goal = it },
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text(stringResource(R.string.feature_agent_task)) },
-        placeholder = { Text(stringResource(R.string.feature_agent_task_hint)) },
-        minLines = 2,
-    )
-    if (profiles.size > 1) {
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            for (p in profiles) {
-                FilterChip(selected = p.id == selected.id, onClick = { profileId = p.id }, label = { Text(p.name) })
-            }
-        }
-    }
-    var allowSettings by rememberSaveable { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = allowSettings, onCheckedChange = { allowSettings = it })
-        Column {
-            Text(stringResource(R.string.feature_agent_allow_settings))
-            Text(stringResource(R.string.feature_agent_allow_settings_hint), style = MaterialTheme.typography.bodySmall)
-        }
-    }
-    var useFallbacks by rememberSaveable { mutableStateOf(true) }
-    if (profiles.size > 1) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = useFallbacks, onCheckedChange = { useFallbacks = it })
-            Column {
-                Text(stringResource(R.string.feature_agent_use_fallbacks))
-                Text(stringResource(R.string.feature_agent_use_fallbacks_hint), style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
-    Button(
-        enabled = goal.isNotBlank() && !running,
-        onClick = { actions.start(goal.trim(), selected.id, allowSettings, useFallbacks && profiles.size > 1) },
-    ) {
-        Text(stringResource(R.string.feature_agent_start))
-    }
-}
-
-@Composable
 private fun RunControls(
     status: RunStatus,
     actions: AgentActions,
@@ -507,6 +447,7 @@ private fun statusText(status: RunStatus): String =
         when (status) {
             RunStatus.RUNNING -> R.string.feature_agent_status_running
             RunStatus.PAUSED -> R.string.feature_agent_status_paused
+            RunStatus.WAITING -> R.string.feature_agent_status_waiting
             RunStatus.FINISHED -> R.string.feature_agent_status_finished
             RunStatus.STOPPED -> R.string.feature_agent_status_stopped
             RunStatus.OUT_OF_BUDGET -> R.string.feature_agent_status_budget

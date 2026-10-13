@@ -48,6 +48,11 @@ data class AgentTask(
     val scopes: Set<Scope>,
     /** Sensitive tools the owner allowed without a prompt for this run, such as `settings.set`. */
     val preApproved: Set<String> = emptySet(),
+    /**
+     * A chat: after each reply the run waits for the owner's next message ([AgentRun.send]) instead of
+     * ending. Automations run one-shot tasks.
+     */
+    val conversation: Boolean = false,
 )
 
 @Serializable
@@ -56,6 +61,9 @@ enum class RunStatus {
 
     /** The owner took over; the run waits for [AgentRun.resume]. */
     PAUSED,
+
+    /** A chat answered the owner's last message and waits for the next one. */
+    WAITING,
 
     /** The model said it was done. */
     FINISHED,
@@ -91,6 +99,10 @@ data class AgentStep(
     val screenHash: String? = null,
     /** A note from the runtime, such as a retry or the owner resuming. */
     val note: String? = null,
+    /** In a chat, a message from the owner after the first. */
+    val user: String? = null,
+    /** In a chat, the agent's answer that ended a turn. */
+    val reply: String? = null,
 )
 
 /** A run's live state, also what the transcript stores. */
@@ -110,8 +122,14 @@ data class RunState(
     /** The model's closing summary, or why the run ended otherwise. */
     val outcome: String? = null,
     val endedAtMillis: Long? = null,
+    /** A chat rather than a one-shot task. */
+    val conversation: Boolean = false,
 ) {
+    /** Working on a task or turn; a waiting chat is not active. */
     val active: Boolean get() = status == RunStatus.RUNNING || status == RunStatus.PAUSED
+
+    /** Not ended yet: working, or a chat waiting for the owner. */
+    val open: Boolean get() = active || status == RunStatus.WAITING
 }
 
 /** Keeps run transcripts; the app stores them on disk. */

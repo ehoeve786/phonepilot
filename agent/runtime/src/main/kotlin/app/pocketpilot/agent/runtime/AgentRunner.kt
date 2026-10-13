@@ -10,10 +10,12 @@ import app.pocketpilot.agent.providers.api.StopReason
 import app.pocketpilot.agent.providers.api.ToolChoice
 import app.pocketpilot.core.common.Clock
 import app.pocketpilot.core.model.ContentPart
+import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.SessionId
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolResult
+import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.SessionFactory
 import app.pocketpilot.core.orchestrator.ToolRegistry
@@ -23,6 +25,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,13 +55,21 @@ class AgentRunner(
     private val onSessionEnd: (SessionId) -> Unit = {},
     /** Marks the run's [AgentTask.preApproved] tools as confirmed for its session, in the policy engine. */
     private val preConfirm: (SessionId, Set<String>) -> Unit = { _, _ -> },
+    /**
+     * Called before a tool that reads or acts on the screen. The policy never lets the agent act on
+     * PocketPilot itself, so the app steps out of the way here when it is in front, as during a chat.
+     */
+    private val beforeScreenWork: suspend () -> Unit = {},
 ) {
     private val mutableCurrent = MutableStateFlow<AgentRun?>(null)
 
     /** The latest run, active or finished. */
     val current: StateFlow<AgentRun?> = mutableCurrent.asStateFlow()
 
-    /** Starts [task] in [scope]. Only one run can be active; starting another while one is fails. */
+    /**
+     * Starts [task] in [scope]. Only one run can be active; starting another while one is fails. A chat
+     * waiting for the owner's next message ends.
+     */
     @Synchronized
     fun start(
         task: AgentTask,
@@ -72,9 +83,10 @@ class AgentRunner(
                 ?.value
                 ?.active != true,
         ) { "A run is already in progress" }
+        mutableCurrent.value?.close()
         val session = sessions.agentSession(task.scopes)
         if (task.preApproved.isNotEmpty()) preConfirm(session.id, task.preApproved)
-        val run = AgentRun(session, task, model, budgets, registry, dispatcher, store, clock, onSessionEnd)
+        val run = AgentRun(session, task, model, budgets, registry, dispatcher, store, clock, onSessionEnd, beforeScreenWork)
         mutableCurrent.value = run
         run.launchIn(scope)
         return run
@@ -92,6 +104,7 @@ class AgentRun internal constructor(
     private val store: RunStore?,
     private val clock: Clock,
     private val onSessionEnd: (SessionId) -> Unit,
+    private val beforeScreenWork: suspend () -> Unit = {},
 ) {
     val id: String get() = session.id.value
 
@@ -106,6 +119,7 @@ class AgentRun internal constructor(
                 provider = model.provider.id,
                 model = model.model,
                 startedAtMillis = clock.nowMillis(),
+                conversation = task.conversation,
             ),
         )
     val state: StateFlow<RunState> = mutableState.asStateFlow()
@@ -123,6 +137,12 @@ class AgentRun internal constructor(
     private var segmentStart = 0L
     private var consecutiveErrors = 0
 
+    /** The first step of the current turn; the step budget counts from here. */
+    private var turnStart = 0
+
+    /** The owner's chat messages, waiting for the current turn to end. */
+    private val inbox = Channel<String>(Channel.UNLIMITED)
+
     /** The owner takes over: the run stops before its next action and waits for [resume]. */
     fun pause() {
         if (state.value.status == RunStatus.RUNNING) paused.value = true
@@ -135,6 +155,14 @@ class AgentRun internal constructor(
 
     fun stop() {
         job?.cancel()
+    }
+
+    /** Sends the owner's next chat message. False unless this is a chat waiting for one. */
+    fun send(text: String): Boolean = task.conversation && state.value.status == RunStatus.WAITING && inbox.trySend(text).isSuccess
+
+    /** Ends a chat once its current turn is answered. */
+    fun close() {
+        inbox.close()
     }
 
     @OptIn(DelicateCoroutinesApi::class)
@@ -156,16 +184,55 @@ class AgentRun internal constructor(
     }
 
     private suspend fun run() {
-        segmentStart = clock.nowMillis()
         messages += Message(Role.USER, firstParts(task.goal))
         while (true) {
+            val (status, outcome) = turn()
+            if (!task.conversation) return end(status, outcome)
+            // A chat answers and waits; a turn that ran out or failed still leaves the chat open.
+            if (status == RunStatus.FINISHED) messages += Message(Role.ASSISTANT, listOf(Part.Text(outcome)))
+            val finished = status == RunStatus.FINISHED
+            mutableState.update { s ->
+                s.copy(
+                    status = RunStatus.WAITING,
+                    outcome = outcome,
+                    steps =
+                        s.steps +
+                            AgentStep(
+                                index = s.steps.size,
+                                atMillis = clock.nowMillis(),
+                                reply = outcome.takeIf { finished },
+                                note = outcome.takeUnless { finished },
+                            ),
+                )
+            }
+            store?.save(state.value)
+            val next =
+                withTimeoutOrNull(CHAT_IDLE_MS) { inbox.receiveCatching().getOrNull() }
+                    ?: return end(RunStatus.FINISHED, outcome)
+            mutableState.update { s ->
+                s.copy(
+                    status = RunStatus.RUNNING,
+                    steps = s.steps + AgentStep(index = s.steps.size, atMillis = clock.nowMillis(), user = next),
+                )
+            }
+            addToUserMessage(listOf(Part.Text(Prompts.followUp(next))))
+        }
+    }
+
+    /** Works until the model answers or a limit is hit; each chat turn gets the full step and time budget. */
+    private suspend fun turn(): Pair<RunStatus, String> {
+        segmentStart = clock.nowMillis()
+        activeMs = 0
+        consecutiveErrors = 0
+        turnStart = state.value.steps.size
+        while (true) {
             if (paused.value) awaitResume()
-            outOfBudget()?.let { return end(RunStatus.OUT_OF_BUDGET, it) }
+            outOfBudget()?.let { return RunStatus.OUT_OF_BUDGET to it }
 
             val reply =
                 withTimeoutOrNull(remainingMs()) { ask() }
-                    ?: return end(RunStatus.OUT_OF_BUDGET, "Reached the time limit")
-            if (reply is Reply.Failed) return end(RunStatus.FAILED, reply.message)
+                    ?: return RunStatus.OUT_OF_BUDGET to "Reached the time limit"
+            if (reply is Reply.Failed) return RunStatus.FAILED to reply.message
             reply as Reply.Answer
             // The owner took over while the model was thinking: its plan is for a screen that may be
             // gone, so drop it and plan again after the takeover.
@@ -176,15 +243,18 @@ class AgentRun internal constructor(
                     ToolMode.NATIVE -> nativeStep(reply)
                     ToolMode.JSON_FALLBACK -> jsonStep(reply)
                 }
-            if (done != null) return end(RunStatus.FINISHED, done)
+            if (done != null) return RunStatus.FINISHED to done
             if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-                return end(RunStatus.FAILED, "Stopped after $MAX_CONSECUTIVE_ERRORS steps in a row failed")
+                return RunStatus.FAILED to "Stopped after $MAX_CONSECUTIVE_ERRORS steps in a row failed"
             }
         }
     }
 
     private suspend fun firstParts(goal: String): List<Part> {
         val info = if (tools.has(DEVICE_INFO)) text(call(DEVICE_INFO)) else null
+        // A chat may not need the phone at all, and PocketPilot is in front while the owner types, so
+        // the model reads the screen itself when a message needs it.
+        if (task.conversation) return listOf(Part.Text(Prompts.firstMessage(goal, info, null, chat = true)))
         val snapshot = if (tools.has(SCREEN_SNAPSHOT)) text(call(SCREEN_SNAPSHOT)) else null
         // The screen goes in its own part so it can be dropped once a newer screen arrives.
         return listOf(Part.Text(Prompts.firstMessage(goal, info, null))) +
@@ -285,6 +355,7 @@ class AgentRun internal constructor(
                 }
 
                 else -> {
+                    if (spec.touchesScreen()) beforeScreenWork()
                     dispatcher.dispatch(session, spec.name, args)
                 }
             }
@@ -295,7 +366,10 @@ class AgentRun internal constructor(
     private suspend fun call(
         tool: String,
         args: JsonObject = JsonObject(emptyMap()),
-    ): ToolResult = dispatcher.dispatch(session, tool, args)
+    ): ToolResult {
+        if (tools.resolve(tool)?.touchesScreen() == true) beforeScreenWork()
+        return dispatcher.dispatch(session, tool, args)
+    }
 
     /** Asks the model, retrying provider errors that may pass. */
     private suspend fun ask(): Reply {
@@ -304,7 +378,7 @@ class AgentRun internal constructor(
             val request =
                 ModelRequest(
                     model = model.model,
-                    system = Prompts.system(model.toolMode, tools.defs),
+                    system = Prompts.system(model.toolMode, tools.defs, chat = task.conversation),
                     messages = ImageBudget.apply(TextBudget.apply(messages), if (model.vision) budgets.maxImagesPerRequest else 0),
                     tools = if (model.toolMode == ToolMode.NATIVE) tools.defs else emptyList(),
                     maxTokens = model.maxOutputTokens,
@@ -358,15 +432,18 @@ class AgentRun internal constructor(
         segmentStart = clock.nowMillis()
         setStatus(RunStatus.RUNNING)
         val snapshot = if (tools.has(SCREEN_SNAPSHOT)) text(call(SCREEN_SNAPSHOT)) else null
-        val parts = listOf(Part.Text(Prompts.resumed(snapshot))) + screenshot()
-        // Tool results travel in a user message too; add to it rather than send two user turns.
+        addToUserMessage(listOf(Part.Text(Prompts.resumed(snapshot))) + screenshot())
+        note("The owner resumed the run")
+    }
+
+    /** Tool results travel in a user message too; add to it rather than send two user turns. */
+    private fun addToUserMessage(parts: List<Part>) {
         val last = messages.lastOrNull()
         if (last?.role == Role.USER) {
             messages[messages.lastIndex] = last.copy(parts = last.parts + parts)
         } else {
             messages += Message(Role.USER, parts)
         }
-        note("The owner resumed the run")
     }
 
     private fun outOfBudget(): String? {
@@ -374,7 +451,7 @@ class AgentRun internal constructor(
         val cost = s.costUsd
         val maxCost = budgets.maxCostUsd
         return when {
-            s.steps.count {
+            s.steps.drop(turnStart).count {
                 it.calls.isNotEmpty() || it.text != null
             } >= budgets.maxSteps -> "Reached the limit of ${budgets.maxSteps} steps"
 
@@ -436,7 +513,7 @@ class AgentRun internal constructor(
         status: RunStatus,
         outcome: String,
     ) {
-        if (!state.value.active) return
+        if (!state.value.open) return
         mutableState.update { it.copy(status = status, outcome = outcome, endedAtMillis = clock.nowMillis()) }
         store?.save(state.value)
     }
@@ -464,6 +541,15 @@ class AgentRun internal constructor(
         const val RETRY_BASE_MS = 2_000L
         const val MAX_RETRY_WAIT_MS = 30_000L
         const val SUMMARY_CHARS = 300
+
+        /** A chat nobody writes in for this long ends. */
+        const val CHAT_IDLE_MS = 30 * 60_000L
+
+        /** The scopes of tools the policy checks the app in front for. */
+        val SCREEN_SCOPES = setOf(Scope.SCREEN_READ, Scope.UI_INTERACT, Scope.APPS_CONTROL)
+
+        fun ToolSpec.touchesScreen(): Boolean = requiredScopes.any { it in SCREEN_SCOPES }
+
         val HASH = Regex("\"hash\"\\s*:\\s*\"([0-9a-f]{16})\"")
 
         /** A tool's output for the model; the output itself is marked as data, the error code and hint are PocketPilot's own. */

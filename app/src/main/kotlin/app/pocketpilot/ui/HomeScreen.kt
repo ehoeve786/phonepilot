@@ -6,6 +6,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -26,6 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -66,7 +68,7 @@ data class RemoteActions(
 
 /**
  * The app's main screen: Home (server status, what needs the owner, pinned automations and the live
- * tool log), Automations, Tools (per-tool Allow, Ask or Block, protected apps and the shell switch) and
+ * tool log), Chat (Agent mode as a conversation), Automations, Tools (per-tool Allow, Ask or Block, protected apps and the shell switch) and
  * Activity (the audit log and Agent mode). Settings opens from the gear in the top bar, or at the
  * rail's foot on wide screens.
  */
@@ -97,8 +99,12 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     /** WireGuard with the owner's relay, shown under Tailscale. */
     ownNetworkCard: @Composable () -> Unit = {},
-    /** Agent mode: model profiles, tasks and runs. */
+    /** Agent mode: model profiles and runs. */
     agentCard: @Composable () -> Unit = {},
+    /** The Chat destination; its argument opens the model list under Activity. */
+    chatContent: @Composable (openModels: () -> Unit) -> Unit = {},
+    /** Counts up each time something outside, such as a reply notification, asks for the Chat tab. */
+    openChat: Int = 0,
     /** The raw shell switch; the Play build has no shell tool, so it never shows there. */
     shellEnabled: Boolean = false,
     onShellChange: (Boolean) -> Unit = {},
@@ -146,6 +152,8 @@ fun HomeScreen(
 ) {
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     LaunchedEffect(openAutomations) { if (openAutomations > 0) destination = Destination.AUTOMATIONS }
+    LaunchedEffect(openChat) { if (openChat > 0) destination = Destination.CHAT }
+    var activityTab by rememberSaveable { mutableIntStateOf(0) }
     var settingsOpen by rememberSaveable { mutableStateOf(startOnSettings) }
     var confirmKill by rememberSaveable { mutableStateOf(false) }
     val tiers = remember(tools) { tools.associate { it.name to it.riskTier } }
@@ -297,6 +305,16 @@ fun HomeScreen(
                     )
                 }
 
+                Destination.CHAT -> {
+                    // The chat pads itself for the keyboard, so the bars' padding counts towards it.
+                    Box(content.consumeWindowInsets(padding).fillMaxSize()) {
+                        chatContent {
+                            activityTab = ACTIVITY_AGENT_TAB
+                            destination = Destination.ACTIVITY
+                        }
+                    }
+                }
+
                 Destination.AUTOMATIONS -> {
                     Box(content.fillMaxSize()) { automationsContent() }
                 }
@@ -319,7 +337,7 @@ fun HomeScreen(
                 }
 
                 Destination.ACTIVITY -> {
-                    ActivityTab(auditEvents, tiers, agentCard, modifier = content)
+                    ActivityTab(auditEvents, tiers, agentCard, activityTab, { activityTab = it }, modifier = content)
                 }
             }
         }
@@ -364,12 +382,13 @@ private fun DestinationIcon(
     }
 }
 
-/** The four top-level destinations; Settings opens from the top bar instead. */
+/** The five top-level destinations; Settings opens from the top bar instead. */
 private enum class Destination(
     @param:StringRes val label: Int,
     @param:DrawableRes val icon: Int,
 ) {
     HOME(R.string.tab_home, DsR.drawable.core_designsystem_ic_dashboard),
+    CHAT(R.string.nav_chat, DsR.drawable.core_designsystem_ic_chat),
     AUTOMATIONS(R.string.nav_automations, DsR.drawable.core_designsystem_ic_bolt),
     TOOLS(R.string.nav_tools, DsR.drawable.core_designsystem_ic_build),
     ACTIVITY(R.string.nav_activity, DsR.drawable.core_designsystem_ic_history),

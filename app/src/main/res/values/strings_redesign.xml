@@ -2,6 +2,7 @@
 <resources>
     <!-- Navigation -->
     <string name="nav_automations">Automations</string>
+    <string name="nav_chat">Chat</string>
     <string name="nav_tools">Tools</string>
     <string name="nav_activity">Activity</string>
     <string name="nav_back">Back</string>

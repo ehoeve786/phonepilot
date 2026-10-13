@@ -64,6 +64,35 @@ class AgentNotifier(
         manager.notify(NOTIFICATION_ID, notification)
     }
 
+    /** The chat's answer, for an owner who is in another app; tapping it opens the chat. */
+    fun reply(state: RunState) {
+        val step = state.steps.lastOrNull() ?: return
+        val text = step.reply ?: step.note ?: return
+        manager.createNotificationChannel(
+            NotificationChannel(REPLY_CHANNEL_ID, context.getString(R.string.agent_reply_channel), NotificationManager.IMPORTANCE_DEFAULT),
+        )
+        val open =
+            PendingIntent.getActivity(
+                context,
+                REPLY_NOTIFICATION_ID,
+                Intent(context, MainActivity::class.java)
+                    .putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_CHAT)
+                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+        val notification =
+            Notification
+                .Builder(context, REPLY_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_menu_manage)
+                .setContentTitle(context.getString(R.string.agent_reply_title))
+                .setContentText(text)
+                .setStyle(Notification.BigTextStyle().bigText(text))
+                .setContentIntent(open)
+                .setAutoCancel(true)
+                .build()
+        manager.notify(REPLY_NOTIFICATION_ID, notification)
+    }
+
     private fun action(
         name: String,
         label: Int,
@@ -80,7 +109,11 @@ class AgentNotifier(
 
     companion object {
         private const val CHANNEL_ID = "agent"
-        private const val NOTIFICATION_ID = 3
+
+        /** Apart from the automation service's 3, which an agent run inside an automation would replace. */
+        private const val NOTIFICATION_ID = 5
+        private const val REPLY_CHANNEL_ID = "agent_reply"
+        private const val REPLY_NOTIFICATION_ID = 6
         const val ACTION_PAUSE = "app.pocketpilot.action.AGENT_PAUSE"
         const val ACTION_RESUME = "app.pocketpilot.action.AGENT_RESUME"
         const val ACTION_STOP = "app.pocketpilot.action.AGENT_STOP"

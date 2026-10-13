@@ -16,7 +16,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -35,13 +34,18 @@ internal fun ActivityTab(
     auditEvents: List<AuditEvent>,
     tiers: Map<String, RiskTier>,
     agentCard: @Composable () -> Unit,
+    tab: Int,
+    onTab: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
     Column(modifier.fillMaxSize()) {
         SecondaryTabRow(selectedTabIndex = tab) {
-            Tab(selected = tab == LOG_TAB, onClick = { tab = LOG_TAB }, text = { Text(stringResource(R.string.activity_log)) })
-            Tab(selected = tab == AGENT_TAB, onClick = { tab = AGENT_TAB }, text = { Text(stringResource(R.string.activity_agent)) })
+            Tab(selected = tab == LOG_TAB, onClick = { onTab(LOG_TAB) }, text = { Text(stringResource(R.string.activity_log)) })
+            Tab(
+                selected = tab == ACTIVITY_AGENT_TAB,
+                onClick = { onTab(ACTIVITY_AGENT_TAB) },
+                text = { Text(stringResource(R.string.activity_agent)) },
+            )
         }
         when (tab) {
             LOG_TAB -> {
@@ -94,4 +98,6 @@ private fun FullLog(
 }
 
 private const val LOG_TAB = 0
-private const val AGENT_TAB = 1
+
+/** The Agent tab, which the Chat screen opens for its model list. */
+internal const val ACTIVITY_AGENT_TAB = 1
