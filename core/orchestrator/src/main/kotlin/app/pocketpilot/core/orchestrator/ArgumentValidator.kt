@@ -39,6 +39,51 @@ object ArgumentValidator {
         return null
     }
 
+    /**
+     * Turns text that spells a value of a property's declared type into that type: "true" and "false"
+     * for booleans, digits for integers and numbers. Everything else is left for [validate] to judge.
+     */
+    fun coerce(
+        schema: JsonObject,
+        arguments: JsonObject,
+    ): JsonObject {
+        val properties = schema["properties"]?.jsonObject ?: return arguments
+        var changed = false
+        val coerced =
+            arguments.mapValues { (name, value) ->
+                val text = (value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return@mapValues value
+                val type = (properties[name] as? JsonObject)?.get("type") as? JsonPrimitive ?: return@mapValues value
+                val typed =
+                    when (type.content) {
+                        "boolean" -> {
+                            text
+                                .trim()
+                                .lowercase()
+                                .toBooleanStrictOrNull()
+                                ?.let(::JsonPrimitive)
+                        }
+
+                        "integer" -> {
+                            text.trim().toLongOrNull()?.let(::JsonPrimitive)
+                        }
+
+                        "number" -> {
+                            text.trim().let { t ->
+                                t.toLongOrNull()?.let(::JsonPrimitive)
+                                    ?: t.toDoubleOrNull()?.takeIf(Double::isFinite)?.let(::JsonPrimitive)
+                            }
+                        }
+
+                        else -> {
+                            null
+                        }
+                    }
+                if (typed != null) changed = true
+                typed ?: value
+            }
+        return if (changed) JsonObject(coerced) else arguments
+    }
+
     private fun propertyProblem(
         name: String,
         schema: JsonObject,

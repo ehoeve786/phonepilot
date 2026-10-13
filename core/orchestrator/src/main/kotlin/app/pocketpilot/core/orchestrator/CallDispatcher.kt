@@ -67,14 +67,14 @@ class CallDispatcher(
     }
 
     private suspend fun run(
-        call: ToolCall,
+        received: ToolCall,
         session: Session,
     ): Pair<ToolResult, AuditDecision> {
         val handler =
-            registry.handler(call.tool)
+            registry.handler(received.tool)
                 ?: return ToolResult.error(
                     ToolErrorCode.UNKNOWN_TOOL,
-                    "No tool named '${call.tool}'",
+                    "No tool named '${received.tool}'",
                     "Call tools/list for the tools this phone offers.",
                 ) to AuditDecision.DENY
 
@@ -82,11 +82,13 @@ class CallDispatcher(
         if (missing.isNotEmpty()) {
             return ToolResult.error(
                 ToolErrorCode.DENIED_BY_POLICY,
-                "This client lacks the scope ${missing.joinToString()} needed for ${call.tool}",
+                "This client lacks the scope ${missing.joinToString()} needed for ${received.tool}",
                 "Ask the phone's owner to grant ${missing.joinToString()} to this client.",
             ) to AuditDecision.DENY
         }
 
+        // Clients with an old copy of a tool's schema, and some models, send "true" or "5" as text.
+        val call = received.copy(arguments = ArgumentValidator.coerce(handler.spec.inputSchema, received.arguments))
         ArgumentValidator.validate(handler.spec.inputSchema, call.arguments)?.let { problem ->
             return ToolResult.error(ToolErrorCode.INVALID_ARGUMENTS, problem, "Check the tool's input schema.") to
                 AuditDecision.DENY
