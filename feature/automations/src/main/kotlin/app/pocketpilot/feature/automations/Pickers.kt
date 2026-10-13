@@ -81,7 +81,11 @@ internal fun CatalogPickerSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(selected = category == null, onClick = { category = null }, label = { Text(stringResource(R.string.feature_automations_all)) })
+                FilterChip(
+                    selected = category == null,
+                    onClick = { category = null },
+                    label = { Text(stringResource(R.string.feature_automations_all)) },
+                )
                 categories.forEach { c ->
                     FilterChip(selected = category == c, onClick = { category = if (category == c) null else c }, label = { Text(c.title) })
                 }
@@ -153,7 +157,9 @@ internal fun FieldsSheet(
             extra()
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.feature_automations_cancel)) }
-                Button(onClick = { onDone(values.filterValues { it.isNotEmpty() }) }) { Text(stringResource(R.string.feature_automations_done)) }
+                Button(
+                    onClick = { onDone(values.filterValues { it.isNotEmpty() }) },
+                ) { Text(stringResource(R.string.feature_automations_done)) }
             }
         }
     }
@@ -221,7 +227,12 @@ private fun FieldEditor(
             val others = context.rules.filter { it.id != context.currentRuleId && !it.pending }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(label, style = MaterialTheme.typography.labelLarge)
-                if (others.isEmpty()) Text(stringResource(R.string.feature_automations_no_other_rules), style = MaterialTheme.typography.bodySmall)
+                if (others.isEmpty()) {
+                    Text(
+                        stringResource(R.string.feature_automations_no_other_rules),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     others.forEach { rule ->
                         FilterChip(selected = value == rule.id, onClick = { onChange(rule.id) }, label = { Text(rule.name) })
@@ -318,7 +329,12 @@ private fun AppField(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (context.apps.isEmpty()) Text(stringResource(R.string.feature_automations_loading_apps), style = MaterialTheme.typography.bodyMedium)
+                if (context.apps.isEmpty()) {
+                    Text(
+                        stringResource(R.string.feature_automations_loading_apps),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
                 LazyColumn(Modifier.weight(1f)) {
                     items(
                         context.apps.filter {

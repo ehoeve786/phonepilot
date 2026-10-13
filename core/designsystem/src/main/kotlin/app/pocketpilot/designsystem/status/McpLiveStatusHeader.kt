@@ -105,7 +105,10 @@ fun McpLiveStatusHeader(
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = onCopyEndpoint, enabled = running) {
-                    Icon(painterResource(R.drawable.core_designsystem_ic_copy), contentDescription = stringResource(R.string.core_designsystem_status_copy))
+                    Icon(
+                        painterResource(R.drawable.core_designsystem_ic_copy),
+                        contentDescription = stringResource(R.string.core_designsystem_status_copy),
+                    )
                 }
             }
             if (status.clients.isNotEmpty() || status.remote.isNotEmpty()) {

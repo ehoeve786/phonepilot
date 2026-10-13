@@ -175,13 +175,19 @@ internal fun RuleEditor(
             title = { Text(stringResource(if (isNew) R.string.feature_automations_new_rule else R.string.feature_automations_edit_rule)) },
             navigationIcon = {
                 IconButton(onClick = onClose) {
-                    Icon(painterResource(R.drawable.feature_automations_ic_close), contentDescription = stringResource(R.string.feature_automations_cancel))
+                    Icon(
+                        painterResource(R.drawable.feature_automations_ic_close),
+                        contentDescription = stringResource(R.string.feature_automations_cancel),
+                    )
                 }
             },
             actions = {
                 if (onDelete != null) {
                     IconButton(onClick = onDelete) {
-                        Icon(painterResource(R.drawable.feature_automations_ic_delete), contentDescription = stringResource(R.string.feature_automations_delete))
+                        Icon(
+                            painterResource(R.drawable.feature_automations_ic_delete),
+                            contentDescription = stringResource(R.string.feature_automations_delete),
+                        )
                     }
                 }
             },
@@ -241,7 +247,17 @@ internal fun RuleEditor(
                             onClick = { rule = rule.copy(runAs = mode) },
                             shape = SegmentedButtonDefaults.itemShape(i, RunMode.entries.size),
                         ) {
-                            Text(stringResource(if (mode == RunMode.DIRECT) R.string.feature_automations_run_direct else R.string.feature_automations_run_agent))
+                            Text(
+                                stringResource(
+                                    if (mode ==
+                                        RunMode.DIRECT
+                                    ) {
+                                        R.string.feature_automations_run_direct
+                                    } else {
+                                        R.string.feature_automations_run_agent
+                                    },
+                                ),
+                            )
                         }
                     }
                 }
@@ -330,7 +346,10 @@ private fun ItemRow(
         Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(vertical = 12.dp))
             IconButton(onClick = onDelete) {
-                Icon(painterResource(R.drawable.feature_automations_ic_close), contentDescription = stringResource(R.string.feature_automations_remove))
+                Icon(
+                    painterResource(R.drawable.feature_automations_ic_close),
+                    contentDescription = stringResource(R.string.feature_automations_remove),
+                )
             }
         }
     }
@@ -511,20 +530,37 @@ private fun ActionStepCard(
                     }
                 }
                 IconButton(onClick = { onMove(-1) }, enabled = canMoveUp) {
-                    Icon(painterResource(R.drawable.feature_automations_ic_up), contentDescription = stringResource(R.string.feature_automations_move_up))
+                    Icon(
+                        painterResource(R.drawable.feature_automations_ic_up),
+                        contentDescription = stringResource(R.string.feature_automations_move_up),
+                    )
                 }
                 IconButton(onClick = { onMove(1) }, enabled = canMoveDown) {
-                    Icon(painterResource(R.drawable.feature_automations_ic_down), contentDescription = stringResource(R.string.feature_automations_move_down))
+                    Icon(
+                        painterResource(R.drawable.feature_automations_ic_down),
+                        contentDescription = stringResource(R.string.feature_automations_move_down),
+                    )
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(painterResource(R.drawable.feature_automations_ic_delete), contentDescription = stringResource(R.string.feature_automations_remove))
+                    Icon(
+                        painterResource(R.drawable.feature_automations_ic_delete),
+                        contentDescription = stringResource(R.string.feature_automations_remove),
+                    )
                 }
             }
 
             val conditional = def?.conditional == true
             if (conditional) {
                 Text(
-                    stringResource(if (step.type == "flow.if") R.string.feature_automations_if_condition else R.string.feature_automations_step_condition_required),
+                    stringResource(
+                        if (step.type ==
+                            "flow.if"
+                        ) {
+                            R.string.feature_automations_if_condition
+                        } else {
+                            R.string.feature_automations_step_condition_required
+                        },
+                    ),
                     style = MaterialTheme.typography.labelLarge,
                 )
                 ConstraintGroupEditor(step.constraints, sheets, depth = 1) { onChange(step.copy(constraints = it)) }
@@ -532,7 +568,15 @@ private fun ActionStepCard(
             if (def?.container == true) {
                 Column(Modifier.padding(start = 8.dp, top = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        stringResource(if (step.type == "flow.if") R.string.feature_automations_then else R.string.feature_automations_inner_actions),
+                        stringResource(
+                            if (step.type ==
+                                "flow.if"
+                            ) {
+                                R.string.feature_automations_then
+                            } else {
+                                R.string.feature_automations_inner_actions
+                            },
+                        ),
                         style = MaterialTheme.typography.labelLarge,
                     )
                     ActionListEditor(step.children, sheets, sideload, depth + 1) { onChange(step.copy(children = it)) }

@@ -211,7 +211,10 @@ fun HomeScreen(
                 }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { settingsOpen = true }, modifier = Modifier.padding(bottom = 16.dp)) {
-                    Icon(painterResource(DsR.drawable.core_designsystem_ic_settings), contentDescription = stringResource(R.string.tab_settings))
+                    Icon(
+                        painterResource(DsR.drawable.core_designsystem_ic_settings),
+                        contentDescription = stringResource(R.string.tab_settings),
+                    )
                 }
             }
         }

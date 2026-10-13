@@ -97,7 +97,10 @@ internal fun SettingsScreen(
                 title = { Text(stringResource(R.string.tab_settings)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(painterResource(DsR.drawable.core_designsystem_ic_arrow_back), contentDescription = stringResource(R.string.nav_back))
+                        Icon(
+                            painterResource(DsR.drawable.core_designsystem_ic_arrow_back),
+                            contentDescription = stringResource(R.string.nav_back),
+                        )
                     }
                 },
             )

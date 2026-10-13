@@ -95,7 +95,10 @@ fun AutomationRuleCard(
                 IconButton(onClick = { onPinnedChange(!rule.pinned) }) {
                     Icon(
                         painterResource(R.drawable.feature_automations_ic_pin),
-                        contentDescription = stringResource(if (rule.pinned) R.string.feature_automations_unpin else R.string.feature_automations_pin),
+                        contentDescription =
+                            stringResource(
+                                if (rule.pinned) R.string.feature_automations_unpin else R.string.feature_automations_pin,
+                            ),
                         tint = if (rule.pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                     )
                 }
@@ -219,7 +222,9 @@ internal fun ProposalCard(
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onDecline) { Text(stringResource(R.string.feature_automations_decline), color = MaterialTheme.colorScheme.error) }
+                TextButton(
+                    onClick = onDecline,
+                ) { Text(stringResource(R.string.feature_automations_decline), color = MaterialTheme.colorScheme.error) }
                 OutlinedButton(onClick = onEdit) { Text(stringResource(R.string.feature_automations_edit)) }
                 Button(onClick = onAccept) { Text(stringResource(R.string.feature_automations_accept)) }
             }
