@@ -10,6 +10,8 @@ import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.ToolAnnotations
 import app.pocketpilot.core.model.ToolCall
+import app.pocketpilot.core.model.ToolErrorCode
+import app.pocketpilot.core.model.ToolException
 import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.orchestrator.ToolHandler
@@ -143,7 +145,7 @@ class FilesWriteTool(
             description =
                 "Writes text to a file in a shared folder, creating it in an existing folder. " +
                     "An existing file is replaced only with replace: true. append: true adds the text to the end " +
-                    "instead, on a new line, and leaves the rest of the file as it was.",
+                    "instead, on a new line, and leaves the rest of the file as it was; a missing file is created.",
             inputSchema =
                 schema(
                     """{"type":"object","properties":{"path":{"type":"string"},"text":{"type":"string"},
@@ -177,7 +179,14 @@ class FilesWriteTool(
         val append = call.arguments.boolean("append") == true
         if (append && call.arguments.boolean("replace") == true) invalid("Give append or replace, not both")
         if (append) {
-            val (old, size) = files.read(path, MAX_BYTES)
+            // A missing file is created, as a plain write would.
+            val (old, size) =
+                try {
+                    files.read(path, MAX_BYTES)
+                } catch (e: ToolException) {
+                    if (e.code != ToolErrorCode.ELEMENT_NOT_FOUND) throw e
+                    ByteArray(0) to 0L
+                }
             if (size > old.size) invalid("$path is over $MAX_BYTES bytes, too big to add to")
             val separator = if (old.isEmpty() || old.last() == '\n'.code.toByte()) "" else "\n"
             val added = (separator + text).toByteArray()

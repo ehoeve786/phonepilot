@@ -486,7 +486,8 @@ internal object Actions {
                     tier = RiskTier.SENSITIVE,
                     kind =
                         ActionKind.Tool("files.write") { p ->
-                            args("path" to p.p("path"), "text" to p["text"].orEmpty(), "replace" to (p.p("mode") == "replace"))
+                            val replace = p.p("mode") == "replace"
+                            args("path" to p.p("path"), "text" to p["text"].orEmpty(), "replace" to replace, "append" to !replace)
                         },
                     sentence = { p -> "Write to ${p.p("path")}" },
                 ),

@@ -135,6 +135,7 @@ class FileToolsTest {
                     put("text", "x")
                     put("append", true)
                 }
-            assertEquals(ToolErrorCode.ELEMENT_NOT_FOUND, dispatcher.dispatch(session, "files.write", missing).errorCode)
+            assertFalse(dispatcher.dispatch(session, "files.write", missing).isError)
+            assertEquals("x", files.contents["Documents/none.txt"]!!.decodeToString())
         }
 }
