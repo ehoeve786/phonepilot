@@ -35,6 +35,8 @@ internal data class MapsPlace(
     val sponsored: Boolean,
     /** Every text on the result card except its buttons, for matching the search. */
     val texts: List<String>,
+    /** The card's Directions button and the snapshot it is from. */
+    val directions: Target.OnElement,
 ) {
     val key: String get() = "$name|$address"
 }
@@ -44,12 +46,34 @@ internal object MapsResults {
     private val DISTANCE = Regex("""^(\d+(?:[.,]\d+)?)\s?(m|km|mi|ft)$""", RegexOption.IGNORE_CASE)
     private val NUMBER = Regex("""^[\d.,]+$""")
     private const val SPONSORED = "Sponsored"
+    private const val DIRECTIONS = "Directions"
 
-    /** The result cards on screen: each has a distance line inside a clickable card. */
+    /**
+     * The result cards fully on screen: each has a distance line inside a clickable card and a row of
+     * buttons that starts with Directions. A card cut off at the top (its name gone) or at the bottom
+     * (no buttons yet) is left out; the next or previous page shows it whole.
+     */
     fun parse(snapshot: Snapshot): List<MapsPlace> {
         val byId = snapshot.elements.associateBy { it.id }
+        val children = snapshot.elements.groupBy { it.parent }
 
         fun Element.ancestors() = generateSequence(parent?.let(byId::get)) { it.parent?.let(byId::get) }
+
+        // A rating is a container whose child is the bare number, for example "3.1 stars, 90 ratings" > "3.1".
+        fun Element.isRating() = children[id].orEmpty().any { child -> child.label()?.let(NUMBER::matches) == true }
+
+        // The action row: card > list > listitem > buttons. Directions comes first; prefer it by name.
+        fun Element.directionsButton(): Element? {
+            val row =
+                children[id]
+                    .orEmpty()
+                    .filter { it.role == Role.LIST }
+                    .flatMap { children[it.id].orEmpty() }
+                    .filter { it.role == Role.LISTITEM }
+                    .flatMap { children[it.id].orEmpty() }
+                    .filter { it.clickable }
+            return row.firstOrNull { it.label().equals(DIRECTIONS, ignoreCase = true) } ?: row.firstOrNull()
+        }
 
         val cards = mutableMapOf<String, String>()
         for (element in snapshot.elements) {
@@ -64,9 +88,11 @@ internal object MapsResults {
                     val chain = e.ancestors().toList()
                     chain.any { it.id == cardId } && chain.takeWhile { it.id != cardId }.none { it.clickable } && !e.clickable
                 }
+            val directions = byId.getValue(cardId).directionsButton() ?: return@mapNotNull null
             val texts = inside.mapNotNull { it.label() }.distinct()
-            val name =
-                texts.firstOrNull { !it.startsWith(SPONSORED) && !NUMBER.matches(it) && it != distanceLine } ?: return@mapNotNull null
+            val first = inside.firstOrNull { e -> e.label()?.let { !it.startsWith(SPONSORED) } == true } ?: return@mapNotNull null
+            if (first.isRating()) return@mapNotNull null
+            val name = first.label()!!.takeIf { !NUMBER.matches(it) && it != distanceLine } ?: return@mapNotNull null
             // "850.0 m" with the address on the next line, or "77.5 km · Egmont, BC" on one line.
             val parts = distanceLine.parts()
             val at = parts.indexOfFirst { DISTANCE.matches(it) }
@@ -79,9 +105,17 @@ internal object MapsResults {
                 address = after?.takeIf { it != name },
                 sponsored = texts.any { it.startsWith(SPONSORED) },
                 texts = texts,
+                directions = Target.OnElement(directions.id, snapshot.id),
             )
         }
     }
+
+    /** Maps' scrolling result list; the largest scrollable list when Maps renames it. */
+    fun resultList(snapshot: Snapshot): Element? =
+        snapshot.elements.firstOrNull { it.resourceId?.substringAfter(":id/") == "search_list_layout" && it.scrollable }
+            ?: snapshot.elements
+                .filter { it.scrollable && it.role == Role.LIST }
+                .maxByOrNull { it.bounds.height * it.bounds.width.toLong() }
 
     /**
      * The closest place whose card mentions every word of [query] (a category such as "Gas station",
@@ -164,14 +198,14 @@ class AppDirectionsTool(
         if (mode !in MODES) invalid("mode must be one of ${MODES.joinToString()}")
 
         open("geo:0,0?q=${encode(query)}")
+        val results = ResultList()
         val places = linkedMapOf<String, MapsPlace>()
-        repeat(PAGES) { page ->
-            val snapshot = reader.snapshot(SnapshotOptions(maxElements = MAX_ELEMENTS))
-            val found = MapsResults.parse(snapshot).filter { places.putIfAbsent(it.key, it) == null }
-            if (page == PAGES - 1 || (page > 0 && found.isEmpty())) return@repeat
-            val list = snapshot.resultList() ?: return@repeat
-            input.swipeOn(Target.OnElement(list.id, snapshot.id), SwipeDirection.UP, SWIPE_MS)
-            reader.awaitIdle()
+        var pages = 0
+        while (pages < PAGES) {
+            val onScreen = results.read()
+            pages++
+            val found = onScreen.filter { places.put(it.key, it) == null }
+            if (pages == PAGES || (pages > 1 && found.isEmpty()) || !results.scroll(SwipeDirection.UP)) break
         }
         val best =
             MapsResults.pick(places.values, query) ?: throw ToolException(
@@ -180,8 +214,22 @@ class AppDirectionsTool(
                 "Read the screen with screen.snapshot: Maps may be showing a prompt or a single place.",
             )
 
-        val destination = listOfNotNull(best.name, best.address).joinToString(", ")
-        open("https://www.google.com/maps/dir/?api=1&destination=${encode(destination)}&travelmode=$mode")
+        // Tapping the card's own Directions button routes to that exact place; a typed name and
+        // address can match another branch. Scroll back to the card if it has gone off screen.
+        var target = best.directions.takeIf { results.lastSnapshot == it.snapshotId }
+        var back = 0
+        while (target == null && back < pages && results.scroll(SwipeDirection.DOWN)) {
+            back++
+            target = results.read().firstOrNull { it.key == best.key }?.directions
+        }
+        if (target != null) {
+            input.tap(target)
+            reader.awaitIdle(quietMs = SETTLE_MS, timeoutMs = OPEN_WAIT_MS)
+            if (mode != "driving") selectMode(mode)
+        } else {
+            val destination = listOfNotNull(best.name, best.address).joinToString(", ")
+            open("https://www.google.com/maps/dir/?api=1&destination=${encode(destination)}&travelmode=$mode")
+        }
         val others =
             places.values
                 .filter { it != best }
@@ -198,6 +246,39 @@ class AppDirectionsTool(
         return afterAction(reader, summary, call.arguments.boolean("returnSnapshot") ?: false)
     }
 
+    /** One call's view of the result list, so concurrent calls do not share state. */
+    private inner class ResultList {
+        var lastSnapshot: String? = null
+        private var lastList: Element? = null
+
+        /** Reads the screen and returns the whole result cards on it. */
+        suspend fun read(): List<MapsPlace> {
+            val snapshot = reader.snapshot(SnapshotOptions(maxElements = MAX_ELEMENTS))
+            lastSnapshot = snapshot.id
+            lastList = MapsResults.resultList(snapshot)
+            return MapsResults.parse(snapshot)
+        }
+
+        /** Scrolls the result list; false when there is no list to scroll. */
+        suspend fun scroll(direction: SwipeDirection): Boolean {
+            val list = lastList ?: return false
+            input.swipeOn(Target.OnElement(list.id, lastSnapshot), direction, SWIPE_MS)
+            reader.awaitIdle()
+            return true
+        }
+    }
+
+    /** Picks the travel mode tab on the route screen; Maps opens it on driving. */
+    private suspend fun selectMode(mode: String) {
+        val snapshot = reader.snapshot(SnapshotOptions(maxElements = MAX_ELEMENTS))
+        val word = MODE_LABELS.getValue(mode)
+        val tab = snapshot.elements.firstOrNull { it.clickable && it.description?.startsWith(word, ignoreCase = true) == true }
+        if (tab != null) {
+            input.tap(Target.OnElement(tab.id, snapshot.id))
+            reader.awaitIdle(quietMs = SETTLE_MS, timeoutMs = OPEN_WAIT_MS)
+        }
+    }
+
     private suspend fun open(uri: String) {
         val args = IntentArgs.build(null, MAPS, VIEW, uri, null, emptyList(), emptyList())
         admin.startIntent(args, broadcast = false)
@@ -207,17 +288,13 @@ class AppDirectionsTool(
         reader.awaitIdle(quietMs = SETTLE_MS, timeoutMs = OPEN_WAIT_MS)
     }
 
-    /** Maps' scrolling result list; the largest scrollable list when Maps renames it. */
-    private fun Snapshot.resultList(): Element? =
-        elements.firstOrNull { it.resourceId?.substringAfter(":id/") == "search_list_layout" && it.scrollable }
-            ?: elements.filter { it.scrollable && it.role == Role.LIST }.maxByOrNull { it.bounds.height * it.bounds.width.toLong() }
-
     private fun encode(text: String) = URLEncoder.encode(text, Charsets.UTF_8).replace("+", "%20")
 
     private companion object {
         const val MAPS = "com.google.android.apps.maps"
         const val VIEW = "android.intent.action.VIEW"
         val MODES = listOf("driving", "walking", "bicycling", "transit")
+        val MODE_LABELS = mapOf("walking" to "Walking", "bicycling" to "Bicycling", "transit" to "Transit")
         const val PAGES = 3
         const val OTHERS = 4
         const val MAX_ELEMENTS = 600

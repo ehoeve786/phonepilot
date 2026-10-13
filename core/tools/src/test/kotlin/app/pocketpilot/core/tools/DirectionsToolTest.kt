@@ -48,6 +48,9 @@ class DirectionsToolTest {
                     card("c3", "Chevron", "4.1", "Gas station", "Open · Closes 10 p.m. · 850.0 m", "1500 West Georgia Street"),
                     card("c4", "Chevron Canada Limited", "Corporate office", "550.0 m", "1050 West Pender Street"),
                     card("c5", "Bathgate Store", "4.5", "Gas station", "77.5 km · Egmont, BC"),
+                    // Scrolled half out of view: the top one lost its name, the bottom one its buttons.
+                    card("c6", "3.1", "Gas station", "300.0 m", "99 Smithe Street"),
+                    card("c7", "Petro-Canada", "4.0", "Gas station", "200.0 m", "1 Main Street", buttons = false),
                 ).flatten(),
         )
 
@@ -55,16 +58,34 @@ class DirectionsToolTest {
         const val MAPS_ID = "com.google.android.apps.maps:id"
     }
 
+    /** A result card; a bare number is drawn as Maps draws a rating, "3.5 stars" around "3.5". */
     private fun card(
         id: String,
         vararg texts: String,
+        buttons: Boolean = true,
     ): List<Element> =
         listOf(Element(id, "e2", Role.BUTTON, bounds = box, clickable = true)) +
-            texts.mapIndexed { i, text -> Element("$id-$i", id, Role.CONTAINER, text = text, description = text, bounds = box) } +
-            listOf(
-                Element("$id-d", id, Role.BUTTON, description = "Directions", bounds = box, clickable = true),
-                Element("$id-dt", "$id-d", Role.CONTAINER, text = "Directions", bounds = box),
-            )
+            texts.flatMapIndexed { i, text ->
+                if (text.all { it.isDigit() || it == '.' }) {
+                    listOf(
+                        Element("$id-$i", id, Role.CONTAINER, description = "$text stars, 12 ratings", bounds = box),
+                        Element("$id-$i-n", "$id-$i", Role.CONTAINER, text = text, description = text, bounds = box),
+                    )
+                } else {
+                    listOf(Element("$id-$i", id, Role.CONTAINER, text = text, description = text, bounds = box))
+                }
+            } +
+            if (buttons) {
+                listOf(
+                    Element("$id-r", id, Role.LIST, bounds = box, clickable = true),
+                    Element("$id-ri", "$id-r", Role.LISTITEM, bounds = box),
+                    Element("$id-d", "$id-ri", Role.BUTTON, description = "Directions", bounds = box, clickable = true),
+                    Element("$id-dt", "$id-d", Role.CONTAINER, text = "Directions", bounds = box),
+                    Element("$id-c", "$id-ri", Role.BUTTON, description = "Call", bounds = box, clickable = true),
+                )
+            } else {
+                emptyList()
+            }
 
     @Test
     fun `reads name, distance and address from each card`() {
@@ -75,6 +96,12 @@ class DirectionsToolTest {
         assertEquals("Egmont, BC", places.getValue("Bathgate Store").address)
         assertEquals(77_500.0, places.getValue("Bathgate Store").distanceMeters)
         assertTrue(places.getValue("Esso").sponsored)
+    }
+
+    @Test
+    fun `leaves out cards cut off at the top or bottom`() {
+        val names = MapsResults.parse(results).map { it.name }
+        assertTrue("Gas station" !in names && "Petro-Canada" !in names, names.toString())
     }
 
     @Test
@@ -106,14 +133,10 @@ class DirectionsToolTest {
             val call = ToolCall("1", session.id, "app.directions", buildJsonObject { put("query", "gas station") })
             val result = tool.execute(call, session)
 
-            assertEquals(2, intents.size)
+            assertEquals(1, intents.size)
             assertTrue(intents[0].contains("geo:0,0?q=gas%20station"), intents[0].toString())
-            val route = intents[1].first { it.startsWith("https://") }
-            assertEquals(
-                "https://www.google.com/maps/dir/?api=1&destination=Chevron%2C%201500%20West%20Georgia%20Street&travelmode=driving",
-                route,
-            )
             assertTrue(input.calls.first().startsWith("swipeOn e2"))
+            assertEquals("tap OnElement(elementId=c3-d, snapshotId=m1)", input.calls.last())
             assertTrue(
                 result.text().startsWith("Showing the driving route to Chevron, 1500 West Georgia Street (850.0 m away)."),
                 result.text(),
