@@ -30,6 +30,11 @@ object A11yBridge {
     /** True while the owner has the service turned on. */
     val connected: StateFlow<Boolean> = connectedFlow.asStateFlow()
 
+    private val windowPackage = MutableStateFlow<String?>(null)
+
+    /** The package of the last window that came to the front, for "app opened" automations. */
+    val frontPackage: StateFlow<String?> = windowPackage.asStateFlow()
+
     internal fun attach(service: PocketPilotA11yService) {
         current.value = service
         connectedFlow.value = true
@@ -44,6 +49,7 @@ object A11yBridge {
             val pkg = event.packageName?.toString()
             val cls = event.className?.toString()
             if (pkg != null && cls != null) lastWindowClass = pkg to cls
+            if (pkg != null) windowPackage.value = pkg
         }
         lastChangeAt = SystemClock.uptimeMillis()
         changes.value += 1

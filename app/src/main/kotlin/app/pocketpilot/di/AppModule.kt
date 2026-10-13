@@ -48,6 +48,7 @@ import app.pocketpilot.core.orchestrator.ToolRegistry
 import app.pocketpilot.core.policy.AppMode
 import app.pocketpilot.core.policy.AppPolicy
 import app.pocketpilot.core.policy.PolicyEngine
+import app.pocketpilot.core.policy.ToolMode
 import app.pocketpilot.core.tools.AdbLogsTool
 import app.pocketpilot.core.tools.AdbQueryTool
 import app.pocketpilot.core.tools.AppActivitiesTool
@@ -94,6 +95,7 @@ import app.pocketpilot.onboarding.OnboardingStore
 import app.pocketpilot.security.BiometricGate
 import app.pocketpilot.security.KeystoreSecretStore
 import app.pocketpilot.security.ShellSwitch
+import app.pocketpilot.security.ToolModeStore
 import app.pocketpilot.server.LocalTokenStore
 import app.pocketpilot.server.http.McpHttpServer
 import app.pocketpilot.server.mcp.McpServerFactory
@@ -451,6 +453,12 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun toolModeStore(
+        @ApplicationContext context: Context,
+    ): ToolModeStore = ToolModeStore(context)
+
+    @Provides
+    @Singleton
     fun policyEngine(
         appPolicy: AppPolicy,
         reader: ScreenReader,
@@ -458,6 +466,7 @@ object AppModule {
         input: InputController,
         approvals: ApprovalCenter,
         overlay: ControlOverlay,
+        toolModes: ToolModeStore,
     ): PolicyEngine =
         PolicyEngine(
             appPolicy = appPolicy,
@@ -470,6 +479,7 @@ object AppModule {
             leaveDeniedApp = { input.globalAction(GlobalAction.HOME) },
             indicator = overlay,
             clientsStopped = { overlay.clientsStopped.value },
+            toolModes = toolModes,
         )
 
     @Provides
@@ -526,9 +536,16 @@ object AppModule {
         tailscale: TailscaleProvider,
         wireGuard: WireGuardProvider,
         shell: ShellSwitch,
+        toolModes: ToolModeStore,
     ): McpHttpServer =
         McpHttpServer(
-            factory = McpServerFactory(registry, dispatcher, appVersion = BuildConfig.VERSION_NAME),
+            factory =
+                McpServerFactory(
+                    registry,
+                    dispatcher,
+                    appVersion = BuildConfig.VERSION_NAME,
+                    blocked = { toolModes.modeFor(it) == ToolMode.BLOCK },
+                ),
             sessions = SessionFactory(localExtraScopes = { if (shell.enabled.value) setOf(Scope.SHELL_EXEC) else emptySet() }),
             localToken = tokens::current,
             oauth = oauth,

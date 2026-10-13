@@ -11,6 +11,15 @@
     <!-- The fingerprint, face or screen lock check before approvals. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Automations: timed rules, the vibrate and wake actions, and Bluetooth device triggers.
+         Exact alarms and Bluetooth names are granted through Shizuku when a rule needs them. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <!-- Cleartext is allowed for Agent mode's local model servers (Ollama on the home network);
          every hosted provider and remote access path uses HTTPS. -->
@@ -23,7 +32,8 @@
         android:theme="@android:style/Theme.Material.NoActionBar">
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -54,6 +64,61 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".automation.AutomationAlarmReceiver"
+            android:exported="false" />
+
+        <!-- The "Event received" trigger: other apps and Tasker send this to start the owner's rules. -->
+        <receiver
+            android:name=".automation.AutomationEventReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.pocketpilot.action.EVENT" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name=".automation.AutomationService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Runs the user's own automation rules when their triggers happen" />
+        </service>
+
+        <service
+            android:name=".automation.RuleTile1"
+            android:exported="true"
+            android:icon="@drawable/pp_ic_bolt"
+            android:label="@string/automation_tile_1"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".automation.RuleTile2"
+            android:exported="true"
+            android:icon="@drawable/pp_ic_bolt"
+            android:label="@string/automation_tile_2"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".automation.RuleTile3"
+            android:exported="true"
+            android:icon="@drawable/pp_ic_bolt"
+            android:label="@string/automation_tile_3"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
 
         <service
             android:name=".server.PocketPilotService"

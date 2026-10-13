@@ -1,6 +1,7 @@
 package app.pocketpilot.core.tools
 
 import app.pocketpilot.capability.api.notifications.NotificationCommand
+import app.pocketpilot.capability.api.notifications.NotificationPoster
 import app.pocketpilot.capability.api.notifications.NotificationSource
 import app.pocketpilot.capability.api.notifications.PhoneNotification
 import app.pocketpilot.core.model.Availability
@@ -177,5 +178,46 @@ class NotifyActTool(
     private companion object {
         const val OPEN = "open"
         const val DISMISS = "dismiss"
+    }
+}
+
+/** `notify.post`: shows a notification from PocketPilot, such as an automation's message or a reminder. */
+class NotifyPostTool(
+    private val poster: NotificationPoster,
+) : ToolHandler {
+    override val spec =
+        ToolSpec(
+            name = "notify.post",
+            title = "Show a notification",
+            description =
+                "Shows a notification from PocketPilot with a title and optional text. A later call with the same tag " +
+                    "replaces it instead of adding another.",
+            inputSchema =
+                schema(
+                    """{"type":"object","properties":{"title":{"type":"string"},"text":{"type":"string"},
+                    "tag":{"type":"string"}},"required":["title"],"additionalProperties":false}""",
+                ),
+            riskTier = RiskTier.READ,
+            requiredScopes = setOf(Scope.NOTIFY_ACT),
+            availability = Availability(Phase.P1),
+        )
+
+    override suspend fun execute(
+        call: ToolCall,
+        session: Session,
+    ): ToolResult {
+        val title =
+            call.arguments
+                .string("title")
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() } ?: invalid("Give title")
+        val text = call.arguments.string("text")
+        poster.post(title.take(MAX_TITLE), text?.take(MAX_TEXT), call.arguments.string("tag"))
+        return ToolResult.success("Posted \"${title.take(MAX_TITLE)}\".")
+    }
+
+    private companion object {
+        const val MAX_TITLE = 120
+        const val MAX_TEXT = 2_000
     }
 }

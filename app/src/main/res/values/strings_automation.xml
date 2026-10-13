@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="automation_channel">Automations running</string>
+    <string name="automation_channel_posts">Messages from automations</string>
+    <string name="automation_channel_proposals">Automation proposals and limits</string>
+    <string name="automation_service_title">Automations are on</string>
+    <plurals name="automation_service_text">
+        <item quantity="one">%1$d rule is listening for its triggers.</item>
+        <item quantity="other">%1$d rules are listening for their triggers.</item>
+    </plurals>
+    <string name="automation_proposal_title">%1$s proposed an automation</string>
+    <string name="automation_limit_title">Agent rules paused for this month</string>
+    <string name="automation_limit_text">Automations reached their monthly AI limit. Raise it on the Automations tab to start them again.</string>
+    <string name="automation_reason_run">Run button</string>
+    <string name="automation_reason_test">Test run</string>
+    <string name="automation_tile">PocketPilot %1$d</string>
+    <string name="automation_tile_1">PocketPilot 1</string>
+    <string name="automation_tile_2">PocketPilot 2</string>
+    <string name="automation_tile_3">PocketPilot 3</string>
+</resources>

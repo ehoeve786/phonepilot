@@ -17,9 +17,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.pocketpilot.agent.AgentCoordinator
+import app.pocketpilot.approvals.ApprovalActivity
+import app.pocketpilot.approvals.ApprovalCenter
+import app.pocketpilot.approvals.ApprovalItem
+import app.pocketpilot.automation.AutomationRuntime
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.accessibility.PocketPilotA11yService
 import app.pocketpilot.capability.files.SafFileStore
@@ -31,8 +36,18 @@ import app.pocketpilot.control.ControlOverlay
 import app.pocketpilot.core.audit.AuditSink
 import app.pocketpilot.core.capabilities.CapabilityGraph
 import app.pocketpilot.core.model.PolicyProfile
+import app.pocketpilot.core.model.ToolSpec
+import app.pocketpilot.core.orchestrator.ToolRegistry
+import app.pocketpilot.core.policy.AppPolicy
+import app.pocketpilot.core.policy.ToolMode
+import app.pocketpilot.core.policy.ToolModes
+import app.pocketpilot.designsystem.PocketPilotTheme
+import app.pocketpilot.designsystem.automation.PinnedRuleUi
 import app.pocketpilot.feature.agent.AgentActions
 import app.pocketpilot.feature.agent.AgentCard
+import app.pocketpilot.feature.automations.AutomationsActions
+import app.pocketpilot.feature.automations.AutomationsScreen
+import app.pocketpilot.feature.automations.AutomationsState
 import app.pocketpilot.feature.clients.ClientRow
 import app.pocketpilot.feature.network.OwnNetworkActions
 import app.pocketpilot.feature.network.OwnNetworkCard
@@ -47,13 +62,14 @@ import app.pocketpilot.onboarding.SetupState
 import app.pocketpilot.onboarding.setupSteps
 import app.pocketpilot.security.BiometricGate
 import app.pocketpilot.security.ShellSwitch
+import app.pocketpilot.security.ToolModeStore
 import app.pocketpilot.server.LocalTokenStore
 import app.pocketpilot.server.PocketPilotService
 import app.pocketpilot.server.http.McpHttpServer
 import app.pocketpilot.server.http.ServerState
 import app.pocketpilot.server.oauth.AuthorizationServer
 import app.pocketpilot.ui.HomeScreen
-import app.pocketpilot.ui.PocketPilotTheme
+import app.pocketpilot.ui.PendingApproval
 import app.pocketpilot.ui.RemoteActions
 import app.pocketpilot.ui.claudeCodeCommand
 import app.pocketpilot.ui.copySecret
@@ -61,6 +77,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.time.YearMonth
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -101,10 +118,42 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var onboarding: OnboardingStore
 
+    @Inject lateinit var approvals: ApprovalCenter
+
+    @Inject lateinit var registry: ToolRegistry
+
+    @Inject lateinit var toolModes: ToolModeStore
+
+    @Inject lateinit var automations: AutomationRuntime
+
     private val resumes = mutableIntStateOf(0)
 
     /** Set when setup sends the owner to remote access, which lives under Settings. */
     private var homeOnSettings by mutableStateOf(false)
+
+    /** Counts requests from notifications to show the Automations tab. */
+    private val openAutomations = mutableIntStateOf(0)
+
+    /** A proposal notification asked for the Proposals list. */
+    private var openProposals by mutableStateOf(false)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleOpen(intent)
+    }
+
+    private fun handleOpen(intent: Intent?) {
+        when (intent?.getStringExtra(EXTRA_OPEN)) {
+            OPEN_PROPOSALS -> {
+                openProposals = true
+                openAutomations.intValue++
+            }
+
+            OPEN_AUTOMATIONS -> {
+                openAutomations.intValue++
+            }
+        }
+    }
 
     override fun onResume() {
         super.onResume()
@@ -114,6 +163,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleOpen(intent)
         val crashReports = (application as PocketPilotApplication).crashReports
         crashReports.load()
         certificates.load()
@@ -145,6 +195,21 @@ class MainActivity : ComponentActivity() {
                 moveUp = agent::moveUp,
                 listModels = agent::listModels,
             )
+        val automationActions =
+            AutomationsActions(
+                newId = automations.store::newId,
+                save = automations.store::upsert,
+                delete = automations.store::delete,
+                setEnabled = automations.store::setEnabled,
+                setPinned = automations.store::setPinned,
+                run = { rule -> automations.engine.start(rule, getString(R.string.automation_reason_run)) },
+                test = { rule -> automations.engine.start(rule, getString(R.string.automation_reason_test), checkConstraints = false) },
+                stop = automations.engine::stop,
+                accept = automations.store::accept,
+                decline = automations.store::delete,
+                setSettings = automations.store::setSettings,
+                loadApps = automations::loadApps,
+            )
         setContent {
             // The foreground service notification needs this permission on Android 13+; the server
             // runs either way, the notification is just hidden without it.
@@ -162,6 +227,27 @@ class MainActivity : ComponentActivity() {
             val accessibilityOn = A11yBridge.connected.collectAsStateWithLifecycle().value
             val tailscaleState = tailscale.state.collectAsStateWithLifecycle().value
             val wireGuardState = wireGuard.state.collectAsStateWithLifecycle().value
+            val auditEvents = audit.recent.collectAsStateWithLifecycle().value
+            val approvalItems = approvals.items.collectAsStateWithLifecycle().value
+            val tools = remember { registry.specs }
+            val automationData =
+                automations.store.data
+                    .collectAsStateWithLifecycle()
+                    .value
+            val automationState =
+                AutomationsState(
+                    rules = automationData.rules,
+                    runs = automationData.runs,
+                    running =
+                        automations.engine.running
+                            .collectAsStateWithLifecycle()
+                            .value,
+                    settings = automationData.settings,
+                    agentSpentThisMonthUsd = automationData.agentSpendUsd[YearMonth.now().toString()] ?: 0.0,
+                    apps = automations.apps.collectAsStateWithLifecycle().value,
+                    tools = remember(tools) { tools.map { it.name }.sorted() },
+                    sideload = policyProfile.shellExecAvailable,
+                )
             // Notification and battery grants have no listener; they are read again on every resume.
             resumes.intValue
             val setup =
@@ -173,7 +259,7 @@ class MainActivity : ComponentActivity() {
                         shizuku = shizukuState,
                         notificationAccess = ListenerNotificationSource.available.collectAsStateWithLifecycle().value,
                         remoteConnected = tailscaleState is NetworkState.Connected || wireGuardState is NetworkState.Connected,
-                        audit = audit.recent.collectAsStateWithLifecycle().value,
+                        audit = auditEvents,
                     ),
                     SetupActions(
                         allowNotifications = {
@@ -296,10 +382,90 @@ class MainActivity : ComponentActivity() {
                         onAllowClients = controlOverlay::allowAgain,
                         biometricApprovals = biometricGate.enabled.collectAsStateWithLifecycle().value,
                         onBiometricChange = { on -> if (on) biometricGate.set(true) else withOwner { biometricGate.set(false) } },
+                        wireGuardState = wireGuardState,
+                        auditEvents = auditEvents,
+                        approvals = approvalItems.map(::pendingApproval),
+                        onApprove = { id -> approvalItems.firstOrNull { it.id == id }?.let(::approve) },
+                        onDecline = { id -> approvalItems.firstOrNull { it.id == id }?.let(::decline) },
+                        tools = tools,
+                        toolModes = toolModes.modes.collectAsStateWithLifecycle().value,
+                        onToolModeChange = { tool, mode -> tools.firstOrNull { it.name == tool }?.let { setToolMode(it, mode) } },
+                        protectedApps = AppPolicy.DEFAULT_DENY.sorted(),
+                        automationsContent = {
+                            AutomationsScreen(
+                                state = automationState,
+                                actions = automationActions,
+                                openProposals = openProposals,
+                                onProposalsOpened = { openProposals = false },
+                            )
+                        },
+                        automationsBadge = automationData.rules.count { it.pending },
+                        pinnedRules =
+                            automationData.rules
+                                .filter { it.pinned && !it.pending }
+                                .map { PinnedRuleUi(it.id, it.name, it.enabled) },
+                        onPinnedToggle = automations.store::setEnabled,
+                        openAutomations = openAutomations.intValue,
                     )
                 }
             }
         }
+    }
+
+    private fun pendingApproval(item: ApprovalItem): PendingApproval =
+        when (item) {
+            is ApprovalItem.Consent -> {
+                PendingApproval(
+                    id = item.id,
+                    title = getString(R.string.approvals_consent_text, item.request.clientName),
+                    detail = item.request.redirectHost,
+                    tier = null,
+                    opensScreen = true,
+                )
+            }
+
+            is ApprovalItem.Confirm -> {
+                PendingApproval(
+                    id = item.id,
+                    title = getString(R.string.approvals_confirm_text, item.request.principal, item.request.tool),
+                    detail = item.request.detail,
+                    tier = item.request.riskTier,
+                )
+            }
+        }
+
+    /** Allows a tool call after the biometric lock; consent opens the full screen, where the owner picks permissions. */
+    private fun approve(item: ApprovalItem) {
+        when (item) {
+            is ApprovalItem.Consent -> {
+                startActivity(Intent(this, ApprovalActivity::class.java))
+            }
+
+            is ApprovalItem.Confirm -> {
+                biometricGate.authenticate(
+                    this,
+                    getString(R.string.approvals_biometric_title),
+                    getString(R.string.approvals_confirm_text, item.request.principal, item.request.tool),
+                ) { approvals.answerConfirm(item.id, true) }
+            }
+        }
+    }
+
+    private fun decline(item: ApprovalItem) {
+        when (item) {
+            is ApprovalItem.Consent -> approvals.answerConsent(item.id, null)
+            is ApprovalItem.Confirm -> approvals.answerConfirm(item.id, false)
+        }
+    }
+
+    /** Tightening a tool applies at once; loosening one is a safeguard change, so it needs the owner. */
+    private fun setToolMode(
+        spec: ToolSpec,
+        mode: ToolMode?,
+    ) {
+        val before = ToolModes.effectiveMode(toolModes, spec)
+        val after = mode?.takeIf { it in ToolModes.allowedModes(spec) } ?: ToolModes.defaultMode(spec)
+        if (after.ordinal < before.ordinal) withOwner { toolModes.set(spec.name, mode) } else toolModes.set(spec.name, mode)
     }
 
     /** Exempts PocketPilot from battery optimization through Shizuku, or opens the system list. */
@@ -359,10 +525,14 @@ class MainActivity : ComponentActivity() {
         PocketPilotService.start(this)
     }
 
-    private companion object {
-        const val SHIZUKU_TIMEOUT_MS = 10_000L
-        const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
-        const val SHIZUKU_DOWNLOAD = "https://shizuku.rikka.app/download/"
-        const val DEFAULT_LOCAL_URL = "http://127.0.0.1:8765/mcp"
+    companion object {
+        /** Which part of the app a notification opens: [OPEN_AUTOMATIONS] or [OPEN_PROPOSALS]. */
+        const val EXTRA_OPEN = "open"
+        const val OPEN_AUTOMATIONS = "automations"
+        const val OPEN_PROPOSALS = "proposals"
+        private const val SHIZUKU_TIMEOUT_MS = 10_000L
+        private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
+        private const val SHIZUKU_DOWNLOAD = "https://shizuku.rikka.app/download/"
+        private const val DEFAULT_LOCAL_URL = "http://127.0.0.1:8765/mcp"
     }
 }

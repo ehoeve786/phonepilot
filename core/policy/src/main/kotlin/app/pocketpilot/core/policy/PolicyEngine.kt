@@ -63,6 +63,8 @@ fun interface ControlIndicator {
  * - confirmation for SENSITIVE tools once per session and exact change (the tool with its detail, so
  *   approving one permission grant or one file does not approve the next) and DESTRUCTIVE tools on
  *   every call;
+ * - the owner's [ToolModes]: BLOCK refuses the tool, ASK confirms it like a SENSITIVE tool whatever its
+ *   tier, and ALLOW skips the confirmation of a SENSITIVE tool (never of a DESTRUCTIVE one or shell.exec);
  * - the [ControlIndicator] for every call that acts on the phone, and a refusal of every MCP client
  *   call while the owner has stopped clients from it.
  */
@@ -77,6 +79,8 @@ class PolicyEngine(
     private val indicator: ControlIndicator? = null,
     /** True while the owner has stopped MCP clients, from the overlay's Stop button. */
     private val clientsStopped: () -> Boolean = { false },
+    /** The owner's Allow, Ask or Block per tool; null keeps every tool at its tier's default. */
+    private val toolModes: ToolModes? = null,
 ) {
     private val confirmedSensitive = HashMap<SessionId, MutableSet<String>>()
 
@@ -94,6 +98,14 @@ class PolicyEngine(
                 ToolErrorCode.DENIED_BY_POLICY,
                 "The phone's owner stopped AI apps from using this phone",
                 "Do not retry. The owner can allow it again in PocketPilot.",
+            )
+        }
+        val mode = ToolModes.effectiveMode(toolModes, spec)
+        if (mode == ToolMode.BLOCK) {
+            return Decision.Deny(
+                ToolErrorCode.DENIED_BY_POLICY,
+                "The owner blocked ${spec.name}",
+                "Do not retry. Use another tool, or ask the owner to allow it in PocketPilot's Tools screen.",
             )
         }
         if (!rateLimiter.tryAcquire(session.id.value)) {
@@ -140,10 +152,12 @@ class PolicyEngine(
             }
         }
 
+        // ASK confirms once per session and exact change; a DESTRUCTIVE tool can only be ASK and asks every call.
+        val asksOnce = mode == ToolMode.ASK && spec.riskTier != RiskTier.DESTRUCTIVE
         val needsConfirmation =
             confirmBecauseOfApp ||
                 spec.riskTier == RiskTier.DESTRUCTIVE ||
-                (spec.riskTier == RiskTier.SENSITIVE && !alreadyConfirmed(session.id, spec.name, detail))
+                (asksOnce && !alreadyConfirmed(session.id, spec.name, detail))
         if (needsConfirmation) {
             val answer =
                 confirmer?.confirm(
@@ -158,7 +172,7 @@ class PolicyEngine(
                 ) ?: ConfirmationAnswer.DECLINED
             when (answer) {
                 ConfirmationAnswer.APPROVED -> {
-                    if (spec.riskTier == RiskTier.SENSITIVE) rememberConfirmed(session.id, confirmationKey(spec.name, detail))
+                    if (asksOnce) rememberConfirmed(session.id, confirmationKey(spec.name, detail))
                 }
 
                 ConfirmationAnswer.DECLINED -> {

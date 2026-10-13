@@ -6,6 +6,9 @@ enum class SessionKind {
     AGENT_RUN,
     PLUGIN,
     LOCAL_UI,
+
+    /** A run of one of the owner's automations. */
+    AUTOMATION,
 }
 
 /** A client, agent run or plugin calling tools; every call is checked against [grantedScopes]. */

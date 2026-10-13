@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -114,6 +115,29 @@ class AgentCoordinator(
                 // The profile's server address is not a URL; the profile form does not allow saving one.
             }
         }
+    }
+
+    /**
+     * Runs [goal] for an automation with the owner's first usable model, falling back to the others, and
+     * waits for it to end. Null when no model is set up or another run is in progress.
+     */
+    suspend fun runForAutomation(goal: String): RunState? {
+        val chain = profiles.profiles.value.filter(::usable)
+        if (chain.isEmpty() || current.value?.active == true) return null
+        val run =
+            try {
+                runner.start(
+                    AgentTask(goal, AGENT_SCOPES + extraScopes()),
+                    chainedModel(chain),
+                    chain.first().budgets().copy(maxCostUsd = chain.mapNotNull { it.budgets().maxCostUsd }.minOrNull()),
+                    scope,
+                )
+            } catch (e: IllegalStateException) {
+                return null
+            } catch (e: IllegalArgumentException) {
+                return null
+            }
+        return run.state.first { !it.active }
     }
 
     fun pause() = runner.current.value?.pause()
