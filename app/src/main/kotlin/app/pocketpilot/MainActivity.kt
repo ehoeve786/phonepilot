@@ -14,15 +14,22 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.agent.ScreenHandoff
+import app.pocketpilot.agent.runtime.ProviderHealth
+import app.pocketpilot.agent.runtime.ProviderState
 import app.pocketpilot.approvals.ApprovalActivity
 import app.pocketpilot.approvals.ApprovalCenter
 import app.pocketpilot.approvals.ApprovalItem
@@ -30,6 +37,7 @@ import app.pocketpilot.automation.AutomationRuntime
 import app.pocketpilot.automation.HomeAssistant
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.accessibility.PocketPilotA11yService
+import app.pocketpilot.capability.api.DeviceInfoSource
 import app.pocketpilot.capability.files.SafFileStore
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.shizuku.ShizukuConnection
@@ -73,7 +81,10 @@ import app.pocketpilot.server.PocketPilotService
 import app.pocketpilot.server.http.McpHttpServer
 import app.pocketpilot.server.http.ServerState
 import app.pocketpilot.server.oauth.AuthorizationServer
+import app.pocketpilot.ui.HomeProvider
+import app.pocketpilot.ui.HomeProviderState
 import app.pocketpilot.ui.HomeScreen
+import app.pocketpilot.ui.HomeTelemetry
 import app.pocketpilot.ui.PendingApproval
 import app.pocketpilot.ui.RemoteActions
 import app.pocketpilot.ui.claudeCodeCommand
@@ -81,6 +92,7 @@ import app.pocketpilot.ui.copySecret
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.YearMonth
 import javax.inject.Inject
@@ -135,6 +147,10 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var homeAssistant: HomeAssistant
 
+    @Inject lateinit var providerHealth: ProviderHealth
+
+    @Inject lateinit var deviceInfo: DeviceInfoSource
+
     /** Whether a Home Assistant token is saved; the secret store has no listener. */
     private val homeAssistantToken = mutableStateOf(false)
 
@@ -172,6 +188,66 @@ class MainActivity : ComponentActivity() {
                 openChat.intValue++
             }
         }
+    }
+
+    /** The quick prompt on Home: answers in the running chat, or starts one on the first model. */
+    private fun askAgent(text: String) {
+        val prompt = text.trim()
+        if (prompt.isEmpty()) return
+        if (!agent.send(prompt)) {
+            val first =
+                agent.profiles.profiles.value
+                    .firstOrNull() ?: return
+            agent.start(prompt, first.id, allowSettings = false, useFallbacks = true, conversation = true)
+            PocketPilotService.start(this)
+        }
+        openChat.intValue++
+    }
+
+    /** Agent mode's models in the owner's fallback order, with how each last answered. */
+    @Composable
+    private fun homeProviders(): List<HomeProvider> {
+        val profiles =
+            agent.profiles.profiles
+                .collectAsStateWithLifecycle()
+                .value
+        val health = providerHealth.status.collectAsStateWithLifecycle().value
+        return profiles.map { profile ->
+            val status = health[profile.name]
+            HomeProvider(
+                name = profile.name,
+                state =
+                    when (status?.state) {
+                        ProviderState.READY -> HomeProviderState.READY
+                        ProviderState.LIMITED -> HomeProviderState.LIMITED
+                        ProviderState.DOWN -> HomeProviderState.DOWN
+                        ProviderState.UNKNOWN, null -> HomeProviderState.UNKNOWN
+                    },
+                retryAtMillis = status?.retryAtMillis,
+            )
+        }
+    }
+
+    /** Battery and network, read again every half minute while the app is in front. */
+    @Composable
+    private fun homeTelemetry(): HomeTelemetry? {
+        val owner = LocalLifecycleOwner.current
+        return produceState<HomeTelemetry?>(initialValue = null, owner) {
+            owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    runCatching { deviceInfo.read() }.onSuccess { info ->
+                        value =
+                            HomeTelemetry(
+                                batteryPercent = info.battery.levelPercent,
+                                charging = info.battery.charging,
+                                transport = info.network.transport,
+                                connected = info.network.connected,
+                            )
+                    }
+                    delay(TELEMETRY_REFRESH_MS)
+                }
+            }
+        }.value
     }
 
     override fun onResume() {
@@ -444,6 +520,9 @@ class MainActivity : ComponentActivity() {
                                 .map { PinnedRuleUi(it.id, it.name, it.enabled) },
                         onPinnedToggle = automations.store::setEnabled,
                         openAutomations = openAutomations.intValue,
+                        providers = homeProviders(),
+                        telemetry = homeTelemetry(),
+                        onAgentPrompt = ::askAgent,
                         chatContent = { openModels ->
                             AgentChat(
                                 profiles =
@@ -582,6 +661,7 @@ class MainActivity : ComponentActivity() {
         const val OPEN_CHAT = "chat"
         const val OPEN_PROPOSALS = "proposals"
         private const val SHIZUKU_TIMEOUT_MS = 10_000L
+        private const val TELEMETRY_REFRESH_MS = 30_000L
         private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
         private const val SHIZUKU_DOWNLOAD = "https://shizuku.rikka.app/download/"
         private const val DEFAULT_LOCAL_URL = "http://127.0.0.1:8765/mcp"

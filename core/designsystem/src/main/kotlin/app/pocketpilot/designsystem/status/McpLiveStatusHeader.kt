@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,7 +24,6 @@ import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.core.designsystem.R
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.designsystem.PocketPilotTheme
 
 /** Whether the MCP server is off, on with nobody connected, or serving clients. */
@@ -79,12 +80,8 @@ fun McpLiveStatusHeader(
     modifier: Modifier = Modifier,
 ) {
     val running = status.phase != ServerPhase.Stopped
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-    ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LiquidGlassBentoCard(modifier.fillMaxWidth(), contentPadding = PaddingValues(20.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 StatusDot(status.phase, pulsing = status.callInFlight)
                 Spacer(Modifier.width(12.dp))

@@ -43,14 +43,22 @@ import app.pocketpilot.R
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.audit.AuditEvent
 import app.pocketpilot.core.model.RiskTier
+import app.pocketpilot.designsystem.BentoGap
+import app.pocketpilot.designsystem.BentoPair
 import app.pocketpilot.designsystem.RiskTierTag
+import app.pocketpilot.designsystem.agent.AgentCommandBar
 import app.pocketpilot.designsystem.automation.PinnedRuleUi
 import app.pocketpilot.designsystem.automation.PinnedRulesSection
 import app.pocketpilot.designsystem.status.ConnectedClient
 import app.pocketpilot.designsystem.status.McpLiveStatusHeader
 import app.pocketpilot.designsystem.status.McpStatus
+import app.pocketpilot.designsystem.status.ProviderHealthCard
+import app.pocketpilot.designsystem.status.ProviderHealthUi
+import app.pocketpilot.designsystem.status.ProviderLight
 import app.pocketpilot.designsystem.status.RemoteLink
 import app.pocketpilot.designsystem.status.ServerPhase
+import app.pocketpilot.designsystem.status.TelemetryCard
+import app.pocketpilot.designsystem.status.TelemetryItemUi
 import app.pocketpilot.feature.clients.ClientRow
 import app.pocketpilot.feature.onboarding.SetupStep
 import app.pocketpilot.network.api.NetworkState
@@ -84,6 +92,29 @@ internal class HomeTabState(
     val shizukuState: ShizukuState,
     val pinnedRules: List<PinnedRuleUi>,
     val token: String,
+    /** Agent mode's models in fallback order, with how each last answered. */
+    val providers: List<HomeProvider> = emptyList(),
+    /** The phone's battery and network, refreshed while Home is in front; null until first read. */
+    val telemetry: HomeTelemetry? = null,
+)
+
+/** How a model last answered, from Agent mode's runs. */
+enum class HomeProviderState { UNKNOWN, READY, LIMITED, DOWN }
+
+/** One model of the owner's chain. [retryAtMillis] is set while rate limited and the server said when to try again. */
+class HomeProvider(
+    val name: String,
+    val state: HomeProviderState,
+    val retryAtMillis: Long? = null,
+)
+
+/** The phone's battery and network for the telemetry tile. */
+class HomeTelemetry(
+    val batteryPercent: Int?,
+    val charging: Boolean,
+    /** wifi, cellular, ethernet, vpn, other or none, as device.info names them. */
+    val transport: String,
+    val connected: Boolean,
 )
 
 /** Home's callbacks. */
@@ -97,6 +128,8 @@ internal class HomeTabActions(
     val onPinnedToggle: (String, Boolean) -> Unit,
     val onSeeAllRules: () -> Unit,
     val onOpenSettings: () -> Unit,
+    /** The quick prompt on Home: the owner's line for the agent. */
+    val onAgentPrompt: (String) -> Unit = {},
 )
 
 /**
@@ -128,7 +161,7 @@ internal fun HomeTab(
                         .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                StatusColumn(state, actions, status)
+                StatusColumn(state, actions, status, now)
             }
             LazyColumn(
                 modifier = Modifier.weight(1f),
@@ -147,7 +180,7 @@ internal fun HomeTab(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    StatusColumn(state, actions, status)
+                    StatusColumn(state, actions, status, now)
                 }
             }
             liveLog(events, state.tiers, now, filter, { filter = it }, { opened = it })
@@ -161,6 +194,7 @@ private fun StatusColumn(
     state: HomeTabState,
     actions: HomeTabActions,
     status: McpStatus,
+    now: Long,
 ) {
     val clipboard = LocalClipboardManager.current
     McpLiveStatusHeader(
@@ -169,10 +203,27 @@ private fun StatusColumn(
         onCopyEndpoint = { clipboard.setText(AnnotatedString(status.endpoint)) },
         onClientClick = { actions.onOpenSettings() },
     )
+    AgentCommandBar(onSubmit = actions.onAgentPrompt)
     state.crashReport?.let { CrashCard(it, actions.onDismissCrash) }
     if (state.clientsStopped) StoppedCard(actions.onAllowClients)
     NeedsYou(state.approvals, doctorProblems(state.setupSteps, state.shizukuState), actions)
-    PinnedRulesSection(rules = state.pinnedRules, onToggle = actions.onPinnedToggle, onSeeAll = actions.onSeeAllRules)
+    // The Bento row: rules take the wider tile, the glanceable numbers stack in the narrower one.
+    BentoPair(
+        start = { tile ->
+            PinnedRulesSection(
+                rules = state.pinnedRules,
+                onToggle = actions.onPinnedToggle,
+                onSeeAll = actions.onSeeAllRules,
+                modifier = tile,
+            )
+        },
+        end = { tile ->
+            Column(tile, verticalArrangement = Arrangement.spacedBy(BentoGap)) {
+                ProviderHealthCard(providerRows(state.providers, now))
+                TelemetryCard(telemetryItems(state, now))
+            }
+        },
+    )
     ConnectCard(state.serverState, state.token)
 }
 
@@ -288,6 +339,97 @@ private fun LazyListScope.liveLog(
     items(events, key = { it.id }) { event ->
         AuditRow(event, tiers[event.tool], now, onClick = { onOpen(event) })
     }
+}
+
+/** The provider tile's rows: a rate limit shows how long until the model can be tried again. */
+@Composable
+private fun providerRows(
+    providers: List<HomeProvider>,
+    now: Long,
+): List<ProviderHealthUi> =
+    providers.map { provider ->
+        val waitMs = provider.retryAtMillis?.let { it - now }?.takeIf { it > 0 }
+        when (provider.state) {
+            HomeProviderState.READY -> {
+                ProviderHealthUi(provider.name, ProviderLight.Ready)
+            }
+
+            HomeProviderState.LIMITED -> {
+                when {
+                    waitMs != null -> {
+                        val seconds = ((waitMs + MS_PER_SECOND - 1) / MS_PER_SECOND).toInt()
+                        val detail =
+                            if (seconds < SECONDS_AS_MINUTES) {
+                                stringResource(R.string.home_provider_back_seconds, seconds)
+                            } else {
+                                stringResource(R.string.home_provider_back_minutes, (seconds + SECONDS_PER_MINUTE - 1) / SECONDS_PER_MINUTE)
+                            }
+                        ProviderHealthUi(provider.name, ProviderLight.Limited, detail)
+                    }
+
+                    // The wait is over, but nothing has tried the model since.
+                    provider.retryAtMillis != null -> {
+                        ProviderHealthUi(provider.name, ProviderLight.Unknown)
+                    }
+
+                    else -> {
+                        ProviderHealthUi(provider.name, ProviderLight.Limited, stringResource(R.string.home_provider_quota))
+                    }
+                }
+            }
+
+            HomeProviderState.DOWN -> {
+                ProviderHealthUi(provider.name, ProviderLight.Down)
+            }
+
+            HomeProviderState.UNKNOWN -> {
+                ProviderHealthUi(provider.name, ProviderLight.Unknown)
+            }
+        }
+    }
+
+/** The telemetry tile's readings: battery, network and how busy the server has been. */
+@Composable
+private fun telemetryItems(
+    state: HomeTabState,
+    now: Long,
+): List<TelemetryItemUi> {
+    val telemetry = state.telemetry
+    val battery =
+        telemetry?.batteryPercent?.let { percent ->
+            val value =
+                if (telemetry.charging) {
+                    stringResource(R.string.home_telemetry_battery_charging, percent)
+                } else {
+                    stringResource(R.string.home_telemetry_battery_value, percent)
+                }
+            TelemetryItemUi(stringResource(R.string.home_telemetry_battery), value, percent / PERCENT)
+        } ?: TelemetryItemUi(stringResource(R.string.home_telemetry_battery), stringResource(R.string.home_telemetry_unknown))
+    val network =
+        TelemetryItemUi(
+            stringResource(R.string.home_telemetry_network),
+            when {
+                telemetry == null -> {
+                    stringResource(R.string.home_telemetry_unknown)
+                }
+
+                !telemetry.connected -> {
+                    stringResource(R.string.home_telemetry_offline)
+                }
+
+                else -> {
+                    when (telemetry.transport) {
+                        "wifi" -> stringResource(R.string.home_telemetry_wifi)
+                        "cellular" -> stringResource(R.string.home_telemetry_cellular)
+                        "ethernet" -> stringResource(R.string.home_telemetry_ethernet)
+                        "vpn" -> stringResource(R.string.home_telemetry_vpn)
+                        else -> stringResource(R.string.home_telemetry_connected)
+                    }
+                }
+            },
+        )
+    val calls = state.auditEvents.count { now - it.timestampMillis < MS_PER_HOUR }
+    return listOf(battery, network, TelemetryItemUi(stringResource(R.string.home_telemetry_calls), calls.toString()))
 }
 
 /** The status header's state, from the server, the remote networks, recent clients and the audit log. */
@@ -422,6 +564,11 @@ internal fun claudeCodeCommand(
 
 /** Home keeps this many calls; Activity shows the whole audit log. */
 private const val LIVE_LOG_SIZE = 200
+private const val MS_PER_SECOND = 1_000L
+private const val MS_PER_HOUR = 3_600_000L
+private const val SECONDS_PER_MINUTE = 60
+private const val SECONDS_AS_MINUTES = 100
+private const val PERCENT = 100f
 private const val CRASH_PREVIEW_LINES = 4
 private const val IN_FLIGHT_MS = 2_000L
 

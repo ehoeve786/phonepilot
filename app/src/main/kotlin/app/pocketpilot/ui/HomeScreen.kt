@@ -149,6 +149,12 @@ fun HomeScreen(
     onSeeAllRules: () -> Unit = {},
     /** Counts up each time something outside, such as a proposal notification, asks for the Automations tab. */
     openAutomations: Int = 0,
+    /** Agent mode's models in fallback order, with how each last answered. */
+    providers: List<HomeProvider> = emptyList(),
+    /** Battery and network for Home's telemetry tile. */
+    telemetry: HomeTelemetry? = null,
+    /** The quick prompt on Home; the chat opens as well. */
+    onAgentPrompt: (String) -> Unit = {},
 ) {
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     LaunchedEffect(openAutomations) { if (openAutomations > 0) destination = Destination.AUTOMATIONS }
@@ -284,6 +290,8 @@ fun HomeScreen(
                                 shizukuState = shizukuState,
                                 pinnedRules = pinnedRules,
                                 token = token,
+                                providers = providers,
+                                telemetry = telemetry,
                             ),
                         actions =
                             HomeTabActions(
@@ -299,6 +307,10 @@ fun HomeScreen(
                                     onSeeAllRules()
                                 },
                                 onOpenSettings = { settingsOpen = true },
+                                onAgentPrompt = { text ->
+                                    destination = Destination.CHAT
+                                    onAgentPrompt(text)
+                                },
                             ),
                         wide = wide,
                         modifier = content,
