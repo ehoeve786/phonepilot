@@ -143,6 +143,41 @@ class DirectionsToolTest {
             )
         }
 
+    @Test
+    fun `a name with one match taps the place page's Directions button`() =
+        runTest {
+            val page =
+                Snapshot(
+                    id = "p1",
+                    packageName = "com.google.android.apps.maps",
+                    screen = ScreenSize(1080, 2316),
+                    elements =
+                        listOf(
+                            Element("e1", role = Role.WINDOW, text = "Maps", bounds = box),
+                            Element(
+                                "e2",
+                                "e1",
+                                Role.LIST,
+                                resourceId = "$MAPS_ID/place_nested_scroll_view",
+                                bounds = box,
+                                scrollable = true,
+                            ),
+                            Element("h", "e2", Role.CONTAINER, text = "Paradox Hotel Vancouver", bounds = box),
+                            Element("b", "e2", Role.BUTTON, bounds = box, clickable = true),
+                            Element("bt", "b", Role.CONTAINER, text = "Directions", bounds = box),
+                        ),
+                )
+            val reader = FakeReader(page).apply { foregroundApp = ForegroundApp("com.google.android.apps.maps", null) }
+            val input = FakeInput()
+            val tool = AppDirectionsTool(MapsAdmin(mutableListOf()), reader, input)
+            val session = SessionFactory().localTokenSession()
+            val call = ToolCall("1", session.id, "app.directions", buildJsonObject { put("query", "Paradox Hotel Vancouver") })
+            val result = tool.execute(call, session)
+
+            assertEquals("tap OnElement(elementId=b, snapshotId=p1)", input.calls.last())
+            assertTrue(result.text().startsWith("Google Maps found one place"), result.text())
+        }
+
     private fun ToolResult.text() = content.filterIsInstance<ContentPart.Text>().joinToString("\n") { it.text }
 
     private class MapsAdmin(

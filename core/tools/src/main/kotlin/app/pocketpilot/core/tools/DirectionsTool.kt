@@ -18,8 +18,6 @@ import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.ToolAnnotations
 import app.pocketpilot.core.model.ToolCall
-import app.pocketpilot.core.model.ToolErrorCode
-import app.pocketpilot.core.model.ToolException
 import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.orchestrator.ToolHandler
@@ -145,6 +143,17 @@ internal object MapsResults {
         }
     }
 
+    /** A place page's Directions button: a clickable labelled Directions, or the clickable holding that label. */
+    fun directionsButton(elements: List<Element>): Element? {
+        fun Element.isDirections() = label()?.startsWith(DIRECTIONS, ignoreCase = true) == true
+        elements.firstOrNull { it.clickable && it.isDirections() }?.let { return it }
+        val byId = elements.associateBy { it.id }
+        val label = elements.firstOrNull { it.isDirections() } ?: return null
+        var node = label.parent?.let(byId::get)
+        while (node != null && !node.clickable) node = node.parent?.let(byId::get)
+        return node
+    }
+
     private fun String.parts(): List<String> = split('·', '•').map { it.trim() }.filter { it.isNotEmpty() }
 
     private fun Element.label(): String? = (text ?: description)?.trim()?.takeIf { it.isNotEmpty() }
@@ -208,11 +217,7 @@ class AppDirectionsTool(
             if (pages == PAGES || (pages > 1 && found.isEmpty()) || !results.scroll(SwipeDirection.UP)) break
         }
         val best =
-            MapsResults.pick(places.values, query) ?: throw ToolException(
-                ToolErrorCode.ELEMENT_NOT_FOUND,
-                "Google Maps showed no list of places for \"$query\".",
-                "Read the screen with screen.snapshot: Maps may be showing a prompt or a single place.",
-            )
+            MapsResults.pick(places.values, query) ?: return onePlace(query, mode, results, call)
 
         // Tapping the card's own Directions button routes to that exact place; a typed name and
         // address can match another branch. Scroll back to the card if it has gone off screen.
@@ -246,15 +251,43 @@ class AppDirectionsTool(
         return afterAction(reader, summary, call.arguments.boolean("returnSnapshot") ?: false)
     }
 
+    /**
+     * A name such as a hotel matches one place, and Maps opens its page instead of a list: tap that
+     * page's Directions button, or ask Maps for the route by name when there is none.
+     */
+    private suspend fun onePlace(
+        query: String,
+        mode: String,
+        results: ResultList,
+        call: ToolCall,
+    ): ToolResult {
+        val button = results.lastElements.let(MapsResults::directionsButton)
+        val snapshot = results.lastSnapshot
+        if (button != null && snapshot != null) {
+            input.tap(Target.OnElement(button.id, snapshot))
+            reader.awaitIdle(quietMs = SETTLE_MS, timeoutMs = OPEN_WAIT_MS)
+            if (mode != "driving") selectMode(mode)
+        } else {
+            open("https://www.google.com/maps/dir/?api=1&destination=${encode(query)}&travelmode=$mode")
+        }
+        return afterAction(
+            reader,
+            "Google Maps found one place for \"$query\" and is showing the $mode route to it. Check the destination on screen.",
+            call.arguments.boolean("returnSnapshot") ?: false,
+        )
+    }
+
     /** One call's view of the result list, so concurrent calls do not share state. */
     private inner class ResultList {
         var lastSnapshot: String? = null
+        var lastElements: List<Element> = emptyList()
         private var lastList: Element? = null
 
         /** Reads the screen and returns the whole result cards on it. */
         suspend fun read(): List<MapsPlace> {
             val snapshot = reader.snapshot(SnapshotOptions(maxElements = MAX_ELEMENTS))
             lastSnapshot = snapshot.id
+            lastElements = snapshot.elements
             lastList = MapsResults.resultList(snapshot)
             return MapsResults.parse(snapshot)
         }
