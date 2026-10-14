@@ -39,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -183,10 +184,9 @@ private fun ToolGroupSection(
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(start = 4.dp, top = 8.dp),
         )
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        LiquidGlassBentoCard(
             modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(0.dp),
         ) {
             Column {
                 specs.forEach { spec ->
@@ -216,7 +216,7 @@ private fun ToolGroupSection(
                                     },
                             )
                         },
-                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     )
                 }
             }

@@ -50,6 +50,7 @@ import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.agent.runtime.chatItems
 import app.pocketpilot.agent.runtime.stepLine
 import app.pocketpilot.agent.runtime.transcript
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.designsystem.agent.AgentCommandBar
 import java.text.DateFormat
 import java.util.Date
@@ -307,20 +308,34 @@ private fun Bubble(
     text: String,
     mine: Boolean,
 ) {
+    val shape =
+        RoundedCornerShape(
+            topStart = BUBBLE_RADIUS,
+            topEnd = BUBBLE_RADIUS,
+            bottomStart = if (mine) BUBBLE_RADIUS else BUBBLE_TAIL,
+            bottomEnd = if (mine) BUBBLE_TAIL else BUBBLE_RADIUS,
+        )
+    val content: @Composable () -> Unit = {
+        SelectionContainer {
+            Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+        }
+    }
     Box(Modifier.fillMaxWidth(), contentAlignment = if (mine) Alignment.CenterEnd else Alignment.CenterStart) {
-        Surface(
-            shape =
-                RoundedCornerShape(
-                    topStart = BUBBLE_RADIUS,
-                    topEnd = BUBBLE_RADIUS,
-                    bottomStart = if (mine) BUBBLE_RADIUS else BUBBLE_TAIL,
-                    bottomEnd = if (mine) BUBBLE_TAIL else BUBBLE_RADIUS,
-                ),
-            color = if (mine) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.widthIn(max = BUBBLE_MAX_WIDTH),
-        ) {
-            SelectionContainer {
-                Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+        if (mine) {
+            Surface(
+                shape = shape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.widthIn(max = BUBBLE_MAX_WIDTH),
+                content = content,
+            )
+        } else {
+            // The agent's answers sit on the glass, like Home's cards.
+            LiquidGlassBentoCard(
+                modifier = Modifier.widthIn(max = BUBBLE_MAX_WIDTH),
+                shape = shape,
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                content()
             }
         }
     }

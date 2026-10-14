@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import app.pocketpilot.R
 import app.pocketpilot.core.audit.AuditEvent
 import app.pocketpilot.core.model.RiskTier
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 
 /** Activity: the full audit log, and Agent mode with its runs. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -91,7 +93,12 @@ private fun FullLog(
             }
         }
         items(shown, key = { it.id }) { event ->
-            AuditRow(event, tiers[event.tool], now, onClick = { opened = event })
+            LiquidGlassBentoCard(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                AuditRow(event, tiers[event.tool], now, onClick = { opened = event })
+            }
         }
     }
     opened?.let { event -> AuditDetailSheet(event, tiers[event.tool]) { opened = null } }
