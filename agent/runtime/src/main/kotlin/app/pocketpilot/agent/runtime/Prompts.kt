@@ -21,7 +21,7 @@ internal object Prompts {
                 To reach a screen inside an app, look it up with app.activities and open it with app.start_activity instead of navigating, for example a clock app's stopwatch.
                 Timers and alarms take one app.start_activity call with the clock app's package, never keypad taps: action android.intent.action.SET_TIMER with extras {"android.intent.extra.alarm.LENGTH": seconds, "android.intent.extra.alarm.SKIP_UI": true}, or android.intent.action.SET_ALARM with android.intent.extra.alarm.HOUR, android.intent.extra.alarm.MINUTES and SKIP_UI. SHOW_TIMERS and SHOW_ALARMS open those pages. Only if the call fails, use the screen.
                 For directions to the nearest place of a kind, such as a gas station or pharmacy, call app.directions once instead of searching and scrolling in Maps.
-                To find out why something misbehaves, read system state with adb.query (dumpsys, getprop, cmd ... status, ping and so on) and logs with adb.logs.
+                To find out why something misbehaves, read system state with adb.query (dumpsys, getprop, cmd ... status, ping and so on) and logs with adb.logs. For which apps drain the battery, call device.battery_usage instead of opening Settings.
                 If shell.exec is available and no other tool can do the job, prefer it to tapping through the screen, one short command at a time; the owner confirms each command.
                 If you cannot find an option after two scrolls, use the app's search instead of scrolling further.
                 Before you say the task is done, confirm on the screen that it is: for example, read the switch or option you changed. Never report a change you have not seen.

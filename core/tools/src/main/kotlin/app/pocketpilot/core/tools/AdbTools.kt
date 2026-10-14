@@ -13,9 +13,11 @@ import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.ToolAnnotations
 import app.pocketpilot.core.model.ToolCall
+import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.orchestrator.ToolHandler
+import java.util.Locale
 
 private const val OUTPUT_PROPS =
     """"grep":{"type":"string","description":"Keep only output lines containing this text (ignoring case); saves tokens"},
@@ -241,4 +243,135 @@ internal object LogRedactor {
             .replace(EMAIL, "[email]")
             .replace(PHONE, "[phone]")
             .replace(LONG_SECRET, "[masked]")
+}
+
+/**
+ * `device.battery_usage`: the apps that used the most battery since the last full charge. batterystats
+ * lists usage by user ID, which models cannot turn into app names, so they ended up paging through
+ * Settings instead.
+ */
+class BatteryUsageTool(
+    private val reader: SystemReader,
+) : ToolHandler {
+    override val spec =
+        readSpec(
+            "device.battery_usage",
+            "Battery use by app",
+            "Lists the apps that used the most battery since the phone was last fully charged, with estimated mAh " +
+                "and their share of what apps used, read through Shizuku without opening any app. Use it instead of " +
+                "Settings > Battery.",
+            """"top":{"type":"integer","minimum":1,"maximum":50,"description":"How many apps, default 10"}""",
+            "",
+            RiskTier.READ,
+        )
+
+    override val timeoutMs: Long = 65_000
+
+    override suspend fun execute(
+        call: ToolCall,
+        session: Session,
+    ): ToolResult {
+        val top = (call.arguments.int("top") ?: DEFAULT_TOP).coerceIn(1, MAX_TOP)
+        val stats = reader.read(listOf("dumpsys", "batterystats", "--charged"), "uid", STATS_TIMEOUT_MS)
+        val usage = BatteryUsage.parse(stats.stdout)
+        if (usage.isEmpty()) {
+            return ToolResult.error(
+                ToolErrorCode.ELEMENT_NOT_FOUND,
+                "Android reported no battery use per app yet",
+                "Try again later, or read dumpsys batterystats --charged with adb.query",
+            )
+        }
+        val packages =
+            BatteryUsage.packagesByUid(
+                reader.read(listOf("cmd", "package", "list", "packages", "-U"), "", LIST_TIMEOUT_MS).stdout,
+            )
+        return ToolResult.success(BatteryUsage.format(usage, packages, top))
+    }
+
+    private companion object {
+        const val DEFAULT_TOP = 10
+        const val MAX_TOP = 50
+        const val STATS_TIMEOUT_MS = 45_000L
+        const val LIST_TIMEOUT_MS = 15_000L
+    }
+}
+
+/** Reads the "Estimated power use" lines of `dumpsys batterystats`. */
+internal object BatteryUsage {
+    /** "UID u0a234: 45.6 fg: ..." (Android 12+) or "Uid u0a234: 45.6 ( cpu=... )" (older). */
+    private val LINE = Regex("^\\s*UID (\\S+): ([0-9.]+)", RegexOption.IGNORE_CASE)
+    private val APP_UID = Regex("u(\\d+)a(\\d+)")
+    private val SYSTEM_UID = Regex("u(\\d+)s(\\d+)")
+    private val PACKAGE = Regex("^package:(\\S+) uid:(\\d+)")
+    private val SYSTEM_NAMES =
+        mapOf(
+            0 to "Kernel and root processes",
+            1000 to "Android system",
+            1001 to "Phone and mobile network",
+            1002 to "Bluetooth",
+            1010 to "Wi-Fi",
+            1013 to "Media server",
+            1041 to "Audio server",
+            1047 to "Camera server",
+        )
+    private const val FIRST_APP_UID = 10_000
+    private const val PER_USER = 100_000
+    private const val NAMES_SHOWN = 3
+
+    /** mAh per uid, highest first; a uid listed twice keeps its first figure. */
+    fun parse(dump: String): List<Pair<Int, Double>> {
+        val result = LinkedHashMap<Int, Double>()
+        for (line in dump.lineSequence()) {
+            val match = LINE.find(line) ?: continue
+            val uid = uid(match.groupValues[1]) ?: continue
+            val mah = match.groupValues[2].toDoubleOrNull() ?: continue
+            result.putIfAbsent(uid, mah)
+        }
+        return result.toList().filter { it.second > 0 }.sortedByDescending { it.second }
+    }
+
+    /** `cmd package list packages -U` as uid to package names. */
+    fun packagesByUid(list: String): Map<Int, List<String>> =
+        list
+            .lineSequence()
+            .mapNotNull { PACKAGE.find(it.trim()) }
+            .groupBy({ it.groupValues[2].toInt() }, { it.groupValues[1] })
+
+    fun format(
+        usage: List<Pair<Int, Double>>,
+        packages: Map<Int, List<String>>,
+        top: Int,
+    ): String {
+        val total = usage.sumOf { it.second }
+        return buildString {
+            append("Battery use since the last full charge, about ${"%.0f".format(Locale.ROOT, total)} mAh by apps and the system:")
+            for ((uid, mah) in usage.take(top)) {
+                append("\n").append(name(uid, packages)).append(": ")
+                append("%.1f mAh (%.0f%%)".format(Locale.ROOT, mah, mah * 100 / total))
+            }
+        }
+    }
+
+    private fun name(
+        uid: Int,
+        packages: Map<Int, List<String>>,
+    ): String {
+        val appId = uid % PER_USER
+        SYSTEM_NAMES[appId]?.let { return it }
+        val names = packages[uid] ?: packages[appId].orEmpty()
+        return when {
+            names.isEmpty() && appId < FIRST_APP_UID -> "System uid $uid"
+            names.isEmpty() -> "Uninstalled or unknown app (uid $uid)"
+            names.size <= NAMES_SHOWN -> names.joinToString()
+            else -> names.take(NAMES_SHOWN).joinToString() + " and ${names.size - NAMES_SHOWN} more"
+        }
+    }
+
+    private fun uid(text: String): Int? {
+        text.toIntOrNull()?.let { return it }
+        APP_UID.matchEntire(text)?.let { return it.groupValues[1].toInt() * PER_USER + FIRST_APP_UID + it.groupValues[2].toInt() }
+        SYSTEM_UID.matchEntire(text)?.let { return it.groupValues[1].toInt() * PER_USER + it.groupValues[2].toInt() }
+        // Isolated processes ("u0i12") are counted under their app as well.
+        return null
+    }
 }

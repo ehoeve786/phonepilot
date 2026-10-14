@@ -101,7 +101,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
 
     override fun dumpPackage(packageName: String): String {
         AppAdminArgs.checkPackage(packageName)
-        return run("dumpsys", "package", packageName).take(MAX_DUMP)
+        return AppAdminParsers.trimDump(run("dumpsys", "package", packageName), MAX_DUMP)
     }
 
     override fun appOps(packageName: String): String {
@@ -279,7 +279,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
 
     companion object {
         /** The AIDL contract version; bump with every change to IPocketPilotPrivileged. */
-        const val VERSION = 5
+        const val VERSION = 6
 
         private const val UI_DUMP_PATH = "/data/local/tmp/pocketpilot-ui.xml"
         private const val COMMAND_TIMEOUT_S = 15L

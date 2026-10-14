@@ -3,6 +3,7 @@ package app.pocketpilot.capability.shizuku
 import app.pocketpilot.capability.api.apps.ActivityEntry
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class AppAdminParsersTest {
     @Test
@@ -90,5 +91,17 @@ class AppAdminParsersTest {
             ),
             AppAdminParsers.activities(dump, "com.example.clock"),
         )
+    }
+
+    @Test
+    fun `keeps activities and the package record of a long dump`() {
+        val dump =
+            "Activity Resolver Table:\n  Non-Data Actions:\n" + "      filler line\n".repeat(5_000) +
+                "\nPackages:\n  Package [com.android.settings] (1a2b):\n" + "    more\n".repeat(5_000)
+        val trimmed = AppAdminParsers.trimDump(dump, 20_000)
+        assertTrue(trimmed.length <= 20_000)
+        assertTrue(trimmed.startsWith("Activity Resolver Table:"))
+        assertTrue(trimmed.contains("Package [com.android.settings]"))
+        assertEquals("short", AppAdminParsers.trimDump("short", 20_000))
     }
 }

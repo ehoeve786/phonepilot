@@ -67,6 +67,7 @@ import app.pocketpilot.core.tools.AppSetPermissionTool
 import app.pocketpilot.core.tools.AppSetStandbyBucketTool
 import app.pocketpilot.core.tools.AppStartActivityTool
 import app.pocketpilot.core.tools.AppStopTool
+import app.pocketpilot.core.tools.BatteryUsageTool
 import app.pocketpilot.core.tools.DeviceInfoTool
 import app.pocketpilot.core.tools.FilesCopyTool
 import app.pocketpilot.core.tools.FilesDeleteTool
@@ -284,6 +285,7 @@ object AppModule {
             AppSendBroadcastTool(admin),
             AdbQueryTool(system),
             AdbLogsTool(system),
+            BatteryUsageTool(system),
             ShellExecTool(shell) { shellSwitch.enabled.value },
         )
 
