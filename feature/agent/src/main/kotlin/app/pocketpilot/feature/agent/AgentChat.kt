@@ -24,7 +24,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -189,60 +188,65 @@ private fun ChatHeader(
 ) {
     var modelsOpen by remember { mutableStateOf(false) }
     var earlierOpen by remember { mutableStateOf(false) }
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    LiquidGlassBentoCard(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
     ) {
-        Box(Modifier.weight(1f)) {
-            TextButton(onClick = { modelsOpen = true }) {
-                Text(profile?.name ?: stringResource(R.string.feature_agent_chat_no_model), maxLines = 1)
-            }
-            DropdownMenu(expanded = modelsOpen, onDismissRequest = { modelsOpen = false }) {
-                for (p in profiles) {
-                    DropdownMenuItem(
-                        text = {
-                            Column {
-                                Text(p.name)
-                                Text(p.model, style = MaterialTheme.typography.bodySmall)
-                            }
-                        },
-                        onClick = {
-                            onProfile(p.id)
-                            modelsOpen = false
-                        },
-                    )
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.weight(1f)) {
+                TextButton(onClick = { modelsOpen = true }) {
+                    Text(profile?.name ?: stringResource(R.string.feature_agent_chat_no_model), maxLines = 1)
                 }
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.feature_agent_chat_manage_models)) },
-                    onClick = {
-                        modelsOpen = false
-                        onManageModels()
-                    },
-                )
-            }
-        }
-        if (earlier.isNotEmpty()) {
-            Box {
-                TextButton(onClick = { earlierOpen = true }) { Text(stringResource(R.string.feature_agent_chat_earlier)) }
-                DropdownMenu(expanded = earlierOpen, onDismissRequest = { earlierOpen = false }) {
-                    for (run in earlier) {
+                DropdownMenu(expanded = modelsOpen, onDismissRequest = { modelsOpen = false }) {
+                    for (p in profiles) {
                         DropdownMenuItem(
                             text = {
                                 Column {
-                                    Text(run.goal, maxLines = 1)
-                                    Text(dateTime(run.startedAtMillis), style = MaterialTheme.typography.bodySmall)
+                                    Text(p.name)
+                                    Text(p.model, style = MaterialTheme.typography.bodySmall)
                                 }
                             },
                             onClick = {
-                                onOpenEarlier(run.id)
-                                earlierOpen = false
+                                onProfile(p.id)
+                                modelsOpen = false
                             },
                         )
                     }
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.feature_agent_chat_manage_models)) },
+                        onClick = {
+                            modelsOpen = false
+                            onManageModels()
+                        },
+                    )
                 }
             }
+            if (earlier.isNotEmpty()) {
+                Box {
+                    TextButton(onClick = { earlierOpen = true }) { Text(stringResource(R.string.feature_agent_chat_earlier)) }
+                    DropdownMenu(expanded = earlierOpen, onDismissRequest = { earlierOpen = false }) {
+                        for (run in earlier) {
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(run.goal, maxLines = 1)
+                                        Text(dateTime(run.startedAtMillis), style = MaterialTheme.typography.bodySmall)
+                                    }
+                                },
+                                onClick = {
+                                    onOpenEarlier(run.id)
+                                    earlierOpen = false
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+            TextButton(enabled = canStartNew, onClick = onNewChat) { Text(stringResource(R.string.feature_agent_chat_new)) }
         }
-        TextButton(enabled = canStartNew, onClick = onNewChat) { Text(stringResource(R.string.feature_agent_chat_new)) }
     }
 }
 
@@ -425,7 +429,15 @@ private fun EmptyChat(onSuggestion: (String) -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
         )
-        suggestions.forEach { s -> SuggestionChip(onClick = { onSuggestion(s) }, label = { Text(s) }) }
+        suggestions.forEach { s ->
+            LiquidGlassBentoCard(
+                onClick = { onSuggestion(s) },
+                shape = RoundedCornerShape(24.dp),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
+            ) {
+                Text(s, style = MaterialTheme.typography.labelLarge)
+            }
+        }
     }
 }
 

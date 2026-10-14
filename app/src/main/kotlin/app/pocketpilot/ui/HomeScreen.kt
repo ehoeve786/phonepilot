@@ -3,6 +3,7 @@ package app.pocketpilot.ui
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -248,6 +250,13 @@ fun HomeScreen(
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text(stringResource(R.string.app_name)) },
+                    navigationIcon = {
+                        Image(
+                            painterResource(R.drawable.ic_app_logo),
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 16.dp).size(32.dp),
+                        )
+                    },
                     actions = {
                         IconButton(onClick = { confirmKill = true }) {
                             Icon(
