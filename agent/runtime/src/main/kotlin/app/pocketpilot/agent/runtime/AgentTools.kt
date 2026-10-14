@@ -50,16 +50,25 @@ internal class AgentTools(
                 listOfNotNull(loadDef.takeIf { byWire.values.any { it.name !in loaded } })
 
     /**
-     * One line per tool that starts unloaded, "name(required, optional?): title". It stays the same for the
-     * whole run, so the system prompt does not change and providers can cache it.
+     * One line per tool that starts unloaded, "name: title. Arguments: a, b (optional)". It stays the same
+     * for the whole run, so the system prompt does not change and providers can cache it.
      */
     val catalog: String =
         byWire.values
             .filter { it.name !in loaded }
-            .joinToString("\n") { spec -> "- ${spec.name}(${signature(spec.inputSchema)}): ${spec.title}" }
+            .joinToString("\n") { spec ->
+                val arguments = signature(spec.inputSchema).let { if (it.isEmpty()) "" else ". Arguments: $it" }
+                "- ${spec.name}: ${spec.title}$arguments"
+            }
 
-    /** The tool for a name the model used: the wire name, or the tool's own dotted name. */
-    fun resolve(name: String): ToolSpec? = byWire[name] ?: byWire.values.firstOrNull { it.name == name }
+    /**
+     * The tool for a name the model used: the wire name, or the tool's own dotted name. Some models copy a
+     * whole catalog entry, such as "device.battery_usage(top=10)", so anything from "(" or ":" on is ignored.
+     */
+    fun resolve(name: String): ToolSpec? {
+        val bare = name.substringBefore('(').substringBefore(':').trim()
+        return byWire[bare] ?: byWire.values.firstOrNull { it.name == bare }
+    }
 
     fun has(toolName: String): Boolean = byWire.values.any { it.name == toolName }
 
@@ -134,11 +143,21 @@ internal class AgentTools(
                 ),
             )
 
-        /** "a, b?" for required a and optional b. */
+        /** "a (text), b (number, optional)" for required text a and optional number b. */
         fun signature(schema: JsonObject): String {
-            val properties = (schema["properties"] as? JsonObject)?.keys.orEmpty()
+            val properties = (schema["properties"] as? JsonObject).orEmpty()
             val required = (schema["required"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content }.orEmpty().toSet()
-            return properties.joinToString { if (it in required) it else "$it?" }
+            return properties.entries.joinToString { (name, property) ->
+                val type =
+                    when (((property as? JsonObject)?.get("type") as? JsonPrimitive)?.content) {
+                        "integer", "number" -> "number"
+                        "boolean" -> "true or false"
+                        "array" -> "list"
+                        "object" -> "object"
+                        else -> "text"
+                    }
+                "$name ($type${if (name in required) "" else ", optional"})"
+            }
         }
 
         /**

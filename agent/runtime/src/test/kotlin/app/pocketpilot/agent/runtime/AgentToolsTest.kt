@@ -49,7 +49,8 @@ class AgentToolsTest {
         val others = (1..8).map { spec("extra.tool$it") }
         val tools = AgentTools(listOf(spec("ui.tap"), spec("screen.snapshot")) + others)
         assertEquals(listOf("ui_tap", "screen_snapshot", AgentTools.LOAD), tools.defs.map { it.name })
-        assertTrue(tools.catalog.lines().first() == "- extra.tool1(a, b?): Title of extra.tool1")
+        assertEquals("- extra.tool1: Title of extra.tool1. Arguments: a (text), b (number, optional)", tools.catalog.lines().first())
+        assertEquals("extra.tool3", tools.resolve("extra.tool3(b=true)")?.name)
         assertEquals(8, tools.catalog.lines().size)
 
         assertEquals(
