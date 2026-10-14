@@ -8,6 +8,7 @@ import app.pocketpilot.agent.registry.ModelRegistry
 import app.pocketpilot.agent.runtime.AgentRunner
 import app.pocketpilot.agent.runtime.FileRunStore
 import app.pocketpilot.agent.runtime.ProfileStore
+import app.pocketpilot.agent.runtime.ProviderHealth
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.orchestrator.CallDispatcher
@@ -61,6 +62,11 @@ object AgentModule {
         reader: ScreenReader,
     ): ScreenHandoff = ScreenHandoff(reader, context.packageName)
 
+    /** What Agent mode has seen of each model, for Home's provider card. */
+    @Provides
+    @Singleton
+    fun providerHealth(): ProviderHealth = ProviderHealth()
+
     @Provides
     @Singleton
     fun agentRunner(
@@ -69,6 +75,7 @@ object AgentModule {
         store: FileRunStore,
         policy: PolicyEngine,
         handoff: ScreenHandoff,
+        health: ProviderHealth,
     ): AgentRunner =
         AgentRunner(
             registry,
@@ -78,6 +85,7 @@ object AgentModule {
             onSessionEnd = policy::endSession,
             preConfirm = policy::preConfirm,
             beforeScreenWork = handoff::leave,
+            health = health,
         )
 
     @Provides

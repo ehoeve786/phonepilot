@@ -267,7 +267,7 @@ class AgentCoordinator(
             provider =
                 keys(profile)
                     .takeIf { it.size > 1 }
-                    ?.let { all -> KeyRotatingProvider(all.map { provider(profile, it) }) }
+                    ?.let { all -> KeyRotatingProvider(all.map { provider(profile, it) }, roundRobin = true) }
                     ?: provider(profile, keys(profile).firstOrNull()),
             model = profile.model,
             toolMode = if (descriptor.tools == ToolSupport.NATIVE) ToolMode.NATIVE else ToolMode.JSON_FALLBACK,

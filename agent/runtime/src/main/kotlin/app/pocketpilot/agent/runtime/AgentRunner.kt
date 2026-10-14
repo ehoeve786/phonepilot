@@ -2,6 +2,7 @@ package app.pocketpilot.agent.runtime
 
 import app.pocketpilot.agent.providers.api.Message
 import app.pocketpilot.agent.providers.api.ModelErrorCode
+import app.pocketpilot.agent.providers.api.ModelErrors
 import app.pocketpilot.agent.providers.api.ModelEvent
 import app.pocketpilot.agent.providers.api.ModelRequest
 import app.pocketpilot.agent.providers.api.Part
@@ -63,6 +64,8 @@ class AgentRunner(
      * PocketPilot itself, so the app steps out of the way here when it is in front, as during a chat.
      */
     private val beforeScreenWork: suspend () -> Unit = {},
+    /** Told how each model answers, for Home's provider card. */
+    private val health: ProviderHealth? = null,
 ) {
     private val mutableCurrent = MutableStateFlow<AgentRun?>(null)
 
@@ -89,7 +92,7 @@ class AgentRunner(
         mutableCurrent.value?.close()
         val session = sessions.agentSession(task.scopes)
         if (task.preApproved.isNotEmpty()) preConfirm(session.id, task.preApproved)
-        val run = AgentRun(session, task, model, budgets, registry, dispatcher, store, clock, onSessionEnd, beforeScreenWork)
+        val run = AgentRun(session, task, model, budgets, registry, dispatcher, store, clock, onSessionEnd, beforeScreenWork, health)
         mutableCurrent.value = run
         run.launchIn(scope)
         return run
@@ -108,6 +111,7 @@ class AgentRun internal constructor(
     private val clock: Clock,
     private val onSessionEnd: (SessionId) -> Unit,
     private val beforeScreenWork: suspend () -> Unit = {},
+    private val health: ProviderHealth? = null,
 ) {
     val id: String get() = session.id.value
 
@@ -416,16 +420,29 @@ class AgentRun internal constructor(
             val calls = mutableListOf<ModelEvent.ToolCall>()
             var error: ModelEvent.Error? = null
             var stop = StopReason.OTHER
-            model.provider.stream(request).collect { event ->
-                when (event) {
-                    is ModelEvent.TextDelta -> text.append(event.text)
-                    is ModelEvent.ToolCall -> calls += event
-                    is ModelEvent.Usage -> addUsage(event)
-                    is ModelEvent.Stop -> stop = event.reason
-                    is ModelEvent.Error -> error = event
+            try {
+                model.provider.stream(request).collect { event ->
+                    when (event) {
+                        is ModelEvent.TextDelta -> text.append(event.text)
+                        is ModelEvent.ToolCall -> calls += event
+                        is ModelEvent.Usage -> addUsage(event)
+                        is ModelEvent.Stop -> stop = event.reason
+                        is ModelEvent.Error -> error = event
+                    }
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A timeout or a dropped connection that an adapter did not turn into an error event must not
+                // end the run or the chat; it counts as the model not answering, like any other network failure.
+                error = ModelErrors.network(e)
             }
-            val failure = error ?: return Reply.Answer(text.toString(), calls, stop)
+            val failure = error
+            if (failure == null) {
+                health?.succeeded(model.label)
+                return Reply.Answer(text.toString(), calls, stop)
+            }
+            health?.failed(model.label, failure)
             val next = nextModel()
             if (failure.code in FALL_OVER && next != null) {
                 note("${model.label} is not available (${failure.code}), switching to ${next.label}")
@@ -565,7 +582,10 @@ class AgentRun internal constructor(
         const val MAX_CONSECUTIVE_ERRORS = 3
         const val JSON_RETRIES = 2
         const val MODEL_RETRIES = 2
-        val FALL_OVER = setOf(ModelErrorCode.RATE_LIMIT, ModelErrorCode.QUOTA, ModelErrorCode.AUTH)
+
+        /** Errors that move a run to the next model in the chain: limits, refused keys, timeouts and outages. */
+        val FALL_OVER =
+            setOf(ModelErrorCode.RATE_LIMIT, ModelErrorCode.QUOTA, ModelErrorCode.AUTH, ModelErrorCode.NETWORK, ModelErrorCode.SERVER)
         const val RETRY_BASE_MS = 2_000L
         const val MAX_RETRY_WAIT_MS = 30_000L
         const val SUMMARY_CHARS = 300

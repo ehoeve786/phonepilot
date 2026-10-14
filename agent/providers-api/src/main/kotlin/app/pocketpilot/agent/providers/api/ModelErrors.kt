@@ -5,6 +5,9 @@ object ModelErrors {
     private val CONTEXT_HINTS =
         listOf("context length", "context_length", "too long", "maximum context", "too many tokens", "prompt is too long")
 
+    private val RATE_LIMIT_HINTS =
+        listOf("rate limit", "rate_limit", "ratelimit", "too many requests", "resource_exhausted", "resource exhausted")
+
     fun fromHttp(
         status: Int,
         body: String,
@@ -14,11 +17,20 @@ object ModelErrors {
         val code =
             when {
                 status == 401 || status == 403 -> ModelErrorCode.AUTH
+
                 status == 402 -> ModelErrorCode.QUOTA
+
                 status == 429 -> ModelErrorCode.RATE_LIMIT
+
+                // Some servers report a rate limit with another status, or inside a 5xx or 400 body.
+                status >= 400 && RATE_LIMIT_HINTS.any { body.contains(it, ignoreCase = true) } -> ModelErrorCode.RATE_LIMIT
+
                 status == 413 -> ModelErrorCode.CONTEXT_TOO_LONG
+
                 status in 400..499 && CONTEXT_HINTS.any { body.contains(it, ignoreCase = true) } -> ModelErrorCode.CONTEXT_TOO_LONG
+
                 status in 400..499 -> ModelErrorCode.INVALID_REQUEST
+
                 else -> ModelErrorCode.SERVER
             }
         val retryAfterMs = retryAfterSeconds?.trim()?.toDoubleOrNull()?.let { (it * 1000).toLong() }
