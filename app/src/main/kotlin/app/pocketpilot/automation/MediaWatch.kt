@@ -34,9 +34,11 @@ internal class MediaWatch(
 
     fun start() {
         // Without notification access Android refuses; the trigger then stays quiet until it is allowed.
-        runCatching {
+        try {
             sessions.addOnActiveSessionsChangedListener(changed, listener, main)
             follow(sessions.getActiveSessions(listener))
+        } catch (e: SecurityException) {
+            // No notification access yet.
         }
     }
 

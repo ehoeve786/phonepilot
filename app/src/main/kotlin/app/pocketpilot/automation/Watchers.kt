@@ -42,14 +42,20 @@ class PlaceWatcher(
         val locations = context.getSystemService(LocationManager::class.java)
         val wanted = places.associateBy { it.key }
         val old = prefs.getStringSet(KEY, emptySet()).orEmpty()
-        (old - wanted.keys).forEach { runCatching { locations.removeProximityAlert(alert(it)) } }
+        (old - wanted.keys).forEach {
+            try {
+                locations.removeProximityAlert(alert(it))
+            } catch (e: SecurityException) {
+                // The permission was taken back; Android dropped the alert with it.
+            }
+        }
         val set =
             if (!permitted) {
                 emptySet()
             } else {
                 wanted
                     .filter { (key, place) ->
-                        runCatching {
+                        try {
                             locations.addProximityAlert(
                                 place.latitude,
                                 place.longitude,
@@ -57,7 +63,10 @@ class PlaceWatcher(
                                 NO_EXPIRY,
                                 alert(key),
                             )
-                        }.isSuccess
+                            true
+                        } catch (e: SecurityException) {
+                            false
+                        }
                     }.keys
             }
         prefs.edit().putStringSet(KEY, set).apply()
@@ -70,8 +79,13 @@ class PlaceWatcher(
         val newest =
             locations
                 .getProviders(true)
-                .mapNotNull { provider -> runCatching { locations.getLastKnownLocation(provider) }.getOrNull() }
-                .maxByOrNull { it.time } ?: return null
+                .mapNotNull { provider ->
+                    try {
+                        locations.getLastKnownLocation(provider)
+                    } catch (e: SecurityException) {
+                        null
+                    }
+                }.maxByOrNull { it.time } ?: return null
         return String.format(Locale.ROOT, "%.6f,%.6f", newest.latitude, newest.longitude)
     }
 
