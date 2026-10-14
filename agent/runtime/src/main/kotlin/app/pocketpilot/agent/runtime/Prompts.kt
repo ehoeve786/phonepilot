@@ -7,6 +7,8 @@ internal object Prompts {
     fun system(
         toolMode: ToolMode,
         tools: List<ToolDef>,
+        /** A chat with the owner rather than a one-shot task. */
+        chat: Boolean = false,
     ): String =
         buildString {
             appendLine(
@@ -18,6 +20,7 @@ internal object Prompts {
                 Work in the background whenever a tool can, even when the task says to open Settings or another app, and leave those apps closed. When a tool does the job directly, use it instead of tapping through the Settings app: settings.set for dark mode, Wi-Fi, Bluetooth, mobile data, airplane mode, location, Do Not Disturb, battery saver, stay awake, brightness, rotation, volumes, screen timeout, font size and animations; app.permissions, app.set_permission and app.set_appop for an app's permissions and app ops; app.stop, app.set_enabled, app.clear_data, app.set_battery_optimization and app.set_standby_bucket for an app itself.
                 To reach a screen inside an app, look it up with app.activities and open it with app.start_activity instead of navigating, for example a clock app's stopwatch.
                 Timers and alarms take one app.start_activity call with the clock app's package, never keypad taps: action android.intent.action.SET_TIMER with extras {"android.intent.extra.alarm.LENGTH": seconds, "android.intent.extra.alarm.SKIP_UI": true}, or android.intent.action.SET_ALARM with android.intent.extra.alarm.HOUR, android.intent.extra.alarm.MINUTES and SKIP_UI. SHOW_TIMERS and SHOW_ALARMS open those pages. Only if the call fails, use the screen.
+                For directions to the nearest place of a kind, such as a gas station or pharmacy, call app.directions once instead of searching and scrolling in Maps.
                 To find out why something misbehaves, read system state with adb.query (dumpsys, getprop, cmd ... status, ping and so on) and logs with adb.logs.
                 If shell.exec is available and no other tool can do the job, prefer it to tapping through the screen, one short command at a time; the owner confirms each command.
                 If you cannot find an option after two scrolls, use the app's search instead of scrolling further.
@@ -27,6 +30,15 @@ internal object Prompts {
                 When the task is done, or cannot be done, stop calling tools and reply with a one or two sentence summary for the owner.
                 """.trimIndent(),
             )
+            if (chat) {
+                appendLine()
+                appendLine(
+                    """
+                    This is a chat with the owner. Answer questions that need nothing from the phone directly, without calling tools. When a message asks for something on the phone, do it as you would a task, reading the screen first since you have not seen it yet.
+                    End each turn by replying to the owner in plain words. They may then send another message, which can refer to earlier ones.
+                    """.trimIndent(),
+                )
+            }
             if (toolMode == ToolMode.JSON_FALLBACK) {
                 appendLine()
                 appendLine(JsonFallback.instructions(tools))
@@ -37,9 +49,10 @@ internal object Prompts {
         goal: String,
         deviceInfo: String?,
         snapshot: String?,
+        chat: Boolean = false,
     ): String =
         buildString {
-            appendLine("Task from the owner: $goal")
+            appendLine(if (chat) followUp(goal) else "Task from the owner: $goal")
             deviceInfo?.let {
                 appendLine()
                 appendLine("Device:")
@@ -54,6 +67,9 @@ internal object Prompts {
 
     /** The screen at the start of a run, sent after [firstMessage]. */
     fun firstScreen(snapshot: String): String = "Current screen snapshot:\n${untrusted("screen.snapshot", snapshot)}"
+
+    /** The owner's message in a chat. */
+    fun followUp(text: String): String = "Message from the owner: $text"
 
     fun resumed(snapshot: String?): String =
         "The owner paused you, may have changed things by hand, and has now resumed. " +

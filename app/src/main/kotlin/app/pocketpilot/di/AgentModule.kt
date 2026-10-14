@@ -3,6 +3,7 @@ package app.pocketpilot.di
 import android.content.Context
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.agent.AgentNotifier
+import app.pocketpilot.agent.ScreenHandoff
 import app.pocketpilot.agent.registry.ModelRegistry
 import app.pocketpilot.agent.runtime.AgentRunner
 import app.pocketpilot.agent.runtime.FileRunStore
@@ -55,11 +56,19 @@ object AgentModule {
 
     @Provides
     @Singleton
+    fun screenHandoff(
+        @ApplicationContext context: Context,
+        reader: ScreenReader,
+    ): ScreenHandoff = ScreenHandoff(reader, context.packageName)
+
+    @Provides
+    @Singleton
     fun agentRunner(
         registry: ToolRegistry,
         dispatcher: CallDispatcher,
         store: FileRunStore,
         policy: PolicyEngine,
+        handoff: ScreenHandoff,
     ): AgentRunner =
         AgentRunner(
             registry,
@@ -68,6 +77,7 @@ object AgentModule {
             store,
             onSessionEnd = policy::endSession,
             preConfirm = policy::preConfirm,
+            beforeScreenWork = handoff::leave,
         )
 
     @Provides
@@ -82,6 +92,7 @@ object AgentModule {
         reader: ScreenReader,
         shell: ShellSwitch,
         scope: CoroutineScope,
+        handoff: ScreenHandoff,
     ): AgentCoordinator {
         val notifier = AgentNotifier(context)
         return AgentCoordinator(
@@ -91,10 +102,10 @@ object AgentModule {
             profiles = ProfileStore(File(context.noBackupFilesDir, "agent-profiles.json")),
             runs = runs,
             secrets = secrets,
-            reader = reader,
-            ownPackage = context.packageName,
+            handoff = handoff,
             scope = scope,
             onRunState = notifier::update,
+            onReply = notifier::reply,
             extraScopes = { if (shell.enabled.value) setOf(Scope.SHELL_EXEC) else emptySet() },
         )
     }

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Navigation -->
+    <string name="nav_automations">Automations</string>
+    <string name="nav_chat">Chat</string>
+    <string name="nav_tools">Tools</string>
+    <string name="nav_activity">Activity</string>
+    <string name="nav_back">Back</string>
+    <string name="nav_cancel">Cancel</string>
+    <string name="nav_kill_switch">Disconnect everything</string>
+    <string name="nav_kill_switch_title">Disconnect everything?</string>
+    <string name="nav_kill_switch_text">Removes every connected app, turns public access off and closes WireGuard. Apps must ask you again to connect.</string>
+    <string name="nav_kill_switch_confirm">Disconnect</string>
+
+    <!-- Home -->
+    <string name="home_needs_you">Needs you</string>
+    <string name="home_approval_allow">Allow</string>
+    <string name="home_approval_deny">Deny</string>
+    <string name="home_approval_review">Review</string>
+    <string name="home_live">Live</string>
+
+    <!-- Tool log -->
+    <string name="log_filter_all">All</string>
+    <string name="log_filter_changes">Changes</string>
+    <string name="log_filter_errors">Errors</string>
+    <string name="log_empty">No tool calls yet.</string>
+    <string name="log_outcome_success">%1$s, done in %2$d ms</string>
+    <string name="log_outcome_error">%1$s, failed: %2$s</string>
+    <string name="log_outcome_denied">%1$s, refused: %2$s</string>
+    <string name="log_age_seconds">%1$d s</string>
+    <string name="log_age_minutes">%1$d min</string>
+    <string name="log_age_hours">%1$d h</string>
+    <string name="log_age_days">%1$d d</string>
+    <string name="log_detail_caller">Caller</string>
+    <string name="log_detail_time">Time</string>
+    <string name="log_detail_decision">Policy</string>
+    <string name="log_detail_outcome">Outcome</string>
+    <string name="log_detail_error">Error code</string>
+    <string name="log_detail_duration">Duration</string>
+    <string name="log_detail_backend">Backend</string>
+    <string name="log_detail_arguments">Arguments</string>
+    <string name="log_detail_redacted">Typed text, file contents and secrets are stored only as their length and a hash.</string>
+    <string name="log_duration_ms">%1$d ms</string>
+    <string name="log_decision_allow">Allowed</string>
+    <string name="log_decision_deny">Denied</string>
+    <string name="log_result_success">Succeeded</string>
+    <string name="log_result_error">Failed</string>
+    <string name="log_result_denied">Refused</string>
+
+    <!-- Tools -->
+    <string name="tools_search">Search tools</string>
+    <string name="tools_filter_blocked">Blocked</string>
+    <string name="tools_none">No tools match.</string>
+    <string name="tools_group_screen">Screen</string>
+    <string name="tools_group_input">Input</string>
+    <string name="tools_group_apps">Apps</string>
+    <string name="tools_group_intents">Intents</string>
+    <string name="tools_group_settings">Settings</string>
+    <string name="tools_group_notifications">Notifications</string>
+    <string name="tools_group_files">Files</string>
+    <string name="tools_group_diagnostics">Diagnostics</string>
+    <string name="tools_group_shell">Shell</string>
+    <string name="tools_group_other">Other</string>
+    <string name="tools_mode_allow">Allow</string>
+    <string name="tools_mode_ask">Ask</string>
+    <string name="tools_mode_block">Block</string>
+    <string name="tools_mode_allow_explainer">Runs without asking. Actions on the screen still show the \"controlling this phone\" pill.</string>
+    <string name="tools_mode_ask_explainer">Asks you on the phone once per session for each exact change.</string>
+    <string name="tools_mode_block_explainer">Hidden from every app: no model sees or can call it.</string>
+    <string name="tools_reason_destructive">Destructive tools always ask, on every call.</string>
+    <string name="tools_reason_shell">Shell commands always ask, once per exact command.</string>
+    <string name="tools_use_default">Use the default for its risk tier</string>
+    <string name="tools_recent_calls">Last calls</string>
+    <string name="tools_no_calls">No calls yet.</string>
+    <string name="tools_protected_title">Protected apps</string>
+    <string name="tools_protected_explainer">Banking, payment, password and authenticator apps. PocketPilot never reads or acts in these, and hides their notifications.</string>
+    <string name="tools_protected_show_all">Show all %1$d</string>
+    <string name="tools_protected_show_less">Show fewer</string>
+
+    <!-- Activity -->
+    <string name="activity_log">Log</string>
+    <string name="activity_agent">Agent</string>
+</resources>

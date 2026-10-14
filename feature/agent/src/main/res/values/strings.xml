@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="feature_agent_title">Agent mode</string>
-    <string name="feature_agent_explainer">Give PocketPilot a task and an AI model carries it out on this phone, using the same tools and confirmations as connected apps. PocketPilot goes to the background while it works; pause or stop it from the notification.</string>
+    <string name="feature_agent_explainer">The models the Chat tab and Agent automations use, and the transcripts of earlier runs. An agent works on this phone with the same tools and confirmations as connected apps.</string>
     <string name="feature_agent_profiles">Models</string>
     <string name="feature_agent_no_profiles">Add a model to start. Gemini has a free tier (key from aistudio.google.com); Ollama runs models on a computer at home.</string>
     <string name="feature_agent_add_profile">Add model</string>
@@ -16,8 +16,6 @@
     <string name="feature_agent_base_url_hint">OpenRouter: https://openrouter.ai/api/v1 · NVIDIA: https://integrate.api.nvidia.com/v1 · Mistral: https://api.mistral.ai/v1 · Ollama: http://&lt;computer address&gt;:11434/v1</string>
     <string name="feature_agent_fallback_order">When a model runs out, a run moves on to the next model in this list.</string>
     <string name="feature_agent_move_up">Move up</string>
-    <string name="feature_agent_use_fallbacks">Switch models when one runs out</string>
-    <string name="feature_agent_use_fallbacks_hint">If every key of this model is rate limited or out of credit, go on with your other models in list order.</string>
     <string name="feature_agent_api_key">API key</string>
     <string name="feature_agent_api_key_extra">Another API key</string>
     <string name="feature_agent_add_key">Add another key</string>
@@ -36,11 +34,6 @@
     <string name="feature_agent_models_failed">Could not get the models: %1$s</string>
     <string name="feature_agent_models_retry">Try again</string>
     <string name="feature_agent_models_need_key">Enter the API key (or the server URL) to load the available models.</string>
-    <string name="feature_agent_task">Task</string>
-    <string name="feature_agent_task_hint">For example: open Settings and turn on Dark theme</string>
-    <string name="feature_agent_start">Start</string>
-    <string name="feature_agent_allow_settings">Allow settings changes</string>
-    <string name="feature_agent_allow_settings_hint">Dark mode, Wi-Fi, Bluetooth, Do Not Disturb, brightness, rotation and volume change without asking you first in this run.</string>
     <string name="feature_agent_run_title">Current run</string>
     <string name="feature_agent_pause">Take over</string>
     <string name="feature_agent_resume">Resume</string>
@@ -58,4 +51,22 @@
     <string name="feature_agent_status_stopped">Stopped</string>
     <string name="feature_agent_status_budget">Out of budget</string>
     <string name="feature_agent_status_failed">Failed</string>
+    <string name="feature_agent_status_waiting">Waiting for your message</string>
+    <string name="feature_agent_chat_hint">Message PocketPilot</string>
+    <string name="feature_agent_chat_send">Send</string>
+    <string name="feature_agent_chat_new">New chat</string>
+    <string name="feature_agent_chat_earlier">Earlier</string>
+    <string name="feature_agent_chat_earlier_banner">Earlier chat from %1$s. It can be read, not continued.</string>
+    <string name="feature_agent_chat_back">Back</string>
+    <string name="feature_agent_chat_no_model">No model</string>
+    <string name="feature_agent_chat_manage_models">Manage models…</string>
+    <string name="feature_agent_chat_allow_settings">Settings without asking</string>
+    <string name="feature_agent_chat_fallbacks">Switch models when one runs out</string>
+    <string name="feature_agent_chat_work">Worked: %1$d tool calls, %2$d failed</string>
+    <string name="feature_agent_chat_working">Working · %1$s</string>
+    <string name="feature_agent_chat_empty_title">Chat with your phone</string>
+    <string name="feature_agent_chat_empty_text">Ask a question, or tell PocketPilot what to do. It answers here, and steps out of the way when it needs the screen. A chat ends after 30 minutes without a message.</string>
+    <string name="feature_agent_chat_suggestion_battery">How much battery is left?</string>
+    <string name="feature_agent_chat_suggestion_dark">Turn on dark mode</string>
+    <string name="feature_agent_chat_suggestion_gas">Directions to the nearest gas station</string>
 </resources>

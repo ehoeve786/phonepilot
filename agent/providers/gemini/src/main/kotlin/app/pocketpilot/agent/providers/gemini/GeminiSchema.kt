@@ -18,8 +18,25 @@ internal object GeminiSchema {
     /** Formats Gemini accepts; others, such as `uri`, are rejected. */
     private val FORMATS = setOf("enum", "date-time", "float", "double", "int32", "int64")
 
-    fun sanitize(schema: JsonObject): JsonObject =
-        buildJsonObject {
+    fun sanitize(schema: JsonObject): JsonObject = sanitize(schema, root = true)
+
+    /**
+     * Gemini rejects an object without properties and an array without items, so inside the
+     * parameters such a value is asked for as JSON text; the dispatcher turns it back into JSON.
+     */
+    private fun sanitize(
+        schema: JsonObject,
+        root: Boolean,
+    ): JsonObject {
+        val type = (schema["type"] as? JsonPrimitive)?.contentOrNull
+        val freeform = !root && type == "object" && (schema["properties"] as? JsonObject).isNullOrEmpty()
+        if (freeform) {
+            return buildJsonObject {
+                put("type", JsonPrimitive("string"))
+                put("description", JsonPrimitive(listOfNotNull(schema.string("description"), JSON_OBJECT_TEXT).joinToString(" ")))
+            }
+        }
+        return buildJsonObject {
             when (val type = schema["type"]) {
                 is JsonPrimitive -> {
                     put("type", type)
@@ -44,7 +61,7 @@ internal object GeminiSchema {
 
             val properties =
                 (schema["properties"] as? JsonObject)
-                    ?.mapNotNull { (name, value) -> (value as? JsonObject)?.let { name to sanitize(it) } }
+                    ?.mapNotNull { (name, value) -> (value as? JsonObject)?.let { name to sanitize(it, root = false) } }
                     ?.toMap()
                     .orEmpty()
             if (properties.isNotEmpty()) put("properties", JsonObject(properties))
@@ -53,12 +70,28 @@ internal object GeminiSchema {
                 ?.filter { it in properties }
                 ?.takeIf { it.isNotEmpty() }
                 ?.let { names -> put("required", JsonArray(names.map(::JsonPrimitive))) }
-            (schema["items"] as? JsonObject)?.let { put("items", sanitize(it)) }
+            // Items without a type ("any value") are asked for as JSON text like a missing items schema.
+            val items = (schema["items"] as? JsonObject)?.takeIf { it["type"] != null }
+            if (items != null) {
+                put("items", sanitize(items, root = false))
+            } else if (type == "array") {
+                put(
+                    "items",
+                    buildJsonObject {
+                        put("type", JsonPrimitive("string"))
+                        put("description", JsonPrimitive(JSON_ITEM_TEXT))
+                    },
+                )
+            }
             (schema["anyOf"] as? JsonArray)
-                ?.mapNotNull { (it as? JsonObject)?.let(::sanitize) }
+                ?.mapNotNull { (it as? JsonObject)?.let { option -> sanitize(option, root = false) } }
                 ?.takeIf { it.isNotEmpty() }
                 ?.let { put("anyOf", JsonArray(it)) }
         }
+    }
+
+    private const val JSON_OBJECT_TEXT = "A JSON object, written as text."
+    private const val JSON_ITEM_TEXT = "A JSON value, written as text."
 
     /** Gemini enums hold strings only; a string `const` becomes a one-value enum. */
     private fun stringEnum(schema: JsonObject): JsonArray? {

@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.pocketpilot.R
 import app.pocketpilot.core.model.RiskTier
+import app.pocketpilot.designsystem.PocketPilotTheme
 import app.pocketpilot.feature.approvals.ConfirmScreen
 import app.pocketpilot.feature.approvals.ConfirmUi
 import app.pocketpilot.feature.approvals.ConsentScreen
@@ -15,7 +16,6 @@ import app.pocketpilot.feature.approvals.ConsentUi
 import app.pocketpilot.feature.approvals.ScopeOption
 import app.pocketpilot.security.BiometricGate
 import app.pocketpilot.server.oauth.AuthorizationServer
-import app.pocketpilot.ui.PocketPilotTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 

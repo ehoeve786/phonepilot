@@ -1,52 +1,59 @@
 package app.pocketpilot.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.R
 import app.pocketpilot.capability.files.SharedFolder
 import app.pocketpilot.capability.shizuku.ShizukuState
+import app.pocketpilot.core.audit.AuditEvent
 import app.pocketpilot.core.capabilities.CapabilityStatus
 import app.pocketpilot.core.model.PolicyProfile
+import app.pocketpilot.core.model.ToolSpec
+import app.pocketpilot.core.policy.ToolMode
+import app.pocketpilot.designsystem.PocketPilotTheme
+import app.pocketpilot.designsystem.automation.PinnedRuleUi
 import app.pocketpilot.feature.clients.ClientRow
-import app.pocketpilot.feature.clients.ClientsCard
 import app.pocketpilot.feature.onboarding.SetupStep
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.PublicAccessState
 import app.pocketpilot.server.http.ServerState
+import app.pocketpilot.core.designsystem.R as DsR
 
 /** What the remote access card can ask for. */
 data class RemoteActions(
@@ -60,9 +67,12 @@ data class RemoteActions(
 )
 
 /**
- * Home: start and stop the local MCP server, turn on the Accessibility service, see which backends
- * work in Doctor, set up remote access and connected apps, and connect Claude Code with the local token.
+ * The app's main screen: Home (server status, what needs the owner, pinned automations and the live
+ * tool log), Chat (Agent mode as a conversation), Automations, Tools (per-tool Allow, Ask or Block, protected apps and the shell switch) and
+ * Activity (the audit log and Agent mode). Settings opens from the gear in the top bar, or at the
+ * rail's foot on wide screens.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     policyProfile: PolicyProfile,
@@ -89,8 +99,12 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     /** WireGuard with the owner's relay, shown under Tailscale. */
     ownNetworkCard: @Composable () -> Unit = {},
-    /** Agent mode: model profiles, tasks and runs. */
+    /** Agent mode: model profiles and runs. */
     agentCard: @Composable () -> Unit = {},
+    /** The Chat destination; its argument opens the model list under Activity. */
+    chatContent: @Composable (openModels: () -> Unit) -> Unit = {},
+    /** Counts up each time something outside, such as a reply notification, asks for the Chat tab. */
+    openChat: Int = 0,
     /** The raw shell switch; the Play build has no shell tool, so it never shows there. */
     shellEnabled: Boolean = false,
     onShellChange: (Boolean) -> Unit = {},
@@ -98,7 +112,7 @@ fun HomeScreen(
     clientsStopped: Boolean = false,
     onAllowClients: () -> Unit = {},
     onAllowNotifications: () -> Unit = {},
-    /** Opens on the Settings tab, for setup's remote access step. */
+    /** Opens on Settings, for setup's remote access step. */
     startOnSettings: Boolean = false,
     /** The setup steps, which Doctor re-checks with a fix for each. */
     setupSteps: List<SetupStep> = emptyList(),
@@ -108,292 +122,283 @@ fun HomeScreen(
     onRemoveFolder: (SharedFolder) -> Unit = {},
     biometricApprovals: Boolean = true,
     onBiometricChange: (Boolean) -> Unit = {},
+    /** WireGuard's state, for the status header's remote access chips. */
+    wireGuardState: NetworkState = NetworkState.Stopped,
+    /** Recent tool calls, newest first, from the audit sink. */
+    auditEvents: List<AuditEvent> = emptyList(),
+    /** Approvals waiting for the owner, shown under "Needs you". */
+    approvals: List<PendingApproval> = emptyList(),
+    onApprove: (String) -> Unit = {},
+    onDecline: (String) -> Unit = {},
+    /** Every tool the server exposes, for the Tools tab. */
+    tools: List<ToolSpec> = emptyList(),
+    /** The owner's per-tool modes; tools missing here keep their tier's default. */
+    toolModes: Map<String, ToolMode> = emptyMap(),
+    /** Sets a tool's mode; null returns it to its tier's default. */
+    onToolModeChange: (String, ToolMode?) -> Unit = { _, _ -> },
+    /** Package names PocketPilot never reads or acts in. */
+    protectedApps: List<String> = emptyList(),
+    /** The Automations destination, filled by the automations feature. */
+    automationsContent: @Composable () -> Unit = {},
+    /** AI proposals waiting; shown as a badge on Automations when above zero. */
+    automationsBadge: Int = 0,
+    /** Rules pinned to Home, at most four shown. */
+    pinnedRules: List<PinnedRuleUi> = emptyList(),
+    onPinnedToggle: (String, Boolean) -> Unit = { _, _ -> },
+    /** "See all" under the pinned rules; Home switches to Automations as well. */
+    onSeeAllRules: () -> Unit = {},
+    /** Counts up each time something outside, such as a proposal notification, asks for the Automations tab. */
+    openAutomations: Int = 0,
 ) {
-    var tab by rememberSaveable { mutableStateOf(if (startOnSettings) Tab.SETTINGS else Tab.HOME) }
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        bottomBar = {
-            NavigationBar {
-                Tab.entries.forEach { item ->
-                    NavigationBarItem(
-                        selected = tab == item,
-                        onClick = { tab = item },
-                        icon = { Icon(painterResource(item.icon), contentDescription = null) },
+    var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
+    LaunchedEffect(openAutomations) { if (openAutomations > 0) destination = Destination.AUTOMATIONS }
+    LaunchedEffect(openChat) { if (openChat > 0) destination = Destination.CHAT }
+    var activityTab by rememberSaveable { mutableIntStateOf(0) }
+    var settingsOpen by rememberSaveable { mutableStateOf(startOnSettings) }
+    var confirmKill by rememberSaveable { mutableStateOf(false) }
+    val tiers = remember(tools) { tools.associate { it.name to it.riskTier } }
+
+    BackHandler(enabled = settingsOpen) { settingsOpen = false }
+    BackHandler(enabled = !settingsOpen && destination != Destination.HOME) { destination = Destination.HOME }
+
+    if (settingsOpen) {
+        SettingsScreen(
+            state =
+                SettingsState(
+                    policyProfile = policyProfile,
+                    versionName = versionName,
+                    accessibilityOn = accessibilityOn,
+                    remoteState = remoteState,
+                    publicState = publicState,
+                    clients = clients,
+                    token = token,
+                    sharedFolders = sharedFolders,
+                    biometricApprovals = biometricApprovals,
+                    capabilities = capabilities,
+                    shizukuState = shizukuState,
+                    setupSteps = setupSteps,
+                ),
+            actions =
+                SettingsActions(
+                    onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+                    onOpenAppInfo = onOpenAppInfo,
+                    remoteActions = remoteActions,
+                    onRevokeClient = onRevokeClient,
+                    onKillSwitch = onKillSwitch,
+                    onRotateToken = onRotateToken,
+                    onAddFolder = onAddFolder,
+                    onRemoveFolder = onRemoveFolder,
+                    onBiometricChange = onBiometricChange,
+                    onOpenSetup = onOpenSetup,
+                    onGrantShizuku = onGrantShizuku,
+                    onAllowNotifications = onAllowNotifications,
+                ),
+            onBack = { settingsOpen = false },
+            modifier = modifier,
+            ownNetworkCard = ownNetworkCard,
+        )
+        return
+    }
+
+    val wide = LocalConfiguration.current.screenWidthDp >= RAIL_MIN_WIDTH_DP
+    val badges =
+        mapOf(
+            Destination.HOME to if (approvals.isNotEmpty()) DOT_BADGE else 0,
+            Destination.AUTOMATIONS to automationsBadge,
+        )
+    Row(modifier.fillMaxSize()) {
+        if (wide) {
+            NavigationRail {
+                Destination.entries.forEach { item ->
+                    NavigationRailItem(
+                        selected = destination == item,
+                        onClick = { destination = item },
+                        icon = { DestinationIcon(item, badges[item] ?: 0) },
                         label = { Text(stringResource(item.label)) },
                     )
                 }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = { settingsOpen = true }, modifier = Modifier.padding(bottom = 16.dp)) {
+                    Icon(
+                        painterResource(DsR.drawable.core_designsystem_ic_settings),
+                        contentDescription = stringResource(R.string.tab_settings),
+                    )
+                }
             }
-        },
-    ) { padding ->
-        Column(
-            modifier =
-                Modifier
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            when (tab) {
-                Tab.HOME -> {
-                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineLarge)
-                    Text(stringResource(R.string.home_tagline), style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        stringResource(R.string.home_build, policyProfile.flavor.name.lowercase(), versionName),
-                        style = MaterialTheme.typography.bodySmall,
+        }
+        Scaffold(
+            modifier = Modifier.weight(1f),
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text(stringResource(R.string.app_name)) },
+                    actions = {
+                        IconButton(onClick = { confirmKill = true }) {
+                            Icon(
+                                painterResource(DsR.drawable.core_designsystem_ic_power),
+                                contentDescription = stringResource(R.string.nav_kill_switch),
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                        if (!wide) {
+                            IconButton(onClick = { settingsOpen = true }) {
+                                Icon(
+                                    painterResource(DsR.drawable.core_designsystem_ic_settings),
+                                    contentDescription = stringResource(R.string.tab_settings),
+                                )
+                            }
+                        }
+                    },
+                )
+            },
+            bottomBar = {
+                if (!wide) {
+                    NavigationBar {
+                        Destination.entries.forEach { item ->
+                            NavigationBarItem(
+                                selected = destination == item,
+                                onClick = { destination = item },
+                                icon = { DestinationIcon(item, badges[item] ?: 0) },
+                                label = { Text(stringResource(item.label)) },
+                            )
+                        }
+                    }
+                }
+            },
+        ) { padding ->
+            val content = Modifier.padding(padding)
+            when (destination) {
+                Destination.HOME -> {
+                    HomeTab(
+                        state =
+                            HomeTabState(
+                                serverState = serverState,
+                                remoteState = remoteState,
+                                wireGuardState = wireGuardState,
+                                clients = clients,
+                                auditEvents = auditEvents,
+                                tiers = tiers,
+                                crashReport = crashReport,
+                                clientsStopped = clientsStopped,
+                                approvals = approvals,
+                                setupSteps = setupSteps,
+                                shizukuState = shizukuState,
+                                pinnedRules = pinnedRules,
+                                token = token,
+                            ),
+                        actions =
+                            HomeTabActions(
+                                onStart = onStart,
+                                onStop = onStop,
+                                onDismissCrash = onDismissCrash,
+                                onAllowClients = onAllowClients,
+                                onApprove = onApprove,
+                                onDecline = onDecline,
+                                onPinnedToggle = onPinnedToggle,
+                                onSeeAllRules = {
+                                    destination = Destination.AUTOMATIONS
+                                    onSeeAllRules()
+                                },
+                                onOpenSettings = { settingsOpen = true },
+                            ),
+                        wide = wide,
+                        modifier = content,
                     )
-                    crashReport?.let { CrashCard(it, onDismissCrash) }
-                    if (clientsStopped) StoppedCard(onAllowClients)
-                    ServerCard(serverState, onStart, onStop)
-                    DoctorCard(capabilities, shizukuState, onGrantShizuku, onAllowNotifications, setupSteps)
-                    TextButton(onClick = onOpenSetup) { Text(stringResource(R.string.home_setup_guide)) }
-                    ConnectCard(serverState, token)
                 }
 
-                Tab.AI -> {
-                    Text(stringResource(R.string.tab_ai), style = MaterialTheme.typography.headlineMedium)
-                    agentCard()
+                Destination.CHAT -> {
+                    // The chat pads itself for the keyboard, so the bars' padding counts towards it.
+                    Box(content.consumeWindowInsets(padding).fillMaxSize()) {
+                        chatContent {
+                            activityTab = ACTIVITY_AGENT_TAB
+                            destination = Destination.ACTIVITY
+                        }
+                    }
                 }
 
-                Tab.SETTINGS -> {
-                    Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.headlineMedium)
-                    AccessibilityCard(accessibilityOn, onOpenAccessibilitySettings, onOpenAppInfo)
-                    RemoteAccessCard(
-                        state = remoteState,
-                        public = publicState,
-                        onTurnOn = remoteActions.turnOn,
-                        onTurnOff = remoteActions.turnOff,
-                        onSignIn = remoteActions.signIn,
-                        onSignOut = remoteActions.signOut,
-                        onPublicChange = remoteActions.setPublic,
-                        logs = remoteActions.logs,
+                Destination.AUTOMATIONS -> {
+                    Box(content.fillMaxSize()) { automationsContent() }
+                }
+
+                Destination.TOOLS -> {
+                    ToolsTab(
+                        state =
+                            ToolsTabState(
+                                tools = tools,
+                                modes = toolModes,
+                                auditEvents = auditEvents,
+                                protectedApps = protectedApps,
+                                shellAvailable = policyProfile != PolicyProfile.PLAY,
+                                shellEnabled = shellEnabled,
+                            ),
+                        onModeChange = onToolModeChange,
+                        onShellChange = onShellChange,
+                        modifier = content,
                     )
-                    ownNetworkCard()
-                    ClientsCard(clients, onRevokeClient, onKillSwitch)
-                    TokenCard(token, onRotateToken)
-                    FoldersCard(sharedFolders, onAddFolder, onRemoveFolder)
-                    BiometricCard(biometricApprovals, onBiometricChange)
-                    if (policyProfile != PolicyProfile.PLAY) ShellCard(shellEnabled, onShellChange)
+                }
+
+                Destination.ACTIVITY -> {
+                    ActivityTab(auditEvents, tiers, agentCard, activityTab, { activityTab = it }, modifier = content)
                 }
             }
         }
     }
+
+    if (confirmKill) {
+        AlertDialog(
+            onDismissRequest = { confirmKill = false },
+            title = { Text(stringResource(R.string.nav_kill_switch_title)) },
+            text = { Text(stringResource(R.string.nav_kill_switch_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmKill = false
+                    onKillSwitch()
+                }) {
+                    Text(stringResource(R.string.nav_kill_switch_confirm), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmKill = false }) { Text(stringResource(R.string.nav_cancel)) }
+            },
+        )
+    }
 }
 
-/** The bottom bar: status and connecting on Home, Agent mode on AI, setup and access on Settings. */
-private enum class Tab(
+/** A destination's icon, with a dot ([DOT_BADGE]) or a count when [badge] is above zero. */
+@Composable
+private fun DestinationIcon(
+    item: Destination,
+    badge: Int,
+) {
+    BadgedBox(
+        badge = {
+            if (badge == DOT_BADGE) {
+                Badge()
+            } else if (badge > 0) {
+                Badge { Text(badge.toString()) }
+            }
+        },
+    ) {
+        Icon(painterResource(item.icon), contentDescription = null)
+    }
+}
+
+/** The five top-level destinations; Settings opens from the top bar instead. */
+private enum class Destination(
     @param:StringRes val label: Int,
     @param:DrawableRes val icon: Int,
 ) {
-    HOME(R.string.tab_home, R.drawable.ic_tab_home),
-    AI(R.string.tab_ai, R.drawable.ic_tab_ai),
-    SETTINGS(R.string.tab_settings, R.drawable.ic_tab_settings),
+    HOME(R.string.tab_home, DsR.drawable.core_designsystem_ic_dashboard),
+    CHAT(R.string.nav_chat, DsR.drawable.core_designsystem_ic_chat),
+    AUTOMATIONS(R.string.nav_automations, DsR.drawable.core_designsystem_ic_bolt),
+    TOOLS(R.string.nav_tools, DsR.drawable.core_designsystem_ic_build),
+    ACTIVITY(R.string.nav_activity, DsR.drawable.core_designsystem_ic_history),
 }
 
-@Composable
-private fun CrashCard(
-    report: String,
-    onDismiss: () -> Unit,
-) {
-    val clipboard = LocalClipboardManager.current
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.crash_title), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.crash_text), style = MaterialTheme.typography.bodySmall)
-            Text(
-                report.lineSequence().take(CRASH_PREVIEW_LINES).joinToString("\n"),
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { clipboard.setText(AnnotatedString(report)) }) { Text(stringResource(R.string.crash_copy)) }
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.crash_dismiss)) }
-            }
-        }
-    }
-}
+/** Windows at least this wide (Medium and up) get a navigation rail instead of the bottom bar. */
+private const val RAIL_MIN_WIDTH_DP = 600
 
-private const val CRASH_PREVIEW_LINES = 4
-
-@Composable
-private fun StoppedCard(onAllowAgain: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.control_stopped_title), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.control_stopped_text), style = MaterialTheme.typography.bodySmall)
-            Button(onClick = onAllowAgain) { Text(stringResource(R.string.control_allow_again)) }
-        }
-    }
-}
-
-@Composable
-private fun ServerCard(
-    state: ServerState,
-    onStart: () -> Unit,
-    onStop: () -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.server_title), style = MaterialTheme.typography.titleMedium)
-            Text(
-                when (state) {
-                    ServerState.Stopped -> stringResource(R.string.server_stopped)
-                    is ServerState.Running -> stringResource(R.string.server_running, state.url)
-                    is ServerState.Failed -> stringResource(R.string.server_failed, state.reason)
-                },
-            )
-            if (state is ServerState.Running) {
-                OutlinedButton(onClick = onStop) { Text(stringResource(R.string.server_stop)) }
-            } else {
-                Button(onClick = onStart) { Text(stringResource(R.string.server_start)) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AccessibilityCard(
-    on: Boolean,
-    onOpenSettings: () -> Unit,
-    onOpenAppInfo: () -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.accessibility_title), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(if (on) R.string.accessibility_on else R.string.accessibility_off))
-            if (!on) {
-                Text(stringResource(R.string.accessibility_explainer), style = MaterialTheme.typography.bodySmall)
-                Button(onClick = onOpenSettings) { Text(stringResource(R.string.accessibility_open_settings)) }
-                Text(stringResource(R.string.accessibility_restricted), style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = onOpenAppInfo) { Text(stringResource(R.string.accessibility_open_app_info)) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FoldersCard(
-    folders: List<SharedFolder>,
-    onAdd: () -> Unit,
-    onRemove: (SharedFolder) -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.folders_title), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.folders_explainer), style = MaterialTheme.typography.bodySmall)
-            if (folders.isEmpty()) Text(stringResource(R.string.folders_none), style = MaterialTheme.typography.bodySmall)
-            folders.forEach { folder ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(folder.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { onRemove(folder) }) { Text(stringResource(R.string.folders_remove)) }
-                }
-            }
-            Button(onClick = onAdd) { Text(stringResource(R.string.folders_add)) }
-        }
-    }
-}
-
-@Composable
-private fun BiometricCard(
-    enabled: Boolean,
-    onChange: (Boolean) -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.biometric_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                Switch(checked = enabled, onCheckedChange = onChange)
-            }
-            Text(stringResource(R.string.biometric_explainer), style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-@Composable
-private fun ShellCard(
-    enabled: Boolean,
-    onChange: (Boolean) -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.shell_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                Switch(checked = enabled, onCheckedChange = onChange)
-            }
-            Text(stringResource(R.string.shell_explainer), style = MaterialTheme.typography.bodySmall)
-            if (enabled) {
-                Text(
-                    stringResource(R.string.shell_warning),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TokenCard(
-    token: String,
-    onRotateToken: () -> Unit,
-) {
-    var visible by rememberSaveable { mutableStateOf(false) }
-    val context = LocalContext.current
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.token_title), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.token_explainer), style = MaterialTheme.typography.bodySmall)
-            Text(
-                if (visible) token else "•".repeat(MASKED_LENGTH),
-                fontFamily = FontFamily.Monospace,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { visible = !visible }) {
-                    Text(stringResource(if (visible) R.string.token_hide else R.string.token_show))
-                }
-                TextButton(onClick = { copySecret(context, token) }) { Text(stringResource(R.string.token_copy)) }
-                TextButton(onClick = onRotateToken) { Text(stringResource(R.string.token_rotate)) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ConnectCard(
-    state: ServerState,
-    token: String,
-) {
-    val context = LocalContext.current
-    val url = (state as? ServerState.Running)?.url ?: "http://127.0.0.1:8765/mcp"
-    val command = claudeCodeCommand(url, token)
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.connect_title), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.connect_explainer), style = MaterialTheme.typography.bodySmall)
-            Text(
-                claudeCodeCommand(url, "<token>"),
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            TextButton(onClick = { copySecret(context, command) }) { Text(stringResource(R.string.connect_copy)) }
-        }
-    }
-}
-
-/** The command that registers this phone's server with Claude Code. */
-internal fun claudeCodeCommand(
-    url: String,
-    token: String,
-): String = "claude mcp add --transport http pocketpilot $url --header \"Authorization: Bearer $token\""
-
-private const val MASKED_LENGTH = 24
+/** Marks a badge that shows as a dot rather than a count. */
+private const val DOT_BADGE = -1
 
 @Preview
 @Composable
@@ -421,6 +426,7 @@ private fun HomeScreenPreview() {
             remoteActions = RemoteActions({}, {}, {}, {}, {}),
             onRevokeClient = {},
             onKillSwitch = {},
+            pinnedRules = listOf(PinnedRuleUi("r1", "Quiet at work", enabled = true)),
         )
     }
 }

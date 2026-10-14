@@ -17,8 +17,12 @@ import app.pocketpilot.capability.api.notifications.NotificationSource
 import app.pocketpilot.capability.api.notifications.PhoneNotification
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
@@ -43,6 +47,28 @@ object ListenerNotificationSource : NotificationSource {
     internal fun detach(listener: PocketPilotNotificationListener) {
         if (current.compareAndSet(listener, null)) connected.value = false
     }
+
+    private val changes =
+        MutableSharedFlow<NotificationChange>(extraBufferCapacity = CHANGE_BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** Notifications as they arrive and go, for automation triggers. Group summaries and empty ones are left out. */
+    val events: SharedFlow<NotificationChange> = changes.asSharedFlow()
+
+    internal fun onPosted(sbn: StatusBarNotification) = emit(sbn, removed = false)
+
+    internal fun onRemoved(sbn: StatusBarNotification) = emit(sbn, removed = true)
+
+    private fun emit(
+        sbn: StatusBarNotification,
+        removed: Boolean,
+    ) {
+        if (sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+        val notification = runCatching { sbn.toPhoneNotification() }.getOrNull() ?: return
+        if (notification.title == null && notification.text == null) return
+        changes.tryEmit(NotificationChange(notification, removed))
+    }
+
+    private const val CHANGE_BUFFER = 64
 
     override suspend fun active(): List<PhoneNotification> =
         listener()
@@ -165,3 +191,9 @@ object ListenerNotificationSource : NotificationSource {
         )
     }
 }
+
+/** A notification that arrived, or went away when [removed]. */
+data class NotificationChange(
+    val notification: PhoneNotification,
+    val removed: Boolean,
+)

@@ -113,4 +113,29 @@ class FileToolsTest {
             assertFalse(dispatcher.dispatch(session, "files.write", args(true)).isError)
             assertEquals("bread", files.contents["Documents/todo.txt"]!!.decodeToString())
         }
+
+    @Test
+    fun `appends on a new line and keeps the rest`() =
+        runTest {
+            val args = { text: String ->
+                buildJsonObject {
+                    put("path", "Documents/todo.txt")
+                    put("text", text)
+                    put("append", true)
+                }
+            }
+            assertFalse(dispatcher.dispatch(session, "files.write", args("buy coffee")).isError)
+            assertEquals("milk\neggs\nbuy coffee", files.contents["Documents/todo.txt"]!!.decodeToString())
+            files.contents["Documents/todo.txt"] = "milk\n".toByteArray()
+            dispatcher.dispatch(session, "files.write", args("tea"))
+            assertEquals("milk\ntea", files.contents["Documents/todo.txt"]!!.decodeToString())
+            val missing =
+                buildJsonObject {
+                    put("path", "Documents/none.txt")
+                    put("text", "x")
+                    put("append", true)
+                }
+            assertFalse(dispatcher.dispatch(session, "files.write", missing).isError)
+            assertEquals("x", files.contents["Documents/none.txt"]!!.decodeToString())
+        }
 }
