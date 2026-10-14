@@ -45,6 +45,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.core.automation.AutomationJson
 import app.pocketpilot.core.automation.AutomationSettings
@@ -71,6 +72,8 @@ data class AutomationsState(
     val tools: List<String> = emptyList(),
     /** False in the Play build: no shell actions. */
     val sideload: Boolean = true,
+    /** A Home Assistant access token is saved. */
+    val homeAssistantToken: Boolean = false,
 )
 
 /** What the Automations tab can ask for. */
@@ -90,6 +93,8 @@ class AutomationsActions(
     val setSettings: (AutomationSettings) -> Unit,
     /** Loads [AutomationsState.apps] the first time a picker needs them. */
     val loadApps: () -> Unit,
+    /** Saves Home Assistant's address, and its token when one is typed. */
+    val setHomeAssistant: (url: String, token: String) -> Unit = { _, _ -> },
 )
 
 private val RuleSaver =
@@ -296,7 +301,48 @@ private fun SettingsCard(
                     onClick = { actions.setSettings(state.settings.copy(agentMonthlyCapUsd = cap.trim().toDoubleOrNull())) },
                 ) { Text(stringResource(R.string.feature_automations_save)) }
             }
+            HomeAssistantSettings(state, actions)
         }
+    }
+}
+
+@Composable
+private fun HomeAssistantSettings(
+    state: AutomationsState,
+    actions: AutomationsActions,
+) {
+    var url by rememberSaveable(state.settings.homeAssistantUrl) { mutableStateOf(state.settings.homeAssistantUrl.orEmpty()) }
+    var token by rememberSaveable { mutableStateOf("") }
+    Text(stringResource(R.string.feature_automations_ha), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.feature_automations_ha_text), style = MaterialTheme.typography.bodyMedium)
+    OutlinedTextField(
+        value = url,
+        onValueChange = { url = it },
+        label = { Text(stringResource(R.string.feature_automations_ha_url)) },
+        placeholder = { Text("https://homeassistant.local:8123") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = token,
+            onValueChange = { token = it },
+            label = { Text(stringResource(R.string.feature_automations_ha_token)) },
+            placeholder = {
+                if (state.homeAssistantToken) Text(stringResource(R.string.feature_automations_ha_token_saved))
+            },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            onClick = {
+                actions.setHomeAssistant(url.trim(), token.trim())
+                token = ""
+            },
+        ) { Text(stringResource(R.string.feature_automations_save)) }
     }
 }
 

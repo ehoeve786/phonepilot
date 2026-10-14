@@ -288,6 +288,89 @@ internal object Constraints {
                 sentence = { p -> "Rule ${p.p("state").ifBlank { "on" }}" },
                 check = { p -> ruleEnabled(p.p("rule")) == (p.p("state") != "off") },
             ),
+            // Location
+            ConstraintDef(
+                type = "location.inside",
+                category = Category.LOCATION,
+                title = "At a place",
+                description = "The phone's last known location is inside a circle, or outside it. Needs location access.",
+                fields = PLACE_FIELDS + choiceField("state", "Phone is", listOf(Choice("yes", "Inside"), Choice("no", "Outside"))),
+                sentence = { p ->
+                    val where = p.p("name").ifBlank { p.p("at") }
+                    if (p.p("state") == "no") "Not at $where" else "At $where"
+                },
+                check = { p ->
+                    val place = Place.from(p)
+                    val here = state(StateKeys.LOCATION)?.let(Place::coordinates)
+                    if (place == null || here == null) {
+                        false
+                    } else {
+                        place.contains(here.first, here.second) == (p.p("state") != "no")
+                    }
+                },
+            ),
+            // Calls and messages
+            ConstraintDef(
+                type = "call.state",
+                category = Category.CALLS,
+                title = "On a call",
+                description = "The phone is ringing, on a call, or neither.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "state",
+                            "Phone is",
+                            listOf(Choice("in_call", "On a call"), Choice("ringing", "Ringing"), Choice("idle", "Not on a call")),
+                        ),
+                    ),
+                sentence = { p ->
+                    when (p.p("state")) {
+                        "ringing" -> "Phone ringing"
+                        "idle" -> "Not on a call"
+                        else -> "On a call"
+                    }
+                },
+                check = { p -> state(StateKeys.CALL) == p.p("state").ifBlank { "in_call" } },
+            ),
+            // Calendar
+            ConstraintDef(
+                type = "calendar.busy",
+                category = Category.CALENDAR,
+                title = "In a calendar event",
+                description = "An event in your calendar is happening now, or none is. Needs calendar access.",
+                fields =
+                    listOf(
+                        textField("title", "Title contains", required = false, hint = "Any event when empty"),
+                        choiceField("state", "Is", listOf(Choice("yes", "In an event"), Choice("no", "Free"))),
+                    ),
+                sentence = { p ->
+                    val which = if (p.p("title").isBlank()) "an event" else "\"${p.p("title")}\""
+                    if (p.p("state") == "no") "Not in $which" else "In $which"
+                },
+                check = { p ->
+                    val now = state(StateKeys.CALENDAR_NOW).orEmpty().lines().filter(String::isNotBlank)
+                    now.any { containsText(p.p("title"), it) } == (p.p("state") != "no")
+                },
+            ),
+            // Home Assistant
+            ConstraintDef(
+                type = "ha.state",
+                category = Category.HOME,
+                title = "Home Assistant entity",
+                description = "An entity in Home Assistant has a state, such as a door being closed.",
+                fields =
+                    listOf(
+                        textField("entity", "Entity ID", hint = "For example lock.front_door"),
+                        choiceField("op", "Is", listOf(Choice("equals", "Equal to"), Choice("not_equals", "Not equal to"))),
+                        textField("value", "State", hint = "For example locked"),
+                    ),
+                source = Source.NET,
+                sentence = { p -> "${p.p("entity")} ${if (p.p("op") == "not_equals") "is not" else "is"} ${p.p("value")}" },
+                check = { p ->
+                    val actual = state(StateKeys.homeAssistant(p.p("entity")))
+                    actual != null && (actual.equals(p.p("value"), ignoreCase = true) == (p.p("op") != "not_equals"))
+                },
+            ),
         )
 
     /** True when [time] is in [from, to), with windows past midnight wrapping around. */

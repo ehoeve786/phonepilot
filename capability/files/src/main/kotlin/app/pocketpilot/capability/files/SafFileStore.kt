@@ -101,34 +101,69 @@ class SafFileStore(
         bytes: ByteArray,
         replace: Boolean,
     ) = withContext(Dispatchers.IO) {
+        resolver.openOutputStream(target(path, replace), "wt")?.use { it.write(bytes) }
+            ?: throw ToolException(ToolErrorCode.INTERNAL_ERROR, "Could not write $path")
+        Unit
+    }
+
+    override suspend fun copy(
+        from: String,
+        to: String,
+        replace: Boolean,
+    ) = withContext(Dispatchers.IO) {
+        val source = resolve(from)
+        if (source.folder) throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$from is a folder; only files can be copied")
+        if (segments(from) == segments(to)) throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$from and $to are the same file")
+        val input = resolver.openInputStream(source.uri) ?: throw ToolException(ToolErrorCode.INTERNAL_ERROR, "Could not open $from")
+        input.use {
+            val output =
+                resolver.openOutputStream(target(to, replace), "wt")
+                    ?: throw ToolException(ToolErrorCode.INTERNAL_ERROR, "Could not write $to")
+            output.use { input.copyTo(it) }
+        }
+        Unit
+    }
+
+    override suspend fun delete(path: String) =
+        withContext(Dispatchers.IO) {
+            if (segments(path).size < 2) throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$path is a shared folder, not a file")
+            val doc = resolve(path)
+            if (doc.folder) throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$path is a folder; only files can be deleted")
+            if (!DocumentsContract.deleteDocument(resolver, doc.uri)) {
+                throw ToolException(ToolErrorCode.INTERNAL_ERROR, "Could not delete $path")
+            }
+        }
+
+    /** The file to write at [path]: a new one in its existing folder, or the old one when [replace]. */
+    private fun target(
+        path: String,
+        replace: Boolean,
+    ): Uri {
         val segments = segments(path)
+        if (segments.size < 2) throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "Give a file inside a shared folder")
         val parentPath = segments.dropLast(1).joinToString("/")
         val name = segments.last()
         val parent = resolve(parentPath)
         if (!parent.folder) throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$parentPath is not a folder")
         val existing = children(parent).firstOrNull { it.name == name }
-        val target =
-            when {
-                existing == null -> {
-                    DocumentsContract.createDocument(resolver, parent.uri, mimeFor(name), name)
-                        ?: throw ToolException(ToolErrorCode.INTERNAL_ERROR, "Could not create $path")
-                }
-
-                existing.folder -> {
-                    throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$path is a folder")
-                }
-
-                !replace -> {
-                    throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$path already exists", "Pass replace: true to replace it.")
-                }
-
-                else -> {
-                    existing.uri
-                }
+        return when {
+            existing == null -> {
+                DocumentsContract.createDocument(resolver, parent.uri, mimeFor(name), name)
+                    ?: throw ToolException(ToolErrorCode.INTERNAL_ERROR, "Could not create $path")
             }
-        resolver.openOutputStream(target, "wt")?.use { it.write(bytes) }
-            ?: throw ToolException(ToolErrorCode.INTERNAL_ERROR, "Could not write $path")
-        Unit
+
+            existing.folder -> {
+                throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$path is a folder")
+            }
+
+            !replace -> {
+                throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$path already exists", "Pass replace: true to replace it.")
+            }
+
+            else -> {
+                existing.uri
+            }
+        }
     }
 
     private class Doc(

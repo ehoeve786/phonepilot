@@ -161,6 +161,8 @@ data class AutomationSettings(
     val paused: Boolean = false,
     /** The one monthly limit for Agent runs started by automations, in US dollars; null means none. */
     val agentMonthlyCapUsd: Double? = 5.0,
+    /** The owner's Home Assistant, such as https://ha.example.com; its token is kept encrypted elsewhere. */
+    val homeAssistantUrl: String? = null,
 )
 
 /** Everything the store keeps. */

@@ -20,6 +20,15 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Automations wave 2: places, calls, the calendar and the media sessions of other apps. Each is
+         granted through Shizuku only once an enabled rule uses it. The sideload flavors add call log
+         and text message access. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
 
     <!-- Cleartext is allowed for Agent mode's local model servers (Ollama on the home network);
          every hosted provider and remote access path uses HTTPS. -->
@@ -67,6 +76,15 @@
 
         <receiver
             android:name=".automation.AutomationAlarmReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".automation.CalendarAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Android's proximity alerts for "Arrive at or leave a place". -->
+        <receiver
+            android:name=".automation.PlaceReceiver"
             android:exported="false" />
 
         <!-- The "Event received" trigger: other apps and Tasker send this to start the owner's rules. -->

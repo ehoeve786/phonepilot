@@ -9,9 +9,12 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
+import app.pocketpilot.core.automation.ActionStep
 import app.pocketpilot.core.automation.AutomationData
 import app.pocketpilot.core.automation.AutomationEngine
+import app.pocketpilot.core.automation.ConstraintGroup
 import app.pocketpilot.core.automation.ConstraintNode
+import app.pocketpilot.core.automation.Place
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RuleStore
 import app.pocketpilot.core.automation.RunOutcome
@@ -44,6 +47,9 @@ class AutomationRuntime(
     private val notifier: AutomationNotifier,
     private val shell: ShizukuShellRunner,
     private val scope: CoroutineScope,
+    private val calendars: Calendars,
+    /** False in the Play build, which never asks for call log or text message access. */
+    private val sideload: Boolean,
     sources: (emit: (TriggerEvent) -> Unit) -> TriggerSources,
 ) {
     val engine = AutomationEngine(store, host, scope)
@@ -85,6 +91,26 @@ class AutomationRuntime(
     }
 
     fun onEvent(event: TriggerEvent) = engine.onEvent(event)
+
+    /** The phone entered or left the place with [key], from a proximity alert. */
+    fun onPlace(
+        key: String,
+        entering: Boolean,
+    ) {
+        // Names the place as the rule that set it calls it.
+        val name =
+            activeRules(store.data.value)
+                .flatMap { it.triggers }
+                .filter { it.type == "location.place" }
+                .firstOrNull { Place.from(it.params)?.key == key }
+                ?.params
+                ?.get("name")
+                .orEmpty()
+        onEvent(TriggerEvent("location.place", mapOf("event" to if (entering) "enter" else "exit", "place" to key, "name" to name)))
+    }
+
+    /** The calendar's alarm for the next event start or end. */
+    fun onCalendarAlarm() = calendars.onAlarm()
 
     /** The phone started: rules with "Phone started" run once the triggers are listening. */
     fun onBoot() = onEvent(TriggerEvent("device.boot"))
@@ -139,6 +165,7 @@ class AutomationRuntime(
         }
         if (on) {
             AutomationService.update(context, rules.size)
+            sources.use(rules)
             grantWhatRulesNeed(rules)
         }
         val ids = rules.map { it.id }.toSet()
@@ -198,26 +225,49 @@ class AutomationRuntime(
      */
     private fun grantWhatRulesNeed(rules: List<Rule>) {
         if (!shell.available.value) return
-        val types = rules.flatMap { rule -> rule.triggers.map { it.type } + constraintTypes(rule) }.toSet()
+        val types = rules.flatMap(::typesIn).toSet()
         val commands = mutableListOf<String>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val alarms = context.getSystemService(AlarmManager::class.java)
-            if (types.any { it.startsWith("time.") } && !alarms.canScheduleExactAlarms()) {
+            if (types.any { it.startsWith("time.") || it == "calendar.event" } && !alarms.canScheduleExactAlarms()) {
                 commands += "appops set ${context.packageName} SCHEDULE_EXACT_ALARM allow"
             }
             if (types.any { it.startsWith("bluetooth.") } && !granted(Manifest.permission.BLUETOOTH_CONNECT)) {
                 commands += "pm grant ${context.packageName} ${Manifest.permission.BLUETOOTH_CONNECT}"
             }
         }
+        PERMISSIONS
+            .filter { (prefix, _) -> types.any { it.startsWith(prefix) } }
+            .flatMap { it.second }
+            .filter { sideload || it !in SIDELOAD_PERMISSIONS }
+            .distinct()
+            .filterNot(::granted)
+            .forEach { commands += "pm grant ${context.packageName} $it" }
         if (commands.isEmpty()) return
         scope.launch {
             commands.forEach { runCatching { shell.run(it, SHELL_TIMEOUT_MS) } }
-            // Alarms set before the grant were inexact.
-            withContext(Dispatchers.Main) { rules.forEach(::schedule) }
+            // Alarms set before the grant were inexact, and sources that needed a permission start now.
+            withContext(Dispatchers.Main) {
+                rules.forEach(::schedule)
+                if (active) sources.use(rules)
+            }
         }
     }
 
-    private fun constraintTypes(rule: Rule): List<String> = rule.constraints.items.mapNotNull { (it as? ConstraintNode.Check)?.spec?.type }
+    /** Every trigger, condition and action type in [rule], nested ones included. */
+    private fun typesIn(rule: Rule): List<String> {
+        fun group(g: ConstraintGroup): List<String> =
+            g.items.flatMap { node ->
+                when (node) {
+                    is ConstraintNode.Check -> listOf(node.spec.type)
+                    is ConstraintNode.Group -> group(node.group)
+                }
+            }
+
+        fun steps(list: List<ActionStep>): List<String> =
+            list.flatMap { listOf(it.type) + group(it.constraints) + steps(it.children) + steps(it.elseChildren) }
+        return rule.triggers.map { it.type } + group(rule.constraints) + steps(rule.actions)
+    }
 
     private fun granted(permission: String) = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
@@ -236,6 +286,20 @@ class AutomationRuntime(
     ) = "$ruleId#$index"
 
     private companion object {
+        /** Runtime permissions by trigger or condition type prefix, granted through Shizuku. */
+        val PERMISSIONS =
+            listOf(
+                "location." to
+                    listOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+                    ),
+                "call." to listOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_CALL_LOG),
+                "sms." to listOf(Manifest.permission.RECEIVE_SMS),
+                "calendar." to listOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR),
+            )
+        val SIDELOAD_PERMISSIONS = setOf(Manifest.permission.READ_CALL_LOG, Manifest.permission.RECEIVE_SMS)
         const val SHELL_TIMEOUT_MS = 5_000L
         const val LIMIT_MESSAGE = "monthly AI limit"
         val HH_MM: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")

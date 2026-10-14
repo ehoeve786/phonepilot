@@ -205,5 +205,85 @@ class FilesWriteTool(
     }
 }
 
+/** `files.copy`: copies or moves a file between shared folders; replacing a file must be asked for. */
+class FilesCopyTool(
+    private val files: FileStore,
+) : ToolHandler {
+    override val spec =
+        ToolSpec(
+            name = "files.copy",
+            title = "Copy or move a file",
+            description =
+                "Copies a file to a new path in a shared folder, or moves it with move: true. " +
+                    "An existing file at the new path is replaced only with replace: true. Folders cannot be copied.",
+            inputSchema =
+                schema(
+                    """{"type":"object","properties":{"from":{"type":"string"},"to":{"type":"string"},
+                    "move":{"type":"boolean"},"replace":{"type":"boolean"}},"required":["from","to"],"additionalProperties":false}""",
+                ),
+            riskTier = RiskTier.SENSITIVE,
+            requiredScopes = setOf(Scope.FILES_WRITE),
+            requiredCapabilities = setOf(CapabilityId.READ_FILES),
+            annotations = ToolAnnotations(destructive = true),
+            availability = Availability(Phase.P0),
+        )
+
+    override suspend fun confirmationDetail(call: ToolCall): String? {
+        val from = call.arguments.string("from") ?: return null
+        val to = call.arguments.string("to") ?: return null
+        val verb = if (call.arguments.boolean("move") == true) "Move" else "Copy"
+        val replacing = if (call.arguments.boolean("replace") == true) " (replacing it)" else ""
+        return "$verb $from to $to$replacing"
+    }
+
+    override suspend fun execute(
+        call: ToolCall,
+        session: Session,
+    ): ToolResult {
+        val from = checked(call.arguments.string("from") ?: invalid("Give from"))
+        val to = checked(call.arguments.string("to") ?: invalid("Give to"))
+        if (to.count { it == '/' } == 0) invalid("Give a file inside a shared folder, like Documents/notes.txt")
+        files.copy(from, to, replace = call.arguments.boolean("replace") == true)
+        if (call.arguments.boolean("move") == true) {
+            files.delete(from)
+            return ToolResult.success("Moved $from to $to")
+        }
+        return ToolResult.success("Copied $from to $to")
+    }
+}
+
+/** `files.delete`: deletes one file in a shared folder, never a folder. */
+class FilesDeleteTool(
+    private val files: FileStore,
+) : ToolHandler {
+    override val spec =
+        ToolSpec(
+            name = "files.delete",
+            title = "Delete a file",
+            description = "Deletes one file in a shared folder. Folders cannot be deleted.",
+            inputSchema =
+                schema(
+                    """{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}""",
+                ),
+            riskTier = RiskTier.SENSITIVE,
+            requiredScopes = setOf(Scope.FILES_WRITE),
+            requiredCapabilities = setOf(CapabilityId.READ_FILES),
+            annotations = ToolAnnotations(destructive = true),
+            availability = Availability(Phase.P0),
+        )
+
+    override suspend fun confirmationDetail(call: ToolCall): String? = call.arguments.string("path")?.let { "Delete $it" }
+
+    override suspend fun execute(
+        call: ToolCall,
+        session: Session,
+    ): ToolResult {
+        val path = checked(call.arguments.string("path") ?: invalid("Give path"))
+        if (path.count { it == '/' } == 0) invalid("$path is a shared folder; only files can be deleted")
+        files.delete(path)
+        return ToolResult.success("Deleted $path")
+    }
+}
+
 private fun checked(path: String): String =
     FilePaths.segments(path)?.joinToString("/") ?: invalid("'$path' is not a valid path; use names separated by /, without . or ..")

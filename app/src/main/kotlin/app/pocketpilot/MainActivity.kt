@@ -27,6 +27,7 @@ import app.pocketpilot.approvals.ApprovalActivity
 import app.pocketpilot.approvals.ApprovalCenter
 import app.pocketpilot.approvals.ApprovalItem
 import app.pocketpilot.automation.AutomationRuntime
+import app.pocketpilot.automation.HomeAssistant
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.accessibility.PocketPilotA11yService
 import app.pocketpilot.capability.files.SafFileStore
@@ -132,6 +133,11 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var automations: AutomationRuntime
 
+    @Inject lateinit var homeAssistant: HomeAssistant
+
+    /** Whether a Home Assistant token is saved; the secret store has no listener. */
+    private val homeAssistantToken = mutableStateOf(false)
+
     private val resumes = mutableIntStateOf(0)
 
     /** Set when setup sends the owner to remote access, which lives under Settings. */
@@ -229,7 +235,15 @@ class MainActivity : ComponentActivity() {
                 decline = automations.store::delete,
                 setSettings = automations.store::setSettings,
                 loadApps = automations::loadApps,
+                setHomeAssistant = { url, token ->
+                    val settings = automations.store.data.value.settings
+                    automations.store.setSettings(settings.copy(homeAssistantUrl = url.ifBlank { null }))
+                    if (token.isNotBlank()) homeAssistant.saveToken(token)
+                    homeAssistantToken.value = homeAssistant.hasToken
+                    homeAssistant.reconnect()
+                },
             )
+        homeAssistantToken.value = homeAssistant.hasToken
         setContent {
             // The policy never lets the agent act on PocketPilot itself, so step out of its way when a
             // chat needs the screen.
@@ -270,6 +284,7 @@ class MainActivity : ComponentActivity() {
                     apps = automations.apps.collectAsStateWithLifecycle().value,
                     tools = remember(tools) { tools.map { it.name }.sorted() },
                     sideload = policyProfile.shellExecAvailable,
+                    homeAssistantToken = homeAssistantToken.value,
                 )
             // Notification and battery grants have no listener; they are read again on every resume.
             resumes.intValue

@@ -14,6 +14,11 @@
     <string name="feature_automations_ai_cap_text">Spent this month: $%1$s. When the limit is reached, Agent rules pause and you get a notification.</string>
     <string name="feature_automations_ai_cap_label">Limit in US dollars (empty for none)</string>
     <string name="feature_automations_save">Save</string>
+    <string name="feature_automations_ha">Home Assistant</string>
+    <string name="feature_automations_ha_text">For Home Assistant triggers, conditions and actions. Make a long-lived access token on your Home Assistant profile page, under Security.</string>
+    <string name="feature_automations_ha_url">Address</string>
+    <string name="feature_automations_ha_token">Access token</string>
+    <string name="feature_automations_ha_token_saved">Saved; type a new one to replace it</string>
     <string name="feature_automations_no_proposals">No proposals. When an AI app suggests a rule with automation.propose, it waits here for you.</string>
     <string name="feature_automations_no_runs">No runs yet.</string>
 

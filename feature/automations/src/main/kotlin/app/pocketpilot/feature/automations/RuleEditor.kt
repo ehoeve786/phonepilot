@@ -72,7 +72,10 @@ private sealed interface EditorSheet {
 }
 
 /** Opens sheets for the editor's sections, so nested editors share one sheet slot. */
-private class Sheets {
+private class Sheets(
+    /** False in the Play build, which hides sideload-only triggers and conditions. */
+    private val sideload: Boolean,
+) {
     var open by mutableStateOf<EditorSheet?>(null)
 
     fun pickTrigger(
@@ -82,7 +85,9 @@ private class Sheets {
         open =
             EditorSheet.Pick(
                 title,
-                AutomationCatalog.triggers.map { PickerItem(it.type, it.title, it.description, it.category) },
+                AutomationCatalog.triggers
+                    .filter { sideload || !it.sideloadOnly }
+                    .map { PickerItem(it.type, it.title, it.description, it.category) },
             ) { type ->
                 val def = AutomationCatalog.trigger(type) ?: return@Pick
                 if (def.fields.isEmpty()) {
@@ -101,7 +106,9 @@ private class Sheets {
         open =
             EditorSheet.Pick(
                 title,
-                AutomationCatalog.constraints.map { PickerItem(it.type, it.title, it.description, it.category) },
+                AutomationCatalog.constraints
+                    .filter { sideload || !it.sideloadOnly }
+                    .map { PickerItem(it.type, it.title, it.description, it.category) },
             ) { type ->
                 val def = AutomationCatalog.constraint(type) ?: return@Pick
                 if (def.fields.isEmpty()) {
@@ -166,7 +173,7 @@ internal fun RuleEditor(
     modifier: Modifier = Modifier,
 ) {
     var rule by remember(initial.id) { mutableStateOf(initial) }
-    val sheets = remember { Sheets() }
+    val sheets = remember(state.sideload) { Sheets(state.sideload) }
     val problems = RuleValidator.problems(rule, state.sideload)
     val context = FieldContext(state.apps, state.rules, state.tools, rule.id, onLoadApps)
 

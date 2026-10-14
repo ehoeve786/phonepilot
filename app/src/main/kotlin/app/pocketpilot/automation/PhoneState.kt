@@ -62,6 +62,7 @@ class PhoneState(
             StateKeys.ACCESSIBILITY -> onOff(A11yBridge.connected.value)
             StateKeys.SERVER -> onOff(server().serverState.value is ServerState.Running)
             StateKeys.MUSIC -> onOff(audio.isMusicActive)
+            StateKeys.CALL -> callState()
             else -> null
         }
 
@@ -124,6 +125,14 @@ class PhoneState(
     fun dndOn(): Boolean =
         context.getSystemService(NotificationManager::class.java).currentInterruptionFilter.let {
             it != NotificationManager.INTERRUPTION_FILTER_ALL && it != NotificationManager.INTERRUPTION_FILTER_UNKNOWN
+        }
+
+    /** From the audio mode, which needs no phone permission and also counts calls in calling apps. */
+    private fun callState(): String =
+        when (audio.mode) {
+            AudioManager.MODE_RINGTONE -> "ringing"
+            AudioManager.MODE_IN_CALL, AudioManager.MODE_IN_COMMUNICATION, AudioManager.MODE_CALL_SCREENING -> "in_call"
+            else -> "idle"
         }
 
     fun headsetConnected(): Boolean = audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in HEADSET_TYPES }
