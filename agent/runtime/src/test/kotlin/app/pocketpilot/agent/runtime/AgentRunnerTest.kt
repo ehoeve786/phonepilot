@@ -463,6 +463,26 @@ class AgentRunnerTest {
         }
 
     @Test
+    fun `a finished chat turn keeps only its answer in the history`() =
+        runTest {
+            val provider = ScriptedProvider(callTool("ui_tap"), say("Tapped it"), say("You're welcome"))
+            val run =
+                runner().start(
+                    AgentTask("Tap the button", scopes, conversation = true),
+                    RunModel(provider, "fake-1"),
+                    AgentBudgets(),
+                    backgroundScope,
+                )
+            run.answered(1)
+            assertTrue(run.send("Thanks"))
+            run.answered(2)
+            val history = provider.requests.last().messages
+            assertEquals(listOf(Role.USER, Role.ASSISTANT, Role.USER), history.map(Message::role))
+            assertEquals("Tapped it", (history[1].parts.single() as Part.Text).text)
+            assertTrue(history.none { message -> message.parts.any { it is Part.ToolCall || it is Part.ToolResult } })
+        }
+
+    @Test
     fun `each chat turn gets the full step budget, and a turn that runs out leaves the chat open`() =
         runTest {
             val provider = ScriptedProvider(callTool("ui_tap"), callTool("ui_tap"))

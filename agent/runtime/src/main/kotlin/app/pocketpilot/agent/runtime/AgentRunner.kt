@@ -36,7 +36,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import java.util.Base64
 
@@ -140,6 +143,9 @@ class AgentRun internal constructor(
     /** The first step of the current turn; the step budget counts from here. */
     private var turnStart = 0
 
+    /** How many messages there were when the current turn started. */
+    private var turnMessages = 0
+
     /** The owner's chat messages, waiting for the current turn to end. */
     private val inbox = Channel<String>(Channel.UNLIMITED)
 
@@ -189,7 +195,12 @@ class AgentRun internal constructor(
             val (status, outcome) = turn()
             if (!task.conversation) return end(status, outcome)
             // A chat answers and waits; a turn that ran out or failed still leaves the chat open.
-            if (status == RunStatus.FINISHED) messages += Message(Role.ASSISTANT, listOf(Part.Text(outcome)))
+            if (status == RunStatus.FINISHED) {
+                // The turn's tool calls and screens are not worth resending with every later message:
+                // the answer stays, and the model reads the phone again when a new message needs it.
+                while (messages.size > turnMessages) messages.removeAt(messages.lastIndex)
+                messages += Message(Role.ASSISTANT, listOf(Part.Text(outcome)))
+            }
             val finished = status == RunStatus.FINISHED
             mutableState.update { s ->
                 s.copy(
@@ -225,6 +236,7 @@ class AgentRun internal constructor(
         activeMs = 0
         consecutiveErrors = 0
         turnStart = state.value.steps.size
+        turnMessages = messages.size
         while (true) {
             if (paused.value) awaitResume()
             outOfBudget()?.let { return RunStatus.OUT_OF_BUDGET to it }
@@ -337,6 +349,7 @@ class AgentRun internal constructor(
         name: String,
         argsJson: String,
     ): Pair<ToolResult, StepCall> {
+        if (tools.isLoadCall(name)) return loadTools(name, argsJson)
         val spec = tools.resolve(name)
         val args =
             try {
@@ -356,11 +369,26 @@ class AgentRun internal constructor(
 
                 else -> {
                     if (spec.touchesScreen()) beforeScreenWork()
+                    // A tool called straight from the catalog stays in the request from now on.
+                    tools.markUsed(spec)
                     dispatcher.dispatch(session, spec.name, args)
                 }
             }
         val summary = summary(result).take(SUMMARY_CHARS)
         return result to StepCall(spec?.name ?: name, argsJson, summary, result.isError)
+    }
+
+    private fun loadTools(
+        name: String,
+        argsJson: String,
+    ): Pair<ToolResult, StepCall> {
+        val names =
+            runCatching {
+                (Json.parseToJsonElement(argsJson.ifBlank { "{}" }).jsonObject["names"] as? JsonArray)
+                    ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+            }.getOrNull().orEmpty()
+        val result = ToolResult.success(tools.load(names))
+        return result to StepCall(AgentTools.LOAD_DOTTED, argsJson, summary(result).take(SUMMARY_CHARS), false)
     }
 
     private suspend fun call(
@@ -378,7 +406,7 @@ class AgentRun internal constructor(
             val request =
                 ModelRequest(
                     model = model.model,
-                    system = Prompts.system(model.toolMode, tools.defs, chat = task.conversation),
+                    system = Prompts.system(model.toolMode, tools.defs, chat = task.conversation, catalog = tools.catalog),
                     messages = ImageBudget.apply(TextBudget.apply(messages), if (model.vision) budgets.maxImagesPerRequest else 0),
                     tools = if (model.toolMode == ToolMode.NATIVE) tools.defs else emptyList(),
                     maxTokens = model.maxOutputTokens,

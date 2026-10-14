@@ -9,6 +9,8 @@ internal object Prompts {
         tools: List<ToolDef>,
         /** A chat with the owner rather than a one-shot task. */
         chat: Boolean = false,
+        /** Tools whose definitions are not sent until loaded, one per line; see [AgentTools.catalog]. */
+        catalog: String = "",
     ): String =
         buildString {
             appendLine(
@@ -38,6 +40,14 @@ internal object Prompts {
                     End each turn by replying to the owner in plain words. They may then send another message, which can refer to earlier ones.
                     """.trimIndent(),
                 )
+            }
+            if (catalog.isNotBlank()) {
+                appendLine()
+                appendLine(
+                    "More tools, with their arguments (a ? marks optional ones). Call one directly when you know " +
+                        "its arguments, or load their definitions first with ${AgentTools.LOAD}:",
+                )
+                appendLine(catalog)
             }
             if (toolMode == ToolMode.JSON_FALLBACK) {
                 appendLine()
