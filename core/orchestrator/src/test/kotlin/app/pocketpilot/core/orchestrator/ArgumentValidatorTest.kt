@@ -41,4 +41,26 @@ class ArgumentValidatorTest {
         assertEquals(sent, coerced)
         assertEquals("Argument 'append' must be boolean", ArgumentValidator.validate(schema, coerced))
     }
+
+    @Test
+    fun `JSON written as text becomes objects and arrays, inside items too`() {
+        val nested =
+            Json
+                .parseToJsonElement(
+                    """{"type":"object","properties":{"triggers":{"type":"array","items":{"type":"object",
+                    "properties":{"type":{"type":"string"},"params":{"type":"object","additionalProperties":{"type":"string"}}}}},
+                    "steps":{"type":"array","items":{"type":"object"}}}}""",
+                ).jsonObject
+        val sent =
+            Json
+                .parseToJsonElement(
+                    """{"triggers":[{"type":"time.daily","params":"{\"time\":\"07:00\"}"}],"steps":["{\"type\":\"notify.post\"}"]}""",
+                ).jsonObject
+        val expected =
+            Json
+                .parseToJsonElement(
+                    """{"triggers":[{"type":"time.daily","params":{"time":"07:00"}}],"steps":[{"type":"notify.post"}]}""",
+                ).jsonObject
+        assertEquals(expected, ArgumentValidator.coerce(nested, sent))
+    }
 }

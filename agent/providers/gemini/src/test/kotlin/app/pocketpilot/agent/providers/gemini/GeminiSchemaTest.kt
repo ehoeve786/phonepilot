@@ -52,4 +52,23 @@ class GeminiSchemaTest {
         val expected = """{"anyOf":[{"type":"string","nullable":true},{"enum":["auto"]},{"type":"integer"}]}"""
         assertEquals(Json.parseToJsonElement(expected), sanitized)
     }
+
+    @Test
+    fun `asks for free-form objects and untyped array items as JSON text`() {
+        val sanitized =
+            sanitize(
+                """{"type":"object","properties":{
+                "steps":{"type":"array","items":{"type":"object","properties":{"params":{"type":"object","additionalProperties":{"type":"string"}}}}},
+                "any":{"type":"array","items":{}},"bare":{"type":"array"}}}""",
+            )
+        val text = Json.parseToJsonElement("""{"type":"string","description":"A JSON value, written as text."}""")
+        assertEquals(
+            Json.parseToJsonElement(
+                """{"type":"object","properties":{
+                "steps":{"type":"array","items":{"type":"object","properties":{"params":{"type":"string","description":"A JSON object, written as text."}}}},
+                "any":{"type":"array","items":$text},"bare":{"type":"array","items":$text}}}""",
+            ),
+            sanitized,
+        )
+    }
 }

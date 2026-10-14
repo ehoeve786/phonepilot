@@ -212,8 +212,13 @@ class AutomationProposeTool(
                 "conditionMode: all|any|none|one, actions:[{type, params, conditions, actions (inside flow.if/repeat/while), " +
                 "elseActions, continueOnError}], runAs: direct|agent, agentPrompt}. Settings are strings; {trigger.<name>} " +
                 "and other variables are filled in when it runs. Returns the proposal id; read the outcome with automation.list.",
-            """{"type":"object","properties":{"name":{"type":"string"},"triggers":{"type":"array"},"conditions":{"type":"array"},
-            "conditionMode":{"type":"string","enum":["all","any","none","one"]},"actions":{"type":"array"},
+            """{"type":"object","properties":{"name":{"type":"string"},"triggers":{"type":"array","items":$TYPED_ITEM},
+            "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,
+            "actions":{"type":"array","items":{"type":"object","properties":{"type":{"type":"string"},"params":$PARAMS,
+            "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,
+            "actions":{"type":"array","items":{"type":"object"},"description":"Steps inside flow.if, repeat or while, shaped like this one."},
+            "elseActions":{"type":"array","items":{"type":"object"},"description":"Steps for the else branch of flow.if."},
+            "continueOnError":{"type":"boolean"}},"required":["type"]}},
             "runAs":{"type":"string","enum":["direct","agent"]},"agentPrompt":{"type":"string"}},
             "required":["name","triggers"],"additionalProperties":false}""",
             RiskTier.READ,
@@ -251,6 +256,14 @@ class AutomationProposeTool(
         )
     }
 }
+
+/** Settings of a trigger, condition or action, all strings. */
+private const val PARAMS = """{"type":"object","additionalProperties":{"type":"string"}}"""
+
+/** A trigger or condition: a catalog type and its settings. */
+private const val TYPED_ITEM = """{"type":"object","properties":{"type":{"type":"string"},"params":$PARAMS},"required":["type"]}"""
+
+private const val CONDITION_MODE = """{"type":"string","enum":["all","any","none","one"]}"""
 
 /** `automation.run`: runs a rule whose owner allowed AI apps to run it (its trigger "AI app asks"). */
 class AutomationRunTool(
