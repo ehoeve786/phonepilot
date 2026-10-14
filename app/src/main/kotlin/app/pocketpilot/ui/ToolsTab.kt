@@ -49,6 +49,7 @@ import app.pocketpilot.core.model.RiskTier
 import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.policy.ToolMode
 import app.pocketpilot.core.policy.ToolModes
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.designsystem.RiskTierTag
 import app.pocketpilot.designsystem.riskTierLabel
 import app.pocketpilot.core.designsystem.R as DsR
@@ -328,10 +329,9 @@ private fun ProtectedAppsCard(
     showAll: Boolean,
     onToggleShowAll: () -> Unit,
 ) {
-    Card(
+    LiquidGlassBentoCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        contentPadding = PaddingValues(0.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -363,10 +363,9 @@ internal fun ShellCard(
     enabled: Boolean,
     onChange: (Boolean) -> Unit,
 ) {
-    Card(
+    LiquidGlassBentoCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        contentPadding = PaddingValues(0.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

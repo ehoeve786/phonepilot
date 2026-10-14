@@ -9,6 +9,7 @@ android {
 dependencies {
     api(projects.core.automation)
     implementation(libs.androidx.activity.compose)
+    implementation(projects.core.designsystem)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui)
 }
