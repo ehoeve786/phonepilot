@@ -76,9 +76,14 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         run("monkey", "-p", packageName, "-c", "android.intent.category.LAUNCHER", "1")
     }
 
-    override fun openUrl(url: String) {
+    override fun openUrl(
+        url: String,
+        packageName: String,
+    ): String {
         require(url.startsWith("https://") || url.startsWith("http://")) { "Only http and https links can be opened" }
-        run("am", "start", "-a", "android.intent.action.VIEW", "-d", url)
+        if (packageName.isEmpty()) return run("am", "start", "-a", "android.intent.action.VIEW", "-d", url)
+        require(PACKAGE.matches(packageName)) { "Not a package name" }
+        return run("am", "start", "-a", "android.intent.action.VIEW", "-d", url, "-p", packageName)
     }
 
     override fun expandStatusBar(quickSettings: Boolean) {
@@ -279,7 +284,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
 
     companion object {
         /** The AIDL contract version; bump with every change to IPocketPilotPrivileged. */
-        const val VERSION = 6
+        const val VERSION = 7
 
         private const val UI_DUMP_PATH = "/data/local/tmp/pocketpilot-ui.xml"
         private const val COMMAND_TIMEOUT_S = 15L

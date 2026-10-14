@@ -1,5 +1,6 @@
 package app.pocketpilot.core.tools
 
+import app.pocketpilot.capability.api.apps.AppAdminArgs
 import app.pocketpilot.capability.api.apps.AppController
 import app.pocketpilot.capability.api.apps.AppInfo
 import app.pocketpilot.capability.api.screen.ScreenReader
@@ -168,10 +169,12 @@ class AppOpenUrlTool(
         ToolSpec(
             name = "app.open_url",
             title = "Open link",
-            description = "Opens an http or https link in the app that handles it, usually the browser.",
+            description =
+                "Opens an http or https link in the app that handles it, usually the default browser. Give package to " +
+                    "open it in a specific app, such as com.android.chrome when the owner asks for Chrome.",
             inputSchema =
                 schema(
-                    """{"type":"object","properties":{"url":{"type":"string"},$RETURN_SNAPSHOT},"required":["url"],
+                    """{"type":"object","properties":{"url":{"type":"string"},"package":{"type":"string"},$RETURN_SNAPSHOT},"required":["url"],
                     "additionalProperties":false}""",
                 ),
             riskTier = RiskTier.INTERACT,
@@ -188,9 +191,12 @@ class AppOpenUrlTool(
         val url = call.arguments.string("url") ?: invalid("url is required")
         val scheme = runCatching { URI(url).scheme?.lowercase() }.getOrNull()
         if (scheme != "http" && scheme != "https") invalid("Only http and https links can be opened")
-        apps.openUrl(url)
+        val pkg = call.arguments.string("package")?.takeIf { it.isNotBlank() }
+        if (pkg != null && !AppAdminArgs.PACKAGE.matches(pkg)) invalid("Not a package name: $pkg")
+        apps.openUrl(url, pkg)
         if (reader.available.value) reader.awaitChange(OPEN_WAIT_MS)
-        return afterAction(reader, "Opened $url.", call.arguments.boolean("returnSnapshot") ?: true)
+        val where = pkg?.let { " in $it" }.orEmpty()
+        return afterAction(reader, "Opened $url$where.", call.arguments.boolean("returnSnapshot") ?: true)
     }
 
     private companion object {

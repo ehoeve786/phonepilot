@@ -21,7 +21,10 @@ class ResolvingAppController(
 
     override suspend fun launch(packageName: String) = launcher().launch(packageName)
 
-    override suspend fun openUrl(url: String) = launcher().openUrl(url)
+    override suspend fun openUrl(
+        url: String,
+        packageName: String?,
+    ) = launcher().openUrl(url, packageName)
 
     private fun launcher(): AppController =
         if (!backgroundStartsAllowed.value && privileged?.available?.value == true) privileged else packageManager

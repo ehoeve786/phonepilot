@@ -26,7 +26,7 @@ interface IPocketPilotPrivileged {
     void launchPackage(String packageName) = 9;
 
     // http and https only.
-    void openUrl(String url) = 10;
+    String openUrl(String url, String packageName) = 10;
 
     void expandStatusBar(boolean quickSettings) = 11;
 
