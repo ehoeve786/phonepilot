@@ -6,8 +6,11 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
@@ -22,6 +25,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -234,6 +238,13 @@ fun HomeScreen(
         }
         Scaffold(
             modifier = Modifier.weight(1f),
+            // The chat pads itself for the keyboard. Scaffold must not add the keyboard height too, or the input floats above it.
+            contentWindowInsets =
+                if (destination == Destination.CHAT) {
+                    ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.ime)
+                } else {
+                    ScaffoldDefaults.contentWindowInsets
+                },
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text(stringResource(R.string.app_name)) },
