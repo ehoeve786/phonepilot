@@ -57,6 +57,12 @@ val McpAuth =
                 call.respondText("Unknown host", status = HttpStatusCode.Forbidden)
                 return@onCall
             }
+            // MCP clients and OAuth redirects send no Origin; a web page in the phone's browser does.
+            val origin = call.request.header(HttpHeaders.Origin)
+            if (origin != null && originHost(origin) != host) {
+                call.respondText("Cross-site requests are not allowed", status = HttpStatusCode.Forbidden)
+                return@onCall
+            }
             if (!call.request.path().startsWith(PROTECTED_RESOURCE_PATH)) return@onCall
 
             val address = call.clientAddress(config.remotePort)
@@ -112,6 +118,15 @@ internal fun ApplicationCall.clientAddress(remotePort: Int): String =
     } else {
         request.local.remoteAddress
     }
+
+/** The host of an Origin header, lowercased; null for "null" or anything unparsable. */
+internal fun originHost(origin: String): String? =
+    runCatching {
+        java.net
+            .URI(origin)
+            .host
+            ?.lowercase()
+    }.getOrNull()
 
 private val LOCAL_HOSTS = setOf("127.0.0.1", "localhost", "[::1]", "::1")
 private const val BEARER_PREFIX_LENGTH = 7

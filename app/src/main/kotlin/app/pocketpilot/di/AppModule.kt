@@ -13,9 +13,12 @@ import app.pocketpilot.capability.api.apps.AppController
 import app.pocketpilot.capability.api.screen.GlobalAction
 import app.pocketpilot.capability.api.screen.InputController
 import app.pocketpilot.capability.api.screen.ScreenCapturer
+import app.pocketpilot.capability.api.screen.ScreenPrivacy
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.apps.PackageAppController
 import app.pocketpilot.capability.device.AndroidDeviceInfoSource
+import app.pocketpilot.capability.files.SafFileStore
+import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.screencapture.BitmapImageEncoder
 import app.pocketpilot.capability.shizuku.ShizukuAppAdmin
 import app.pocketpilot.capability.shizuku.ShizukuAppController
@@ -25,6 +28,7 @@ import app.pocketpilot.capability.shizuku.ShizukuScreenCapturer
 import app.pocketpilot.capability.shizuku.ShizukuScreenReader
 import app.pocketpilot.capability.shizuku.ShizukuSettingsController
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
+import app.pocketpilot.capability.shizuku.ShizukuSystemReader
 import app.pocketpilot.control.ControlOverlay
 import app.pocketpilot.core.audit.AuditSink
 import app.pocketpilot.core.audit.InMemoryAuditSink
@@ -41,19 +45,32 @@ import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.orchestrator.SessionFactory
 import app.pocketpilot.core.orchestrator.ToolHandler
 import app.pocketpilot.core.orchestrator.ToolRegistry
+import app.pocketpilot.core.policy.AppMode
 import app.pocketpilot.core.policy.AppPolicy
 import app.pocketpilot.core.policy.PolicyEngine
+import app.pocketpilot.core.tools.AdbLogsTool
+import app.pocketpilot.core.tools.AdbQueryTool
+import app.pocketpilot.core.tools.AppActivitiesTool
 import app.pocketpilot.core.tools.AppClearDataTool
 import app.pocketpilot.core.tools.AppCurrentTool
 import app.pocketpilot.core.tools.AppLaunchTool
 import app.pocketpilot.core.tools.AppListTool
 import app.pocketpilot.core.tools.AppOpenUrlTool
 import app.pocketpilot.core.tools.AppPermissionsTool
+import app.pocketpilot.core.tools.AppSendBroadcastTool
 import app.pocketpilot.core.tools.AppSetAppOpTool
+import app.pocketpilot.core.tools.AppSetBatteryOptimizationTool
 import app.pocketpilot.core.tools.AppSetEnabledTool
 import app.pocketpilot.core.tools.AppSetPermissionTool
+import app.pocketpilot.core.tools.AppSetStandbyBucketTool
+import app.pocketpilot.core.tools.AppStartActivityTool
 import app.pocketpilot.core.tools.AppStopTool
 import app.pocketpilot.core.tools.DeviceInfoTool
+import app.pocketpilot.core.tools.FilesListTool
+import app.pocketpilot.core.tools.FilesReadTool
+import app.pocketpilot.core.tools.FilesWriteTool
+import app.pocketpilot.core.tools.NotifyActTool
+import app.pocketpilot.core.tools.NotifyListTool
 import app.pocketpilot.core.tools.ScreenCaptureTool
 import app.pocketpilot.core.tools.ScreenFindTool
 import app.pocketpilot.core.tools.ScreenSnapshotTool
@@ -73,6 +90,7 @@ import app.pocketpilot.network.api.SecretStore
 import app.pocketpilot.network.certificates.CertificateManager
 import app.pocketpilot.network.tailscale.TailscaleProvider
 import app.pocketpilot.network.wireguard.WireGuardProvider
+import app.pocketpilot.onboarding.OnboardingStore
 import app.pocketpilot.security.BiometricGate
 import app.pocketpilot.security.KeystoreSecretStore
 import app.pocketpilot.security.ShellSwitch
@@ -116,9 +134,31 @@ object AppModule {
     @Singleton
     fun appScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /**
+     * Keeps apps on the deny list out of every snapshot and screenshot, including a banking app in split
+     * screen and its notifications in the shade.
+     */
     @Provides
     @Singleton
-    fun a11yScreenReader(): A11yScreenReader = A11yScreenReader()
+    fun screenPrivacy(appPolicy: AppPolicy): ScreenPrivacy =
+        object : ScreenPrivacy {
+            override fun hidesPackage(packageName: String) = appPolicy.modeFor(packageName) == AppMode.DENY
+
+            override suspend fun hiddenTexts(): Set<String> =
+                if (!ListenerNotificationSource.available.value) {
+                    emptySet()
+                } else {
+                    ListenerNotificationSource
+                        .active()
+                        .filter { hidesPackage(it.packageName) }
+                        .flatMap { listOfNotNull(it.title, it.text) }
+                        .toSet()
+                }
+        }
+
+    @Provides
+    @Singleton
+    fun a11yScreenReader(privacy: ScreenPrivacy): A11yScreenReader = A11yScreenReader(privacy)
 
     @Provides
     @Singleton
@@ -145,7 +185,8 @@ object AppModule {
     fun shizukuScreenReader(
         shizuku: ShizukuConnection,
         scope: CoroutineScope,
-    ): ShizukuScreenReader = ShizukuScreenReader(shizuku, scope)
+        privacy: ScreenPrivacy,
+    ): ShizukuScreenReader = ShizukuScreenReader(shizuku, scope, privacy)
 
     @Provides
     @Singleton
@@ -192,6 +233,13 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun shizukuSystemReader(
+        shizuku: ShizukuConnection,
+        scope: CoroutineScope,
+    ): ShizukuSystemReader = ShizukuSystemReader(shizuku, scope)
+
+    @Provides
+    @Singleton
     fun shellSwitch(
         @ApplicationContext context: Context,
     ): ShellSwitch = ShellSwitch(context)
@@ -203,13 +251,15 @@ object AppModule {
     ): BiometricGate = BiometricGate(context)
 
     /**
-     * Permissions, app ops and package state through fixed Shizuku commands, plus the raw shell, which
-     * stays off until the owner turns it on and asks before every command.
+     * Permissions, app ops, package state, intents and read-only adb commands through fixed Shizuku
+     * commands, plus the raw shell, which stays off until the owner turns it on and asks once per command.
      */
     @Provides
     @ElementsIntoSet
     fun appAdminAndShellTools(
         admin: ShizukuAppAdmin,
+        system: ShizukuSystemReader,
+        reader: ScreenReader,
         shell: ShizukuShellRunner,
         shellSwitch: ShellSwitch,
     ): Set<ToolHandler> =
@@ -220,6 +270,13 @@ object AppModule {
             AppSetAppOpTool(admin),
             AppSetEnabledTool(admin),
             AppClearDataTool(admin),
+            AppSetBatteryOptimizationTool(admin),
+            AppSetStandbyBucketTool(admin),
+            AppActivitiesTool(admin),
+            AppStartActivityTool(admin, reader),
+            AppSendBroadcastTool(admin),
+            AdbQueryTool(system),
+            AdbLogsTool(system),
             ShellExecTool(shell) { shellSwitch.enabled.value },
         )
 
@@ -284,6 +341,7 @@ object AppModule {
         shizukuApps: ShizukuAppController,
         shizukuSettings: ShizukuSettingsController,
         shizukuShell: ShizukuShellRunner,
+        sharedFolders: SafFileStore,
         scope: CoroutineScope,
     ): CapabilityGraph =
         CapabilityGraph(
@@ -294,6 +352,8 @@ object AppModule {
                 CapabilityId.LAUNCH_APPS to listOf(packageManager, shizukuApps),
                 CapabilityId.WRITE_SETTINGS to listOf(shizukuSettings),
                 CapabilityId.RUN_SHELL to listOf(shizukuShell),
+                CapabilityId.READ_NOTIFICATIONS to listOf(ListenerNotificationSource),
+                CapabilityId.READ_FILES to listOf(sharedFolders),
             ),
             scope,
         )
@@ -353,6 +413,36 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun appPolicy(
+        @ApplicationContext context: Context,
+    ): AppPolicy = AppPolicy(ownPackages = setOf(context.packageName))
+
+    /** Notifications from apps PocketPilot keeps away from, such as banks and authenticators, never leave the phone. */
+    @Provides
+    @ElementsIntoSet
+    fun notifyTools(appPolicy: AppPolicy): Set<ToolHandler> {
+        val hidden = { pkg: String -> appPolicy.modeFor(pkg) == AppMode.DENY }
+        return setOf(NotifyListTool(ListenerNotificationSource, hidden), NotifyActTool(ListenerNotificationSource, hidden))
+    }
+
+    @Provides
+    @Singleton
+    fun onboardingStore(
+        @ApplicationContext context: Context,
+    ): OnboardingStore = OnboardingStore(context)
+
+    @Provides
+    @Singleton
+    fun sharedFolders(
+        @ApplicationContext context: Context,
+    ): SafFileStore = SafFileStore(context)
+
+    @Provides
+    @ElementsIntoSet
+    fun fileTools(files: SafFileStore): Set<ToolHandler> = setOf(FilesListTool(files), FilesReadTool(files), FilesWriteTool(files))
+
+    @Provides
+    @Singleton
     fun controlOverlay(
         @ApplicationContext context: Context,
         scope: CoroutineScope,
@@ -362,7 +452,7 @@ object AppModule {
     @Provides
     @Singleton
     fun policyEngine(
-        @ApplicationContext context: Context,
+        appPolicy: AppPolicy,
         reader: ScreenReader,
         shizukuReader: ShizukuScreenReader,
         input: InputController,
@@ -370,7 +460,7 @@ object AppModule {
         overlay: ControlOverlay,
     ): PolicyEngine =
         PolicyEngine(
-            appPolicy = AppPolicy(ownPackages = setOf(context.packageName)),
+            appPolicy = appPolicy,
             // Accessibility can miss a window it may not read (a bank's secure dialog); the activity manager does not.
             foreground = {
                 runCatching { reader.foreground()?.packageName }.getOrNull()

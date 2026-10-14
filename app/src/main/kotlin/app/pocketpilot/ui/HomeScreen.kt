@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -36,11 +37,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.R
+import app.pocketpilot.capability.files.SharedFolder
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.capabilities.CapabilityStatus
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.feature.clients.ClientRow
 import app.pocketpilot.feature.clients.ClientsCard
+import app.pocketpilot.feature.onboarding.SetupStep
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.PublicAccessState
 import app.pocketpilot.server.http.ServerState
@@ -94,10 +97,19 @@ fun HomeScreen(
     /** True after the owner pressed Stop on the "controlling this phone" pill. */
     clientsStopped: Boolean = false,
     onAllowClients: () -> Unit = {},
+    onAllowNotifications: () -> Unit = {},
+    /** Opens on the Settings tab, for setup's remote access step. */
+    startOnSettings: Boolean = false,
+    /** The setup steps, which Doctor re-checks with a fix for each. */
+    setupSteps: List<SetupStep> = emptyList(),
+    onOpenSetup: () -> Unit = {},
+    sharedFolders: List<SharedFolder> = emptyList(),
+    onAddFolder: () -> Unit = {},
+    onRemoveFolder: (SharedFolder) -> Unit = {},
     biometricApprovals: Boolean = true,
     onBiometricChange: (Boolean) -> Unit = {},
 ) {
-    var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
+    var tab by rememberSaveable { mutableStateOf(if (startOnSettings) Tab.SETTINGS else Tab.HOME) }
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
@@ -132,7 +144,8 @@ fun HomeScreen(
                     crashReport?.let { CrashCard(it, onDismissCrash) }
                     if (clientsStopped) StoppedCard(onAllowClients)
                     ServerCard(serverState, onStart, onStop)
-                    DoctorCard(capabilities, shizukuState, onGrantShizuku)
+                    DoctorCard(capabilities, shizukuState, onGrantShizuku, onAllowNotifications, setupSteps)
+                    TextButton(onClick = onOpenSetup) { Text(stringResource(R.string.home_setup_guide)) }
                     ConnectCard(serverState, token)
                 }
 
@@ -157,6 +170,7 @@ fun HomeScreen(
                     ownNetworkCard()
                     ClientsCard(clients, onRevokeClient, onKillSwitch)
                     TokenCard(token, onRotateToken)
+                    FoldersCard(sharedFolders, onAddFolder, onRemoveFolder)
                     BiometricCard(biometricApprovals, onBiometricChange)
                     if (policyProfile != PolicyProfile.PLAY) ShellCard(shellEnabled, onShellChange)
                 }
@@ -257,6 +271,28 @@ private fun AccessibilityCard(
 }
 
 @Composable
+private fun FoldersCard(
+    folders: List<SharedFolder>,
+    onAdd: () -> Unit,
+    onRemove: (SharedFolder) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.folders_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.folders_explainer), style = MaterialTheme.typography.bodySmall)
+            if (folders.isEmpty()) Text(stringResource(R.string.folders_none), style = MaterialTheme.typography.bodySmall)
+            folders.forEach { folder ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(folder.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { onRemove(folder) }) { Text(stringResource(R.string.folders_remove)) }
+                }
+            }
+            Button(onClick = onAdd) { Text(stringResource(R.string.folders_add)) }
+        }
+    }
+}
+
+@Composable
 private fun BiometricCard(
     enabled: Boolean,
     onChange: (Boolean) -> Unit,
@@ -309,7 +345,7 @@ private fun TokenCard(
     onRotateToken: () -> Unit,
 ) {
     var visible by rememberSaveable { mutableStateOf(false) }
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.token_title), style = MaterialTheme.typography.titleMedium)
@@ -322,7 +358,7 @@ private fun TokenCard(
                 TextButton(onClick = { visible = !visible }) {
                     Text(stringResource(if (visible) R.string.token_hide else R.string.token_show))
                 }
-                TextButton(onClick = { clipboard.setText(AnnotatedString(token)) }) { Text(stringResource(R.string.token_copy)) }
+                TextButton(onClick = { copySecret(context, token) }) { Text(stringResource(R.string.token_copy)) }
                 TextButton(onClick = onRotateToken) { Text(stringResource(R.string.token_rotate)) }
             }
         }
@@ -334,7 +370,7 @@ private fun ConnectCard(
     state: ServerState,
     token: String,
 ) {
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     val url = (state as? ServerState.Running)?.url ?: "http://127.0.0.1:8765/mcp"
     val command = claudeCodeCommand(url, token)
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -346,7 +382,7 @@ private fun ConnectCard(
                 fontFamily = FontFamily.Monospace,
                 style = MaterialTheme.typography.bodySmall,
             )
-            TextButton(onClick = { clipboard.setText(AnnotatedString(command)) }) { Text(stringResource(R.string.connect_copy)) }
+            TextButton(onClick = { copySecret(context, command) }) { Text(stringResource(R.string.connect_copy)) }
         }
     }
 }

@@ -62,7 +62,7 @@ class AuthorizationServerTest {
         val tokens = exchange(client.id, authorize(client.id, setOf(Scope.SCREEN_READ, Scope.UI_INTERACT)))
         val grant = assertNotNull(server.authenticate(tokens.accessToken))
         assertEquals(setOf(Scope.SCREEN_READ, Scope.UI_INTERACT), grant.scopes)
-        assertEquals("Claude", grant.clientName)
+        assertEquals("Claude (claude.ai)", grant.clientName)
         assertEquals("screen:read ui:interact", tokens.scope)
     }
 
@@ -133,6 +133,60 @@ class AuthorizationServerTest {
         val status = assertIs<AuthorizationStatus.Redirect>(server.authorizationStatus(id))
         assertTrue("error=access_denied" in status.url, status.url)
         assertTrue(server.pending.value.isEmpty())
+    }
+
+    private fun begin(clientId: String) =
+        server.beginAuthorization(
+            mapOf(
+                "response_type" to "code",
+                "client_id" to clientId,
+                "redirect_uri" to redirect,
+                "code_challenge" to challenge(),
+                "code_challenge_method" to "S256",
+            ),
+        )
+
+    @Test
+    fun `a client has one prompt at a time and few can wait at once`() {
+        val claude = server.register("Claude", listOf(redirect))
+        val first = begin(claude.id)
+        begin(claude.id)
+        assertEquals(1, server.pending.value.size)
+        assertIs<AuthorizationStatus.Redirect>(server.authorizationStatus(first))
+        begin(server.register("b", listOf(redirect)).id)
+        begin(server.register("c", listOf(redirect)).id)
+        val refused = assertFailsWith<OAuthException> { begin(server.register("d", listOf(redirect)).id) }
+        assertEquals(429, refused.status)
+    }
+
+    @Test
+    fun `client names are one clean line and confirmations name the sign-in host`() {
+        val client = server.register("Claude\nApproved by Erik\u202e", listOf("https://claude.ai.evil.example/cb"))
+        assertEquals("Claude Approved by Erik", client.name)
+        val code =
+            server
+                .beginAuthorization(
+                    mapOf(
+                        "response_type" to "code",
+                        "client_id" to client.id,
+                        "code_challenge" to challenge(),
+                        "code_challenge_method" to "S256",
+                    ),
+                ).let { id ->
+                    server.approve(id, setOf(Scope.SCREEN_READ))
+                    assertIs<AuthorizationStatus.Redirect>(server.authorizationStatus(id)).url.substringAfter("code=").substringBefore('&')
+                }
+        val tokens =
+            server.token(
+                mapOf(
+                    "grant_type" to "authorization_code",
+                    "code" to code,
+                    "client_id" to client.id,
+                    "redirect_uri" to "https://claude.ai.evil.example/cb",
+                    "code_verifier" to verifier,
+                ),
+            )
+        assertEquals("Claude Approved by Erik (claude.ai.evil.example)", server.authenticate(tokens.accessToken)?.clientName)
     }
 
     @Test

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feature_onboarding_progress">Step %1$d of %2$d</string>
+    <string name="feature_onboarding_done">Done</string>
+    <string name="feature_onboarding_not_yet">Not done yet</string>
+    <string name="feature_onboarding_optional">Optional</string>
+    <string name="feature_onboarding_back">Back</string>
+    <string name="feature_onboarding_next">Next</string>
+    <string name="feature_onboarding_skip">Skip for now</string>
+    <string name="feature_onboarding_finish">Finish</string>
+    <string name="feature_onboarding_leave">Finish later</string>
+</resources>

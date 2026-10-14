@@ -2,6 +2,7 @@ package app.pocketpilot.capability.api.screen
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 /**
  * What is on screen, as a flat list of elements with parent links (spec section 6, Snapshot format).
@@ -16,6 +17,8 @@ data class Snapshot(
     val elements: List<Element>,
     /** True when the element limit cut the list short. */
     val truncated: Boolean = false,
+    /** Where [ScreenPrivacy] removed something; screenshots black these areas out. Never sent. */
+    @Transient val hidden: List<Bounds> = emptyList(),
 ) {
     fun element(id: String): Element? = elements.firstOrNull { it.id == id }
 }
@@ -114,6 +117,11 @@ data class Element(
 data class SnapshotOptions(
     val maxElements: Int = DEFAULT_MAX_ELEMENTS,
     val includeInvisible: Boolean = false,
+    /**
+     * Keeps the status bar, navigation bar and taskbar windows, which are left out by default to save
+     * tokens; the time, battery and notifications are also in device.info and notify.list.
+     */
+    val includeSystemBars: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_MAX_ELEMENTS = 300

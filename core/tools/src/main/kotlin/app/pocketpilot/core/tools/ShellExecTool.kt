@@ -21,7 +21,7 @@ import kotlinx.serialization.json.JsonObject
 
 /**
  * `shell.exec` (spec section 5): one command as the adb shell user. Off until the owner turns it on
- * ([enabled]), confirmed on every call with the exact command, and left out of the Play build.
+ * ([enabled]), confirmed once per session for each exact command, and left out of the Play build.
  */
 class ShellExecTool(
     private val shell: ShellRunner,
@@ -33,15 +33,17 @@ class ShellExecTool(
             title = "Run shell command",
             description =
                 "Runs one command with sh -c as the adb shell user (through Shizuku), for what no other tool covers: " +
-                    "cmd, dumpsys, pm, appops, settings, am and so on. The owner approves every command. Prefer the " +
-                    "dedicated tools (settings.set, app.set_permission, app.set_appop) when they fit.",
+                    "cmd, pm, appops, settings put, am and so on, including commands that change the phone. The owner approves " +
+                    "each new command once; the exact same command then runs again without asking. Prefer adb.query for " +
+                    "reading and the dedicated tools (settings.set, app.set_permission, app.set_appop) when they fit.",
             inputSchema =
                 schema(
                     """{"type":"object","properties":{"command":{"type":"string"},"timeoutMs":{"type":"integer",
                     "minimum":1000,"maximum":120000,"description":"Default 30000"}},"required":["command"],
                     "additionalProperties":false}""",
                 ),
-            riskTier = RiskTier.DESTRUCTIVE,
+            // Sensitive rather than destructive: the owner chose to approve each exact command once per session.
+            riskTier = RiskTier.SENSITIVE,
             requiredScopes = setOf(Scope.SHELL_EXEC),
             requiredCapabilities = setOf(CapabilityId.RUN_SHELL),
             annotations = ToolAnnotations(destructive = true, openWorld = true),
@@ -50,7 +52,7 @@ class ShellExecTool(
 
     override val timeoutMs: Long = MAX_TIMEOUT_MS + 5_000
 
-    override fun confirmationDetail(call: ToolCall): String? = call.arguments.string("command")
+    override suspend fun confirmationDetail(call: ToolCall): String? = call.arguments.string("command")
 
     override suspend fun execute(
         call: ToolCall,

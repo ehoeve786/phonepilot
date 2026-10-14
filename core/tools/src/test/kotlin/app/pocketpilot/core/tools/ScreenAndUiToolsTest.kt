@@ -77,19 +77,19 @@ class ScreenAndUiToolsTest {
     }
 
     @Test
-    fun `snapshot is compact JSON without nulls`() =
+    fun `snapshot is compact text, one indented line per element`() =
         runTest {
             val text = call("screen.snapshot").text()
-            assertTrue(text.startsWith("""{"snapshotId":"s1","package":"com.android.settings""""), text)
+            assertTrue(text.startsWith("snapshot s1 com.android.settings "), text)
             assertFalse(text.contains("null"))
-            assertTrue(text.contains(""""bounds":[40,210,400,260]"""))
+            assertTrue(Regex("""(?m)^ +e3 text "Display" .*\[40,210,400,260]""").containsMatchIn(text), text)
         }
 
     @Test
     fun `find matches text and resource ID suffix`() =
         runTest {
-            assertTrue(call("screen.find", """{"text":"display"}""").text().contains(""""id":"e3""""))
-            assertTrue(call("screen.find", """{"resourceId":"title"}""").text().contains(""""id":"e3""""))
+            assertTrue(call("screen.find", """{"text":"display"}""").text().contains("\ne3 "))
+            assertTrue(call("screen.find", """{"resourceId":"title"}""").text().contains("\ne3 "))
             assertEquals(ToolErrorCode.ELEMENT_NOT_FOUND, call("screen.find", """{"text":"Wi-Fi"}""").errorCode)
             assertEquals(ToolErrorCode.INVALID_ARGUMENTS, call("screen.find").errorCode)
         }
@@ -110,7 +110,7 @@ class ScreenAndUiToolsTest {
                                 clickable = true,
                             ),
                 )
-            assertTrue(call("screen.find", """{"text":"Do Not Disturb","role":"button"}""").text().contains(""""id":"e9""""))
+            assertTrue(call("screen.find", """{"text":"Do Not Disturb","role":"button"}""").text().contains("\ne9 "))
         }
 
     @Test
@@ -159,7 +159,7 @@ class ScreenAndUiToolsTest {
             val result = call("screen.find", """{"text":"display","role":"checkbox"}""")
             assertFalse(result.isError)
             assertTrue(result.text().startsWith("No element with role checkbox matched"), result.text())
-            assertTrue(result.text().contains(""""id":"e3""""))
+            assertTrue(result.text().contains("\ne3 "))
         }
 
     @Test

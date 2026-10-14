@@ -17,6 +17,8 @@ import app.pocketpilot.capability.api.BackendIds
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.capabilities.CapabilityStatus
 import app.pocketpilot.core.model.CapabilityId
+import app.pocketpilot.feature.onboarding.SetupChecklist
+import app.pocketpilot.feature.onboarding.SetupStep
 
 /**
  * Doctor v1: which backend serves each capability right now, and what Shizuku needs. A capability
@@ -27,10 +29,15 @@ internal fun DoctorCard(
     capabilities: List<CapabilityStatus>,
     shizukuState: ShizukuState,
     onGrantShizuku: () -> Unit,
+    /** Allows PocketPilot's notification listener, through Shizuku when it is connected. */
+    onAllowNotifications: () -> Unit = {},
+    /** Every setup step, re-checked with its one-tap fix. */
+    setupSteps: List<SetupStep> = emptyList(),
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.doctor_title), style = MaterialTheme.typography.titleMedium)
+            SetupChecklist(setupSteps)
             capabilities.forEach { status ->
                 Column {
                     Text(capabilityLabel(status.capability), style = MaterialTheme.typography.bodyMedium)
@@ -46,6 +53,9 @@ internal fun DoctorCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                         )
+                    }
+                    if (status.active == null && status.capability == CapabilityId.READ_NOTIFICATIONS) {
+                        Button(onClick = onAllowNotifications) { Text(stringResource(R.string.doctor_allow_notifications)) }
                     }
                 }
             }
@@ -79,6 +89,8 @@ private fun capabilityLabel(id: CapabilityId): String =
             CapabilityId.LAUNCH_APPS -> R.string.capability_launch_apps
             CapabilityId.WRITE_SETTINGS -> R.string.capability_write_settings
             CapabilityId.RUN_SHELL -> R.string.capability_run_shell
+            CapabilityId.READ_NOTIFICATIONS -> R.string.capability_read_notifications
+            CapabilityId.READ_FILES -> R.string.capability_read_files
             else -> R.string.capability_other
         },
     )
@@ -89,5 +101,7 @@ private fun backendLabel(id: String): String =
         BackendIds.ACCESSIBILITY -> stringResource(R.string.backend_accessibility)
         BackendIds.SHIZUKU -> stringResource(R.string.backend_shizuku)
         BackendIds.PACKAGE_MANAGER -> stringResource(R.string.backend_package_manager)
+        BackendIds.NOTIFICATION_LISTENER -> stringResource(R.string.backend_notification_listener)
+        BackendIds.SHARED_FOLDERS -> stringResource(R.string.backend_shared_folders)
         else -> id
     }

@@ -25,4 +25,6 @@ data class RawNode(
     val password: Boolean = false,
     /** Set on window roots: the window's title, when it has one. */
     val windowTitle: String? = null,
+    /** The app that drew the node, when the backend knows it. */
+    val packageName: String? = null,
 )

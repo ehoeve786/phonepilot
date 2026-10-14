@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- The fingerprint, face or screen lock check before approvals. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Cleartext is allowed for Agent mode's local model servers (Ollama on the home network);
          every hosted provider and remote access path uses HTTPS. -->
@@ -43,6 +44,16 @@
         <receiver
             android:name=".control.ControlStopReceiver"
             android:exported="false" />
+
+        <!-- Only the system sends these protected broadcasts. -->
+        <receiver
+            android:name=".server.StartupReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".server.PocketPilotService"

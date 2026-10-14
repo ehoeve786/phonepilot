@@ -17,6 +17,55 @@ class SnapshotBuilderTest {
     ) = SnapshotBuilder.build("s1", "com.android.settings", screen, nodes, options)
 
     @Test
+    fun `status and navigation bars are left out unless asked for, heads-up notifications stay`() {
+        val nodes =
+            listOf(
+                RawNode(parent = null, bounds = Bounds(0, 0, 1080, 94), windowTitle = "status", packageName = "com.android.systemui"),
+                RawNode(parent = null, bounds = Bounds(0, 0, 1080, 300), windowTitle = "heads-up", packageName = "com.android.systemui"),
+                RawNode(parent = null, bounds = Bounds(0, 2293, 1080, 2400), windowTitle = "nav", packageName = "com.android.systemui"),
+                RawNode(parent = null, bounds = full, windowTitle = "Settings", packageName = "com.android.settings"),
+            )
+        val titles = { options: SnapshotOptions -> build(nodes, options).snapshot.elements.mapNotNull(Element::text) }
+        assertEquals(listOf("heads-up", "Settings"), titles(SnapshotOptions()))
+        assertEquals(listOf("status", "heads-up", "nav", "Settings"), titles(SnapshotOptions(includeSystemBars = true)))
+    }
+
+    @Test
+    fun `private apps and their notification text are left out and their areas reported`() {
+        val bankPane = Bounds(0, 1200, 1080, 2400)
+        val row = Bounds(0, 100, 1080, 200)
+        val nodes =
+            listOf(
+                RawNode(
+                    parent = null,
+                    bounds = Bounds(0, 0, 1080, 1200),
+                    windowTitle = "Notification shade",
+                    packageName = "com.android.systemui",
+                ),
+                RawNode(parent = 0, className = "android.widget.TextView", text = "Your code is 123456", bounds = row),
+                RawNode(parent = 0, className = "android.widget.TextView", text = "Lunch at noon?", bounds = Bounds(0, 200, 1080, 300)),
+                RawNode(parent = null, bounds = bankPane, windowTitle = "TD", packageName = "com.td"),
+                RawNode(parent = 3, className = "android.widget.TextView", text = "Balance", bounds = bankPane, packageName = "com.td"),
+            )
+        val snapshot =
+            SnapshotBuilder
+                .build(
+                    "s1",
+                    "com.android.systemui",
+                    screen,
+                    nodes,
+                    hidePackage = { it == "com.td" },
+                    hiddenTexts = setOf("Your code is 123456"),
+                ).snapshot
+        val texts = snapshot.elements.mapNotNull(Element::text)
+        assertTrue("Lunch at noon?" in texts)
+        assertFalse(texts.any { "123456" in it || it == "Balance" || it == "TD" }, texts.toString())
+        assertEquals(listOf(row, bankPane), snapshot.hidden)
+        val json = Json.encodeToString(Snapshot.serializer(), snapshot)
+        assertFalse(json.contains("hidden"), json)
+    }
+
+    @Test
     fun `a settings row keeps its clickable container and texts and drops layout wrappers`() {
         val nodes =
             listOf(

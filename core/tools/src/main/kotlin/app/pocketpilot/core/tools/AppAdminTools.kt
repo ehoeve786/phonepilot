@@ -16,9 +16,9 @@ import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.orchestrator.ToolHandler
 import kotlinx.serialization.json.JsonObject
 
-private const val PACKAGE_PROP = """"package":{"type":"string","description":"Package name, for example com.example.app"}"""
+internal const val PACKAGE_PROP = """"package":{"type":"string","description":"Package name, for example com.example.app"}"""
 
-private fun adminSpec(
+internal fun adminSpec(
     name: String,
     title: String,
     description: String,
@@ -38,7 +38,10 @@ private fun adminSpec(
     availability = Availability(Phase.P0),
 )
 
-private fun JsonObject.packageName(): String {
+/** The app a call changes, so policy refuses apps on the deny list, such as banking and authenticator apps. */
+private fun ToolCall.changedPackage(): String? = arguments.string("package")
+
+internal fun JsonObject.packageName(): String {
     val name = string("package") ?: invalid("Give package, for example com.example.app")
     if (!AppAdminArgs.PACKAGE.matches(name)) invalid("Not a package name: $name")
     return name
@@ -57,6 +60,8 @@ class AppStopTool(
             "\"package\"",
             RiskTier.SENSITIVE,
         )
+
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
 
     override suspend fun execute(
         call: ToolCall,
@@ -99,13 +104,15 @@ class AppSetPermissionTool(
             "app.set_permission",
             "Grant or revoke permission",
             "Grants or revokes a runtime permission (pm grant/revoke), for example android.permission.CAMERA. " +
-                "Only runtime permissions listed by app.permissions can change.",
+                "Only runtime permissions the app requests, as listed by app.permissions, can change.",
             """$PACKAGE_PROP,"permission":{"type":"string"},"granted":{"type":"boolean"}""",
             "\"package\",\"permission\",\"granted\"",
             RiskTier.SENSITIVE,
         )
 
-    override fun confirmationDetail(call: ToolCall): String =
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
+
+    override suspend fun confirmationDetail(call: ToolCall): String =
         "${if (call.arguments.boolean("granted") == true) "Grant" else "Revoke"} ${call.arguments.string("permission")} " +
             "for ${call.arguments.string("package")}"
 
@@ -115,8 +122,9 @@ class AppSetPermissionTool(
     ): ToolResult {
         val pkg = call.arguments.packageName()
         val permission = call.arguments.string("permission") ?: invalid("Give permission")
-        if (!AppAdminArgs.PERMISSION.matches(permission)) invalid("Not a permission name: $permission")
+        if (permission !in AppAdminArgs.RUNTIME_PERMISSIONS) invalid("$permission is not a runtime permission; only those can change")
         val granted = call.arguments.boolean("granted") ?: invalid("Give granted: true or false")
+        if (permission !in admin.permissions(pkg).runtime) invalid("$pkg does not request $permission")
         admin.setPermission(pkg, permission, granted)
         return ToolResult.success("${if (granted) "Granted" else "Revoked"} $permission for $pkg.")
     }
@@ -131,7 +139,7 @@ class AppSetAppOpTool(
             "app.set_appop",
             "Set app op",
             "Sets an app op (appops set), for example RUN_IN_BACKGROUND to ignore to stop background running, " +
-                "or SYSTEM_ALERT_WINDOW to allow. Modes: ${AppAdminArgs.MODES.joinToString()}.",
+                "or CAMERA to allow. Ops such as SYSTEM_ALERT_WINDOW or PROJECT_MEDIA can only be restricted. Modes: ${AppAdminArgs.MODES.joinToString()}.",
             """$PACKAGE_PROP,"op":{"type":"string"},"mode":{"type":"string","enum":[${AppAdminArgs.MODES.joinToString(
                 ",",
             ) { "\"$it\"" }}]}""",
@@ -139,7 +147,9 @@ class AppSetAppOpTool(
             RiskTier.SENSITIVE,
         )
 
-    override fun confirmationDetail(call: ToolCall): String =
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
+
+    override suspend fun confirmationDetail(call: ToolCall): String =
         "Set ${call.arguments.string("op")} to ${call.arguments.string("mode")} for ${call.arguments.string("package")}"
 
     override suspend fun execute(
@@ -148,8 +158,8 @@ class AppSetAppOpTool(
     ): ToolResult {
         val pkg = call.arguments.packageName()
         val op = call.arguments.string("op") ?: invalid("Give op")
-        if (!AppAdminArgs.OP.matches(op)) invalid("Not an app op name: $op")
         val mode = call.arguments.string("mode") ?: invalid("Give mode")
+        runCatching { AppAdminArgs.checkOpChange(op, mode) }.onFailure { invalid(it.message ?: "Not allowed: $op $mode") }
         admin.setAppOp(pkg, op, mode)
         return ToolResult.success("Set $op to $mode for $pkg.")
     }
@@ -169,7 +179,9 @@ class AppSetEnabledTool(
             RiskTier.DESTRUCTIVE,
         )
 
-    override fun confirmationDetail(call: ToolCall): String =
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
+
+    override suspend fun confirmationDetail(call: ToolCall): String =
         "${if (call.arguments.boolean("enabled") == true) "Enable" else "Disable"} ${call.arguments.string("package")}"
 
     override suspend fun execute(
@@ -197,7 +209,9 @@ class AppClearDataTool(
             RiskTier.DESTRUCTIVE,
         )
 
-    override fun confirmationDetail(call: ToolCall): String = "Delete all data of ${call.arguments.string("package")}"
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
+
+    override suspend fun confirmationDetail(call: ToolCall): String = "Delete all data of ${call.arguments.string("package")}"
 
     override suspend fun execute(
         call: ToolCall,
@@ -206,5 +220,75 @@ class AppClearDataTool(
         val pkg = call.arguments.packageName()
         admin.clearData(pkg)
         return ToolResult.success("Cleared all data of $pkg.")
+    }
+}
+
+/** `app.set_battery_optimization`: lets an app run in Doze, or optimizes it again. */
+class AppSetBatteryOptimizationTool(
+    private val admin: AppAdmin,
+) : ToolHandler {
+    override val spec =
+        adminSpec(
+            "app.set_battery_optimization",
+            "Set battery optimization",
+            "Turns battery optimization off or on for an app (cmd deviceidle whitelist). Off keeps it running in Doze, " +
+                "for example Termux, Tailscale or a messaging app that misses notifications.",
+            """$PACKAGE_PROP,"optimized":{"type":"boolean","description":"false lets the app run in the background"}""",
+            "\"package\",\"optimized\"",
+            RiskTier.SENSITIVE,
+        )
+
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
+
+    override suspend fun confirmationDetail(call: ToolCall): String =
+        "Turn battery optimization ${if (call.arguments.boolean(
+                "optimized",
+            ) == true
+        ) {
+            "on"
+        } else {
+            "off"
+        }} for ${call.arguments.string("package")}"
+
+    override suspend fun execute(
+        call: ToolCall,
+        session: Session,
+    ): ToolResult {
+        val pkg = call.arguments.packageName()
+        val optimized = call.arguments.boolean("optimized") ?: invalid("Give optimized: true or false")
+        admin.setBatteryOptimized(pkg, optimized)
+        return ToolResult.success("Battery optimization is ${if (optimized) "on" else "off"} for $pkg.")
+    }
+}
+
+/** `app.set_standby_bucket`: how freely an app may run in the background. */
+class AppSetStandbyBucketTool(
+    private val admin: AppAdmin,
+) : ToolHandler {
+    override val spec =
+        adminSpec(
+            "app.set_standby_bucket",
+            "Set standby bucket",
+            "Sets an app's standby bucket (am set-standby-bucket), from active (runs freely) to restricted. " +
+                "Read the current one with adb.query: am get-standby-bucket <package>.",
+            """$PACKAGE_PROP,"bucket":{"type":"string","enum":[${AppAdminArgs.STANDBY_BUCKETS.joinToString(",") { "\"$it\"" }}]}""",
+            "\"package\",\"bucket\"",
+            RiskTier.SENSITIVE,
+        )
+
+    override suspend fun targetPackage(call: ToolCall): String? = call.changedPackage()
+
+    override suspend fun confirmationDetail(call: ToolCall): String =
+        "Put ${call.arguments.string("package")} in the ${call.arguments.string("bucket")} standby bucket"
+
+    override suspend fun execute(
+        call: ToolCall,
+        session: Session,
+    ): ToolResult {
+        val pkg = call.arguments.packageName()
+        val bucket = call.arguments.string("bucket") ?: invalid("Give bucket")
+        if (bucket !in AppAdminArgs.STANDBY_BUCKETS) invalid("Bucket must be one of ${AppAdminArgs.STANDBY_BUCKETS.joinToString()}")
+        admin.setStandbyBucket(pkg, bucket)
+        return ToolResult.success("$pkg is now in the $bucket standby bucket.")
     }
 }

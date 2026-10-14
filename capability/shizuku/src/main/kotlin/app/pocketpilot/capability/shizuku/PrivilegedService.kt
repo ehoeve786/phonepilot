@@ -3,7 +3,9 @@ package app.pocketpilot.capability.shizuku
 import android.content.Context
 import android.os.ParcelFileDescriptor
 import app.pocketpilot.capability.api.apps.AppAdminArgs
+import app.pocketpilot.capability.api.apps.IntentArgs
 import app.pocketpilot.capability.api.settings.SettingKey
+import app.pocketpilot.capability.api.shell.AdbQuery
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -12,8 +14,9 @@ import kotlin.system.exitProcess
 /**
  * Runs as the shell user in a process Shizuku starts. Every method runs one fixed command with
  * arguments passed as an argv array, never through a shell, and checks its inputs first, so the app
- * side cannot turn it into a general shell (spec section 6). The one exception is [runShell], which
- * backs `shell.exec`: off by default in the app and confirmed by the owner command by command.
+ * side cannot turn it into a general shell (spec section 6). [runReadOnly] runs only commands
+ * [AdbQuery] allows. The one exception is [runShell], which backs `shell.exec`: off by default in the
+ * app and confirmed by the owner.
  */
 class PrivilegedService() : IPocketPilotPrivileged.Stub() {
     /** Shizuku 13 calls this constructor when it exists. */
@@ -112,7 +115,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         granted: Boolean,
     ) {
         mutable(packageName)
-        AppAdminArgs.checkPermission(permission)
+        AppAdminArgs.checkRuntimePermission(permission)
         run("pm", if (granted) "grant" else "revoke", packageName, permission)
     }
 
@@ -122,8 +125,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         mode: String,
     ) {
         mutable(packageName)
-        AppAdminArgs.checkOp(op)
-        AppAdminArgs.checkMode(mode)
+        AppAdminArgs.checkOpChange(op, mode)
         run("appops", "set", packageName, op, mode)
     }
 
@@ -147,18 +149,90 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         timeoutMs: Long,
     ): String {
         require(command.isNotBlank() && command.length <= MAX_COMMAND) { "The command must be 1 to $MAX_COMMAND characters" }
-        val process = ProcessBuilder("sh", "-c", command).start()
+        return execute(ProcessBuilder("sh", "-c", command), "", timeoutMs, keepEnd = false)
+    }
+
+    override fun runReadOnly(
+        argv: Array<String>,
+        filter: String,
+        timeoutMs: Long,
+    ): String {
+        val words = argv.toList()
+        require(AdbQuery.allowed(words)) { "Not a read-only command: ${words.joinToString(" ").take(MAX_ERROR)}" }
+        require(filter.length <= MAX_FILTER) { "The filter may be at most $MAX_FILTER characters" }
+        // Logs and crash reports are newest last, so long output keeps its end.
+        val keepEnd = words[0] == "logcat" || words.getOrNull(1) == "dropbox"
+        return execute(ProcessBuilder(words), filter, timeoutMs, keepEnd)
+    }
+
+    override fun setDozeExempt(
+        packageName: String,
+        exempt: Boolean,
+    ) {
+        mutable(packageName)
+        run("cmd", "deviceidle", "whitelist", (if (exempt) "+" else "-") + packageName)
+    }
+
+    override fun setStandbyBucket(
+        packageName: String,
+        bucket: String,
+    ) {
+        mutable(packageName)
+        AppAdminArgs.checkStandbyBucket(bucket)
+        run("am", "set-standby-bucket", packageName, bucket)
+    }
+
+    override fun startIntent(
+        args: Array<String>,
+        broadcast: Boolean,
+    ): String {
+        val list = args.toList()
+        IntentArgs.check(list)
+        val command = if (broadcast) listOf("am", "broadcast") else listOf("am", "start", "-W")
+        val output = run(*(command + list).toTypedArray()).take(MAX_ERROR * 10).trim()
+        check(!output.lineSequence().any { it.startsWith("Error") }) { output }
+        return output
+    }
+
+    /**
+     * Runs [builder] until it ends or [timeoutMs] passes. Returns exit code, stdout and stderr separated
+     * by NUL characters; the exit code is -1 on timeout. Stdout keeps only lines containing [filter], and
+     * its end rather than its start when [keepEnd] and it is too long.
+     */
+    private fun execute(
+        builder: ProcessBuilder,
+        filter: String,
+        timeoutMs: Long,
+        keepEnd: Boolean,
+    ): String {
+        val process = builder.start()
         process.outputStream.close()
-        var stdout = ""
+        val stdout = StringBuilder()
         var stderr = ""
-        val out = thread(name = "pp-shell-out") { stdout = process.inputStream.bufferedReader().readText() }
+        val out =
+            thread(name = "pp-shell-out") {
+                process.inputStream.bufferedReader().useLines { lines ->
+                    lines.forEach { line ->
+                        if (filter.isEmpty() || line.contains(filter, ignoreCase = true)) {
+                            synchronized(stdout) {
+                                if (keepEnd || stdout.length < MAX_SHELL_OUTPUT) stdout.append(line).append('\n')
+                                if (keepEnd && stdout.length > 2 * MAX_SHELL_OUTPUT) stdout.delete(0, stdout.length - MAX_SHELL_OUTPUT)
+                            }
+                        }
+                    }
+                }
+            }
         val err = thread(name = "pp-shell-err") { stderr = process.errorStream.bufferedReader().readText() }
         val finished = process.waitFor(timeoutMs.coerceIn(1_000, MAX_SHELL_MS), TimeUnit.MILLISECONDS)
         if (!finished) process.destroyForcibly()
         out.join(STREAM_JOIN_MS)
         err.join(STREAM_JOIN_MS)
         val exit = if (finished) process.exitValue() else -1
-        return "$exit\u0000${stdout.take(MAX_SHELL_OUTPUT)}\u0000${stderr.take(MAX_SHELL_OUTPUT)}"
+        val text =
+            synchronized(
+                stdout,
+            ) { stdout.toString() }.let { if (keepEnd) it.takeLast(MAX_SHELL_OUTPUT) else it.take(MAX_SHELL_OUTPUT) }
+        return "$exit\u0000$text\u0000${stderr.take(MAX_SHELL_OUTPUT)}"
     }
 
     private fun mutable(packageName: String) {
@@ -205,7 +279,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
 
     companion object {
         /** The AIDL contract version; bump with every change to IPocketPilotPrivileged. */
-        const val VERSION = 3
+        const val VERSION = 5
 
         private const val UI_DUMP_PATH = "/data/local/tmp/pocketpilot-ui.xml"
         private const val COMMAND_TIMEOUT_S = 15L
@@ -216,6 +290,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         private const val MAX_ERROR = 300
         private const val MAX_DUMP = 200_000
         private const val MAX_COMMAND = 4_000
+        private const val MAX_FILTER = 200
         private const val MAX_SHELL_MS = 120_000L
         private const val MAX_SHELL_OUTPUT = 60_000
         private const val STREAM_JOIN_MS = 2_000L

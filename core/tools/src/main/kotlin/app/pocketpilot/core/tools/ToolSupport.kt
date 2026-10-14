@@ -50,7 +50,7 @@ internal fun JsonObject.target(): Target {
 
 internal fun JsonObject.elementTarget(): Target.OnElement? = string("element")?.let { Target.OnElement(it, string("snapshotId")) }
 
-internal fun Snapshot.toJson(): String = compactJson.encodeToString(Snapshot.serializer(), this)
+internal fun Snapshot.toText(): String = SnapshotText.format(this)
 
 /**
  * The result of an interacting tool: a short description, then (unless the caller opted out) the
@@ -74,7 +74,7 @@ internal suspend fun afterAction(
             val hint = e.recoveryHint?.let { " $it" }.orEmpty()
             return ToolResult.success("$summary\nThe screen could not be read afterwards: ${e.message}.$hint")
         }
-    return ToolResult.success("$summary\nScreen now:\n${snapshot.toJson()}")
+    return ToolResult.success("$summary\nScreen now:\n${snapshot.toText()}")
 }
 
 private const val REACTION_MS = 150L
