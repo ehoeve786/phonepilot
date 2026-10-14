@@ -24,7 +24,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -51,6 +50,7 @@ import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.agent.runtime.chatItems
 import app.pocketpilot.agent.runtime.stepLine
 import app.pocketpilot.agent.runtime.transcript
+import app.pocketpilot.designsystem.agent.AgentCommandBar
 import java.text.DateFormat
 import java.util.Date
 
@@ -87,7 +87,6 @@ fun AgentChat(
     var profileId by rememberSaveable { mutableStateOf<String?>(null) }
     var allowSettings by rememberSaveable { mutableStateOf(false) }
     var useFallbacks by rememberSaveable { mutableStateOf(true) }
-    var input by rememberSaveable { mutableStateOf("") }
 
     val earlier = history.filter { it.conversation && it.id != current?.id }.take(EARLIER_SHOWN)
     val viewing = viewingId?.let { id -> earlier.firstOrNull { it.id == id } }
@@ -96,14 +95,13 @@ fun AgentChat(
     val profile = profiles.firstOrNull { it.id == profileId } ?: profiles.firstOrNull()
     val working = live?.active == true
 
-    fun send() {
-        val text = input.trim()
+    fun send(prompt: String) {
+        val text = prompt.trim()
         if (text.isEmpty() || profile == null) return
         if (live?.status != RunStatus.WAITING || !actions.send(text)) {
             hiddenId = null
             actions.start(text, profile.id, allowSettings, useFallbacks && profiles.size > 1)
         }
-        input = ""
     }
 
     Column(modifier.fillMaxSize().imePadding()) {
@@ -140,7 +138,7 @@ fun AgentChat(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 profiles.isEmpty() -> NoModels(actions.openModels)
-                shown == null -> EmptyChat(onSuggestion = { input = it })
+                shown == null -> EmptyChat(onSuggestion = ::send)
                 else -> Messages(shown)
             }
         }
@@ -167,11 +165,11 @@ fun AgentChat(
                     }
                 }
             }
-            InputBar(
-                text = input,
-                onText = { input = it },
+            // The same bar as Home's quick prompt, so the chat and Home share one layout.
+            AgentCommandBar(
+                onSubmit = ::send,
                 enabled = !working,
-                onSend = ::send,
+                modifier = Modifier.padding(12.dp),
             )
         }
     }
@@ -394,32 +392,6 @@ private fun WorkingBar(
 }
 
 @Composable
-private fun InputBar(
-    text: String,
-    onText: (String) -> Unit,
-    enabled: Boolean,
-    onSend: () -> Unit,
-) {
-    Row(
-        Modifier.fillMaxWidth().padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        OutlinedTextField(
-            text,
-            onText,
-            modifier = Modifier.weight(1f),
-            placeholder = { Text(stringResource(R.string.feature_agent_chat_hint)) },
-            maxLines = INPUT_MAX_LINES,
-            shape = RoundedCornerShape(24.dp),
-        )
-        Button(enabled = enabled && text.isNotBlank(), onClick = onSend) {
-            Text(stringResource(R.string.feature_agent_chat_send))
-        }
-    }
-}
-
-@Composable
 private fun EmptyChat(onSuggestion: (String) -> Unit) {
     val suggestions =
         listOf(
@@ -461,4 +433,3 @@ private val BUBBLE_TAIL = 4.dp
 private val BUBBLE_MAX_WIDTH = 320.dp
 private const val EARLIER_SHOWN = 20
 private const val WORK_STEPS_SHOWN = 30
-private const val INPUT_MAX_LINES = 5
