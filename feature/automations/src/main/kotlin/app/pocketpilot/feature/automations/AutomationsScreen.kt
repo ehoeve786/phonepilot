@@ -18,8 +18,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -389,18 +387,20 @@ private fun HistoryList(runs: List<RunRecord>) {
 private fun RunCard(run: RunRecord) {
     var open by rememberSaveable(run.id) { mutableStateOf(false) }
     val failed = run.outcome == RunOutcome.FAILED
-    Card(
+    LiquidGlassBentoCard(
         onClick = { open = !open },
         modifier = Modifier.fillMaxWidth(),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = if (failed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerLow,
-            ),
+        contentPadding = PaddingValues(0.dp),
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(run.ruleName, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                Text(outcomeLabel(run.outcome), style = MaterialTheme.typography.labelMedium)
+                // A failed run is marked in the error colour, since the glass card has no tinted state.
+                Text(
+                    outcomeLabel(run.outcome),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                )
             }
             Text(
                 "${run.reason} · ${DateUtils.getRelativeTimeSpanString(run.startedAtMillis)}",
