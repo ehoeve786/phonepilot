@@ -136,7 +136,7 @@ class AutomationDispatchTest {
             val dispatcher =
                 CallDispatcher(
                     ToolRegistry(
-                        setOf(tool("device.info", Scope.DEVICE_READ), tool("app.stop", Scope.APPS_CONTROL)),
+                        setOf(tool("notify.post", Scope.NOTIFY_ACT), tool("app.stop", Scope.APPS_CONTROL)),
                         PolicyProfile.OSS,
                     ),
                     audit,
@@ -148,9 +148,9 @@ class AutomationDispatchTest {
             val record =
                 engine(this, host).run(
                     rule(
-                        ActionStep("device.info"),
+                        ActionStep("notify.post", mapOf("title" to "Before")),
                         ActionStep("app.stop", mapOf("apps" to "com.example")),
-                        ActionStep("device.info"),
+                        ActionStep("notify.post", mapOf("title" to "After")),
                     ),
                     "Test",
                 )
@@ -159,7 +159,7 @@ class AutomationDispatchTest {
             assertTrue(record.lines[1].contains("lacks the scope apps:control"), record.lines[1])
             val events = audit.recent.value
             // The audit log is newest first; the step after the refused one never reached the dispatcher.
-            assertEquals(listOf("app.stop", "device.info"), events.map { it.tool })
+            assertEquals(listOf("app.stop", "notify.post"), events.map { it.tool })
             assertEquals(AuditDecision.DENY, events[0].decision)
             assertEquals(AuditDecision.ALLOW, events[1].decision)
         }
