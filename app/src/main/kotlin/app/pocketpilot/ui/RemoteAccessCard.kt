@@ -2,6 +2,7 @@ package app.pocketpilot.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,6 +21,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.R
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.PublicAccessState
 
@@ -40,7 +42,7 @@ internal fun RemoteAccessCard(
     logs: () -> String,
 ) {
     val clipboard = LocalClipboardManager.current
-    Card(modifier = Modifier.fillMaxWidth()) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.remote_title), style = MaterialTheme.typography.titleMedium)
             when (state) {

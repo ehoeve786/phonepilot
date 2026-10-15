@@ -11,6 +11,7 @@ dependencies {
     implementation(projects.network.certificates)
     implementation(projects.network.publicAccess)
     implementation(projects.network.wireguard)
+    implementation(projects.core.designsystem)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui)
