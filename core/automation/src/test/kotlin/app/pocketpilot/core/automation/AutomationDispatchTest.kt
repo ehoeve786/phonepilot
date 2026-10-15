@@ -179,6 +179,11 @@ class AutomationDispatchTest {
             val record = engine(this, host).run(rule(ActionStep("app.stop", mapOf("apps" to "com.example"))), "Test")
 
             assertEquals(RunOutcome.OK, record.outcome)
-            assertEquals(AuditDecision.ALLOW, audit.recent.value.single().decision)
+            assertEquals(
+                AuditDecision.ALLOW,
+                audit.recent.value
+                    .single()
+                    .decision,
+            )
         }
 }

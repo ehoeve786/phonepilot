@@ -136,7 +136,11 @@ data class RunState(
  * The stored chats a delete removes. [picked] null means every earlier chat. The chat on screen ([keep])
  * is never one of them, and task runs under Activity are left alone.
  */
-fun chatsToDelete(history: List<RunState>, keep: String?, picked: Set<String>?): Set<String> =
+fun chatsToDelete(
+    history: List<RunState>,
+    keep: String?,
+    picked: Set<String>?,
+): Set<String> =
     history
         .filter { it.conversation && it.id != keep && (picked == null || it.id in picked) }
         .mapTo(mutableSetOf(), RunState::id)

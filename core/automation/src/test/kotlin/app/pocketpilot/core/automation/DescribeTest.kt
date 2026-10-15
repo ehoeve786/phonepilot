@@ -18,6 +18,7 @@ class DescribeTest {
     fun `group modes join their conditions in plain words`() {
         val a = check("no.such.a")
         val b = check("no.such.b")
+
         fun group(mode: GroupMode) = Describe.group(ConstraintGroup(mode, listOf(a, b)))
 
         assertEquals("Unknown condition no.such.a and Unknown condition no.such.b", group(GroupMode.ALL))
