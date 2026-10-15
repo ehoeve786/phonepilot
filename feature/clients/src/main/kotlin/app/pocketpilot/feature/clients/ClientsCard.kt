@@ -2,6 +2,7 @@ package app.pocketpilot.feature.clients
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import java.text.DateFormat
 import java.util.Date
 
@@ -38,7 +40,7 @@ fun ClientsCard(
     onKillSwitch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(modifier = modifier.fillMaxWidth()) {
+    LiquidGlassBentoCard(modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.feature_clients_title), style = MaterialTheme.typography.titleMedium)
             if (clients.isEmpty()) {

@@ -45,6 +45,7 @@ import app.pocketpilot.core.audit.AuditEvent
 import app.pocketpilot.core.model.RiskTier
 import app.pocketpilot.designsystem.BentoGap
 import app.pocketpilot.designsystem.BentoPair
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.designsystem.RiskTierTag
 import app.pocketpilot.designsystem.agent.AgentCommandBar
 import app.pocketpilot.designsystem.automation.PinnedRuleUi
@@ -521,7 +522,7 @@ internal fun CrashCard(
 
 @Composable
 internal fun StoppedCard(onAllowAgain: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.control_stopped_title), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.control_stopped_text), style = MaterialTheme.typography.bodySmall)
@@ -538,11 +539,7 @@ internal fun ConnectCard(
     val context = LocalContext.current
     val url = (state as? ServerState.Running)?.url ?: DEFAULT_LOCAL_URL
     val command = claudeCodeCommand(url, token)
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-    ) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.connect_title), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.connect_explainer), style = MaterialTheme.typography.bodySmall)
