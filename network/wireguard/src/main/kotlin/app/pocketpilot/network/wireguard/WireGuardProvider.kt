@@ -161,14 +161,7 @@ class WireGuardProvider(
 
     private fun setupFrom(config: String?): WireGuardSetup {
         if (config == null) return WireGuardSetup()
-        val endpoint =
-            config
-                .lineSequence()
-                .map(String::trim)
-                .firstOrNull { it.startsWith("Endpoint", ignoreCase = true) && it.contains('=') }
-                ?.substringAfter('=')
-                ?.trim()
-        return WireGuardSetup(configured = true, serverHost = endpoint?.let(::hostOf))
+        return WireGuardSetup(configured = true, serverHost = serverHostOf(config))
     }
 
     private fun publicKeyOf(config: String): Result<String> =
@@ -184,9 +177,5 @@ class WireGuardProvider(
         const val SECRET_CONFIG = "wireguard_config"
         const val POLL_MS = 3_000L
         const val FOLLOW_RELAY_MS = 15 * 60_000L
-
-        /** `host:port` or `[v6]:port` to the host. */
-        fun hostOf(endpoint: String): String =
-            if (endpoint.startsWith("[")) endpoint.substringAfter('[').substringBefore(']') else endpoint.substringBeforeLast(':')
     }
 }
