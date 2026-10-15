@@ -60,6 +60,13 @@
     <string name="feature_agent_chat_back">Back</string>
     <string name="feature_agent_chat_no_model">No model</string>
     <string name="feature_agent_chat_manage_models">Manage models…</string>
+    <string name="feature_agent_chat_manage">Delete chats…</string>
+    <string name="feature_agent_chat_manage_title">Delete chats</string>
+    <string name="feature_agent_chat_no_earlier">No earlier chats.</string>
+    <string name="feature_agent_chat_delete_selected">Delete selected</string>
+    <string name="feature_agent_chat_delete_all">Delete all</string>
+    <string name="feature_agent_chat_delete_all_confirm">Delete all earlier chats? This cannot be undone.</string>
+    <string name="feature_agent_chat_cancel">Cancel</string>
     <string name="feature_agent_chat_allow_settings">Settings without asking</string>
     <string name="feature_agent_chat_fallbacks">Switch models when one runs out</string>
     <string name="feature_agent_chat_work">Worked: %1$d tool calls, %2$d failed</string>

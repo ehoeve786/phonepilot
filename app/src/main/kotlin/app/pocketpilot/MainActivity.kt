@@ -295,6 +295,8 @@ class MainActivity : ComponentActivity() {
                 resume = { agent.resume() },
                 stop = { agent.stop() },
                 endChat = agent::endChat,
+                deleteChats = agent::deleteChats,
+                deleteAllChats = agent::deleteAllChats,
                 openModels = {},
             )
         val automationActions =

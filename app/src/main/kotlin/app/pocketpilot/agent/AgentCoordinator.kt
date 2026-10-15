@@ -170,6 +170,25 @@ class AgentCoordinator(
         if (run.state.value.active) run.stop() else run.close()
     }
 
+    /** Deletes the earlier chats with these ids. The chat on screen is kept, even if it is listed. */
+    fun deleteChats(ids: Set<String>) {
+        val keep = current.value?.id
+        scope.launch {
+            withContext(Dispatchers.IO) { runs.delete(ids - setOfNotNull(keep)) }
+            refreshHistory()
+        }
+    }
+
+    /** Deletes every earlier chat, keeping the chat on screen. Task runs under Activity stay. */
+    fun deleteAllChats() {
+        val keep = current.value?.id
+        scope.launch {
+            val ids = mutableHistory.value.filter { it.conversation && it.id != keep }.map { it.id }
+            withContext(Dispatchers.IO) { runs.delete(ids) }
+            refreshHistory()
+        }
+    }
+
     /** Saves [profile]; [newKeys] join its saved keys, or replace them when [clearSaved]. */
     fun saveProfile(
         profile: AgentProfile,

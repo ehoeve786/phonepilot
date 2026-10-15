@@ -8,15 +8,19 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -65,6 +69,10 @@ data class ChatActions(
     val stop: () -> Unit,
     /** Closes the current chat, stopping it if it is working. */
     val endChat: () -> Unit,
+    /** Deletes the earlier chats with these ids; the chat on screen is kept. */
+    val deleteChats: (Set<String>) -> Unit,
+    /** Deletes every earlier chat. */
+    val deleteAllChats: () -> Unit,
     /** Opens the model list, under Activity, Agent. */
     val openModels: () -> Unit,
 )
@@ -109,9 +117,12 @@ fun AgentChat(
             profiles = profiles,
             profile = profile,
             earlier = earlier,
+            past = history.filter { it.conversation && it.id != current?.id },
             canStartNew = shown != null,
             onProfile = { profileId = it },
             onOpenEarlier = { viewingId = it },
+            onDeleteChats = actions.deleteChats,
+            onDeleteAll = actions.deleteAllChats,
             onNewChat = {
                 if (viewing == null) {
                     actions.endChat()
@@ -180,14 +191,18 @@ private fun ChatHeader(
     profiles: List<AgentProfile>,
     profile: AgentProfile?,
     earlier: List<RunState>,
+    past: List<RunState>,
     canStartNew: Boolean,
     onProfile: (String) -> Unit,
     onOpenEarlier: (String) -> Unit,
+    onDeleteChats: (Set<String>) -> Unit,
+    onDeleteAll: () -> Unit,
     onNewChat: () -> Unit,
     onManageModels: () -> Unit,
 ) {
     var modelsOpen by remember { mutableStateOf(false) }
     var earlierOpen by remember { mutableStateOf(false) }
+    var managing by remember { mutableStateOf(false) }
     LiquidGlassBentoCard(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
@@ -242,11 +257,98 @@ private fun ChatHeader(
                                 },
                             )
                         }
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.feature_agent_chat_manage)) },
+                            onClick = {
+                                earlierOpen = false
+                                managing = true
+                            },
+                        )
                     }
                 }
             }
             TextButton(enabled = canStartNew, onClick = onNewChat) { Text(stringResource(R.string.feature_agent_chat_new)) }
         }
+    }
+    if (managing) {
+        ManageChatsDialog(
+            past = past,
+            onDeleteChats = onDeleteChats,
+            onDeleteAll = onDeleteAll,
+            onDismiss = { managing = false },
+        )
+    }
+}
+
+/** Picks earlier chats to delete, or deletes them all after a confirmation. */
+@Composable
+private fun ManageChatsDialog(
+    past: List<RunState>,
+    onDeleteChats: (Set<String>) -> Unit,
+    onDeleteAll: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var picked by remember { mutableStateOf(emptySet<String>()) }
+    var confirmAll by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.feature_agent_chat_manage_title)) },
+        text = {
+            if (past.isEmpty()) {
+                Text(stringResource(R.string.feature_agent_chat_no_earlier))
+            } else {
+                LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(past, key = { it.id }) { run ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { picked = if (run.id in picked) picked - run.id else picked + run.id }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = run.id in picked, onCheckedChange = null)
+                            Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                                Text(run.goal, maxLines = 1)
+                                Text(dateTime(run.startedAtMillis), style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = picked.isNotEmpty(),
+                onClick = {
+                    onDeleteChats(picked)
+                    onDismiss()
+                },
+            ) { Text(stringResource(R.string.feature_agent_chat_delete_selected)) }
+        },
+        dismissButton = {
+            Row {
+                if (past.isNotEmpty()) {
+                    TextButton(onClick = { confirmAll = true }) { Text(stringResource(R.string.feature_agent_chat_delete_all)) }
+                }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.feature_agent_chat_cancel)) }
+            }
+        },
+    )
+    if (confirmAll) {
+        AlertDialog(
+            onDismissRequest = { confirmAll = false },
+            text = { Text(stringResource(R.string.feature_agent_chat_delete_all_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteAll()
+                    onDismiss()
+                }) { Text(stringResource(R.string.feature_agent_chat_delete_all)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmAll = false }) { Text(stringResource(R.string.feature_agent_chat_cancel)) }
+            },
+        )
     }
 }
 

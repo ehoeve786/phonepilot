@@ -134,6 +134,13 @@ class FileRunStore(
     /** Stored runs, newest first. */
     fun list(): List<RunState> = files().mapNotNull(::read)
 
+    /** Removes the stored runs with these ids; ids that are not stored are ignored. */
+    fun delete(ids: Collection<String>) {
+        synchronized(lock) {
+            ids.forEach { id -> File(dir, "$id.json").delete() }
+        }
+    }
+
     private fun files(): List<File> =
         dir
             .listFiles { f -> f.isFile && f.name.endsWith(".json") }
