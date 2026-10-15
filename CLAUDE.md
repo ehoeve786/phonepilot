@@ -7,3 +7,5 @@
 - Versions live only in `gradle/libs.versions.toml`. AGP, Kotlin and KSP are bumped together.
 - Style is ktlint (`ktlint_official`, see `.editorconfig`); run `./gradlew ktlintFormat` before committing.
 - Cloud sessions cannot reach dl.google.com, so Android modules only build in CI. Pure Kotlin modules can be compiled locally.
+- Library modules prefix their string and drawable resources with their module path (`feature_agent_`, `core_designsystem_`); lint fails otherwise.
+- `core/automation` and `agent/runtime` hold the engine and run-state logic and are the main unit-test targets. Shizuku, Accessibility and screen capture have only parser and command tests; their on-device behaviour is checked by hand (see the task suite).

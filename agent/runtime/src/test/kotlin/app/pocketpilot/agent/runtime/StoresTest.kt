@@ -60,4 +60,13 @@ class StoresTest {
             assertEquals(listOf("01C", "01B"), runs.map(RunState::id))
             assertEquals("ok", runs.first().outcome)
         }
+
+    @Test
+    fun `run store deletes the chosen runs and ignores ids it does not hold`() =
+        runTest {
+            val store = FileRunStore(dir.resolve("delete"))
+            for (id in listOf("01A", "01B", "01C")) store.save(RunState(id, "goal $id", "fake", "m", 0))
+            store.delete(listOf("01B", "01Z"))
+            assertEquals(listOf("01C", "01A"), store.list().map(RunState::id))
+        }
 }
