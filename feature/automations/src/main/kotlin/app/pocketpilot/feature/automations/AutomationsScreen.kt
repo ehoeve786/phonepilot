@@ -53,6 +53,7 @@ import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RunOutcome
 import app.pocketpilot.core.automation.RunRecord
 import app.pocketpilot.core.automation.Templates
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 
 /** An installed app, for the app picker. */
 data class AppOption(
@@ -226,7 +227,11 @@ private fun RulesList(
                 Text(stringResource(R.string.feature_automations_templates), style = MaterialTheme.typography.titleSmall)
             }
             items(Templates.all, key = { "t" + it.id }) { template ->
-                Card(onClick = { onNewFrom(template) }, modifier = Modifier.fillMaxWidth()) {
+                LiquidGlassBentoCard(
+                    onClick = { onNewFrom(template) },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(0.dp),
+                ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(template.name, style = MaterialTheme.typography.titleMedium)
                         Text(Templates.summary(template), style = MaterialTheme.typography.bodyMedium)
@@ -268,10 +273,7 @@ private fun SettingsCard(
     var cap by rememberSaveable(state.settings.agentMonthlyCapUsd) {
         mutableStateOf(state.settings.agentMonthlyCapUsd?.let { "%.2f".format(it) } ?: "")
     }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
