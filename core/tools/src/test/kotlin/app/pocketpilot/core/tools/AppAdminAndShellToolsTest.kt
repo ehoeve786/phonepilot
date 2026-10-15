@@ -342,4 +342,32 @@ class AppAdminAndShellToolsTest {
 
     private fun app.pocketpilot.core.model.ToolResult.text(): String =
         content.filterIsInstance<app.pocketpilot.core.model.ContentPart.Text>().joinToString("\n") { it.text }
+
+    @Test
+    fun `battery usage names the apps behind batterystats uids`() =
+        runTest {
+            val reader =
+                object : SystemReader {
+                    override val backendId = "fake"
+                    override val available = MutableStateFlow(true)
+
+                    override suspend fun read(
+                        argv: List<String>,
+                        filter: String,
+                        timeoutMs: Long,
+                    ): ShellResult =
+                        if (argv[0] == "dumpsys") {
+                            ShellResult(0, "    UID u0a234: 60.0 fg: 50.0 ( screen=40.0 )\n    UID 1000: 30.0\n    UID u0a5: 10.0\n", "")
+                        } else {
+                            ShellResult(0, "package:com.example.game uid:10234\npackage:android uid:1000\n", "")
+                        }
+                }
+            val result = dispatcher(BatteryUsageTool(reader)).dispatch(session, "device.battery_usage", args("top" to 2))
+            assertEquals(
+                "Battery use since the last full charge, about 100 mAh by apps and the system:\n" +
+                    "com.example.game: 60.0 mAh (60%)\nAndroid system: 30.0 mAh (30%)",
+                result.text(),
+            )
+            assertTrue(asked.isEmpty())
+        }
 }

@@ -39,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -49,6 +50,7 @@ import app.pocketpilot.core.model.RiskTier
 import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.policy.ToolMode
 import app.pocketpilot.core.policy.ToolModes
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.designsystem.RiskTierTag
 import app.pocketpilot.designsystem.riskTierLabel
 import app.pocketpilot.core.designsystem.R as DsR
@@ -182,10 +184,9 @@ private fun ToolGroupSection(
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(start = 4.dp, top = 8.dp),
         )
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        LiquidGlassBentoCard(
             modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(0.dp),
         ) {
             Column {
                 specs.forEach { spec ->
@@ -215,7 +216,7 @@ private fun ToolGroupSection(
                                     },
                             )
                         },
-                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     )
                 }
             }
@@ -328,10 +329,9 @@ private fun ProtectedAppsCard(
     showAll: Boolean,
     onToggleShowAll: () -> Unit,
 ) {
-    Card(
+    LiquidGlassBentoCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        contentPadding = PaddingValues(0.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -363,10 +363,9 @@ internal fun ShellCard(
     enabled: Boolean,
     onChange: (Boolean) -> Unit,
 ) {
-    Card(
+    LiquidGlassBentoCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        contentPadding = PaddingValues(0.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

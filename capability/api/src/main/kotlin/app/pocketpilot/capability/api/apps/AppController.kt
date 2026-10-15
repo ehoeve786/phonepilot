@@ -12,8 +12,11 @@ interface AppController : CapabilityBackend {
     /** Throws ToolException ELEMENT_NOT_FOUND when nothing matches [packageName]. */
     suspend fun launch(packageName: String)
 
-    /** Opens an http or https link in the default handler. */
-    suspend fun openUrl(url: String)
+    /** Opens an http or https link in [packageName], or in the default handler when it is null. */
+    suspend fun openUrl(
+        url: String,
+        packageName: String? = null,
+    )
 }
 
 @Serializable

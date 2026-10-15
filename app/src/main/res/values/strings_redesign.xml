@@ -18,6 +18,21 @@
     <string name="home_approval_deny">Deny</string>
     <string name="home_approval_review">Review</string>
     <string name="home_live">Live</string>
+    <string name="home_provider_back_seconds">Back in %1$d s</string>
+    <string name="home_provider_back_minutes">Back in %1$d min</string>
+    <string name="home_provider_quota">Out of quota</string>
+    <string name="home_telemetry_battery">Battery</string>
+    <string name="home_telemetry_battery_value">%1$d%%</string>
+    <string name="home_telemetry_battery_charging">%1$d%%, charging</string>
+    <string name="home_telemetry_network">Network</string>
+    <string name="home_telemetry_wifi">Wi-Fi</string>
+    <string name="home_telemetry_cellular">Mobile data</string>
+    <string name="home_telemetry_ethernet">Ethernet</string>
+    <string name="home_telemetry_vpn">VPN</string>
+    <string name="home_telemetry_connected">Connected</string>
+    <string name="home_telemetry_offline">Offline</string>
+    <string name="home_telemetry_unknown">Unknown</string>
+    <string name="home_telemetry_calls">Tool calls, last hour</string>
 
     <!-- Tool log -->
     <string name="log_filter_all">All</string>

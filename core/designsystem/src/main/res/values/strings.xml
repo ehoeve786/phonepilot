@@ -19,4 +19,16 @@
     <string name="core_designsystem_pinned_title">Pinned automations</string>
     <string name="core_designsystem_pinned_see_all">See all</string>
     <string name="core_designsystem_pinned_none">Pin a rule in Automations to switch it from here.</string>
+
+    <string name="core_designsystem_command_hint">Ask your AI to do something</string>
+    <string name="core_designsystem_command_send">Send to the agent</string>
+
+    <string name="core_designsystem_providers_title">AI models</string>
+    <string name="core_designsystem_providers_none">Add a model under Activity to see how it is doing.</string>
+    <string name="core_designsystem_providers_ready">Working</string>
+    <string name="core_designsystem_providers_limited">Rate limited</string>
+    <string name="core_designsystem_providers_down">Not answering</string>
+    <string name="core_designsystem_providers_unknown">No recent use</string>
+
+    <string name="core_designsystem_telemetry_title">This phone</string>
 </resources>

@@ -2,6 +2,7 @@ package app.pocketpilot.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,6 +38,7 @@ import app.pocketpilot.capability.files.SharedFolder
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.capabilities.CapabilityStatus
 import app.pocketpilot.core.model.PolicyProfile
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.feature.clients.ClientRow
 import app.pocketpilot.feature.clients.ClientsCard
 import app.pocketpilot.feature.onboarding.SetupStep
@@ -161,7 +163,7 @@ private fun AccessibilityCard(
     onOpenSettings: () -> Unit,
     onOpenAppInfo: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.accessibility_title), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(if (on) R.string.accessibility_on else R.string.accessibility_off))
@@ -181,7 +183,7 @@ private fun FoldersCard(
     onAdd: () -> Unit,
     onRemove: (SharedFolder) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.folders_title), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.folders_explainer), style = MaterialTheme.typography.bodySmall)
@@ -202,7 +204,7 @@ private fun BiometricCard(
     enabled: Boolean,
     onChange: (Boolean) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -224,7 +226,7 @@ private fun TokenCard(
 ) {
     var visible by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
-    Card(modifier = Modifier.fillMaxWidth()) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.token_title), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.token_explainer), style = MaterialTheme.typography.bodySmall)

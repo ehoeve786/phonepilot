@@ -30,6 +30,8 @@ internal object Triggers {
         match = { p, e, _ -> either(p.p("state"), e["state"]) },
     )
 
+    private val SHAKE_LEVELS = listOf("light", "medium", "hard")
+
     val all: List<TriggerDef> =
         listOf(
             // Time
@@ -321,6 +323,252 @@ internal object Triggers {
                 sentence = { p -> "Notification from ${p.appsText()} cleared" },
                 match = { p, e, _ -> anyOf(p.p("apps"), e["package"]) && containsText(p.p("title"), e["title"]) },
             ),
+            // Media
+            TriggerDef(
+                type = "media.changed",
+                category = Category.MEDIA,
+                title = "Music or video",
+                description = "Something started or stopped playing, or the track changed. Needs notification access.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "state",
+                            "When it",
+                            listOf(
+                                Choice("playing", "Starts playing"),
+                                Choice("paused", "Stops or pauses"),
+                                Choice("track", "Changes track"),
+                                Choice("any", "Any of these"),
+                            ),
+                        ),
+                        appsField(),
+                    ),
+                source = Source.NOTIFICATIONS,
+                variables = listOf("state", "title", "artist", "package"),
+                sentence = { p ->
+                    val what = if (p.p("apps").isBlank()) "Media" else p.appsText()
+                    when (p.p("state")) {
+                        "paused" -> "$what stops playing"
+                        "track" -> "$what changes track"
+                        "any" -> "$what starts, stops or changes track"
+                        else -> "$what starts playing"
+                    }
+                },
+                match = { p, e, _ -> either(p.p("state"), e["state"]) && anyOf(p.p("apps"), e["package"]) },
+            ),
+            // Location
+            TriggerDef(
+                type = "location.place",
+                category = Category.LOCATION,
+                title = "Arrive at or leave a place",
+                description =
+                    "You enter or leave a circle around a spot. Uses the phone's own location, without Google services; " +
+                        "needs location access all the time. Copy the spot's coordinates from a map app.",
+                fields = PLACE_FIELDS + choiceField("event", "When you", listOf(Choice("enter", "Arrive"), Choice("exit", "Leave"))),
+                variables = listOf("event", "name"),
+                sentence = { p ->
+                    val where = p.p("name").ifBlank { p.p("at") }
+                    if (p.p("event") == "exit") "You leave $where" else "You arrive at $where"
+                },
+                match = { p, e, _ -> either(p.p("event"), e["event"]) && Place.from(p)?.key == e["place"] },
+            ),
+            // Calls and messages
+            TriggerDef(
+                type = "call.changed",
+                category = Category.CALLS,
+                title = "Phone call",
+                description =
+                    "A call rings, is answered, ends or is missed. The caller's number is known in the sideload build only.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "event",
+                            "When a call",
+                            listOf(
+                                Choice("ringing", "Rings"),
+                                Choice("answered", "Is answered or dialed"),
+                                Choice("ended", "Ends"),
+                                Choice("missed", "Is missed"),
+                                Choice("any", "Any of these"),
+                            ),
+                        ),
+                        textField("number", "Number contains", required = false, hint = "Sideload build; any caller when empty"),
+                    ),
+                variables = listOf("event", "number"),
+                sentence = { p ->
+                    val from = if (p.p("number").isBlank()) "" else " from ${p.p("number")}"
+                    when (p.p("event")) {
+                        "answered" -> "A call$from is answered"
+                        "ended" -> "A call$from ends"
+                        "missed" -> "A call$from is missed"
+                        "any" -> "A call$from changes"
+                        else -> "A call$from rings"
+                    }
+                },
+                match = { p, e, _ -> either(p.p("event"), e["event"]) && digitsContain(p.p("number"), e["number"]) },
+            ),
+            TriggerDef(
+                type = "sms.received",
+                category = Category.CALLS,
+                title = "Text message received",
+                description = "An SMS arrived. Sideload build only.",
+                fields =
+                    listOf(
+                        textField("from", "Sender contains", required = false, hint = "Any sender when empty"),
+                        textField("text", "Text contains", required = false),
+                    ),
+                variables = listOf("from", "text"),
+                sideloadOnly = true,
+                sentence = { p ->
+                    buildString {
+                        append("Text message")
+                        if (p.p("from").isNotBlank()) append(" from ${p.p("from")}")
+                        if (p.p("text").isNotBlank()) append(" saying \"${p.p("text")}\"")
+                    }
+                },
+                match = { p, e, _ -> digitsContain(p.p("from"), e["from"]) && containsText(p.p("text"), e["text"]) },
+            ),
+            // Sensors
+            TriggerDef(
+                type = "sensor.shake",
+                category = Category.SENSORS,
+                title = "Shake the phone",
+                description = "A firm shake. Listens to the motion sensor only while a rule uses this.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "strength",
+                            "Shake",
+                            listOf(Choice("medium", "Normal"), Choice("light", "Light"), Choice("hard", "Hard")),
+                        ),
+                    ),
+                sentence = { "You shake the phone" },
+                match = { p, e, _ -> SHAKE_LEVELS.indexOf(e["strength"]) >= SHAKE_LEVELS.indexOf(p.p("strength").ifBlank { "medium" }) },
+            ),
+            TriggerDef(
+                type = "sensor.flip",
+                category = Category.SENSORS,
+                title = "Face down or up",
+                description = "You lay the phone face down on a table, or turn it back up.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "position",
+                            "When it is turned",
+                            listOf(Choice("down", "Face down"), Choice("up", "Face up"), Choice("any", "Either")),
+                        ),
+                    ),
+                variables = listOf("position"),
+                sentence = { p ->
+                    when (p.p("position")) {
+                        "up" -> "Phone turned face up"
+                        "any" -> "Phone turned over"
+                        else -> "Phone laid face down"
+                    }
+                },
+                match = { p, e, _ -> either(p.p("position"), e["position"]) },
+            ),
+            TriggerDef(
+                type = "sensor.proximity",
+                category = Category.SENSORS,
+                title = "Something near the screen",
+                description = "The proximity sensor is covered or uncovered, as by a hand or a pocket.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "state",
+                            "When it is",
+                            listOf(Choice("near", "Covered"), Choice("far", "Uncovered"), Choice("any", "Either")),
+                        ),
+                    ),
+                variables = listOf("state"),
+                sentence = { p -> if (p.p("state") == "far") "Proximity sensor uncovered" else "Proximity sensor covered" },
+                match = { p, e, _ -> either(p.p("state"), e["state"]) },
+            ),
+            // Screen content
+            TriggerDef(
+                type = "screen.text",
+                category = Category.SCREEN,
+                title = "Text appears on screen",
+                description = "Some text shows up on the screen, such as a button or message. Needs the Accessibility service.",
+                fields = listOf(textField("text", "Text", hint = "Matched ignoring case"), appsField()),
+                source = Source.ACCESSIBILITY,
+                variables = listOf("text", "package"),
+                sentence = { p -> "\"${p.p("text")}\" appears in ${p.appsText()}" },
+                match = { p, e, _ -> containsText(p.p("text"), e["text"]) && anyOf(p.p("apps"), e["package"]) },
+            ),
+            // Logs
+            TriggerDef(
+                type = "log.line",
+                category = Category.APPS,
+                title = "Log line",
+                description = "A line in the phone's system log contains some text. Needs Shizuku.",
+                fields = listOf(textField("text", "Line contains"), textField("tag", "Tag", required = false, hint = "Any tag when empty")),
+                source = Source.SHIZUKU,
+                variables = listOf("line", "tag"),
+                sentence = { p -> "Log line has \"${p.p("text")}\"" },
+                match = { p, e, _ -> containsText(p.p("text"), e["line"]) && anyOf(p.p("tag"), e["tag"]) },
+            ),
+            TriggerDef(
+                type = "app.crash",
+                category = Category.APPS,
+                title = "App crashed",
+                description = "An app crashed or stopped responding. Needs Shizuku.",
+                fields = listOf(appsField()),
+                source = Source.SHIZUKU,
+                variables = listOf("package", "error"),
+                sentence = { p -> "${p.appsText()} crashes".replaceFirstChar(Char::uppercase) },
+                match = { p, e, _ -> anyOf(p.p("apps"), e["package"]) },
+            ),
+            // Calendar
+            TriggerDef(
+                type = "calendar.event",
+                category = Category.CALENDAR,
+                title = "Calendar event",
+                description = "An event in your calendar starts or ends. Needs calendar access.",
+                fields =
+                    listOf(
+                        choiceField("event", "When an event", listOf(Choice("start", "Starts"), Choice("end", "Ends"))),
+                        textField("title", "Title contains", required = false, hint = "Any event when empty"),
+                        choiceField("all_day", "All-day events", listOf(Choice("no", "Skip"), Choice("yes", "Include"))),
+                    ),
+                variables = listOf("event", "title", "location", "start", "end"),
+                sentence = { p ->
+                    val which = if (p.p("title").isBlank()) "An event" else "\"${p.p("title")}\""
+                    "$which ${if (p.p("event") == "end") "ends" else "starts"}"
+                },
+                match = { p, e, _ ->
+                    either(p.p("event"), e["event"]) && containsText(p.p("title"), e["title"]) &&
+                        (p.p("all_day") == "yes" || e["all_day"] != "yes")
+                },
+            ),
+            // Home Assistant
+            TriggerDef(
+                type = "ha.state",
+                category = Category.HOME,
+                title = "Home Assistant entity changes",
+                description = "An entity in Home Assistant changes state. Set up Home Assistant under Automations settings.",
+                fields =
+                    listOf(
+                        textField("entity", "Entity ID", hint = "For example binary_sensor.front_door"),
+                        textField("to", "Changes to", required = false, hint = "Any change when empty"),
+                        textField("from", "Changes from", required = false),
+                    ),
+                source = Source.NET,
+                variables = listOf("entity", "state", "previous"),
+                sentence = { p ->
+                    buildString {
+                        append(p.p("entity"))
+                        append(if (p.p("to").isBlank()) " changes" else " turns ${p.p("to")}")
+                        if (p.p("from").isNotBlank()) append(" from ${p.p("from")}")
+                    }
+                },
+                match = { p, e, _ ->
+                    p.p("entity").equals(e["entity"], ignoreCase = true) &&
+                        (p.p("to").isBlank() || p.p("to").equals(e["state"], ignoreCase = true)) &&
+                        (p.p("from").isBlank() || p.p("from").equals(e["previous"], ignoreCase = true))
+                },
+            ),
             // Manual and other rules
             TriggerDef(
                 type = "manual",
@@ -351,6 +599,19 @@ internal object Triggers {
                 variables = listOf("event"),
                 sentence = { p -> "Event \"${p.p("event")}\" received" },
                 match = { p, e, _ -> p.p("event").equals(e["event"], ignoreCase = true) },
+            ),
+            TriggerDef(
+                type = "intent.action",
+                category = Category.MANUAL,
+                title = "Any broadcast",
+                description =
+                    "Any app or the system sends a broadcast with this action. String extras become variables " +
+                        "named after the extra.",
+                fields = listOf(textField("action", "Action", hint = "For example com.example.DONE")),
+                source = Source.POCKETPILOT,
+                variables = listOf("action", "data"),
+                sentence = { p -> "Broadcast ${p.p("action")} received" },
+                match = { p, e, _ -> p.p("action") == e["action"] },
             ),
             TriggerDef(
                 type = "mcp.call",

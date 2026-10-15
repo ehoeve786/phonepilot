@@ -63,6 +63,11 @@ enum class Category(
     SETTINGS("Settings"),
     SOUND("Sound"),
     MEDIA("Media"),
+    LOCATION("Location"),
+    CALLS("Calls and messages"),
+    SENSORS("Sensors"),
+    CALENDAR("Calendar"),
+    HOME("Home Assistant"),
     ALARMS("Alarms and timers"),
     FILES("Files and data"),
     FLOW("Flow"),
@@ -96,6 +101,8 @@ class TriggerDef(
     val variables: List<String> = emptyList(),
     /** Fired by its own schedule for one rule, never matched against events. */
     val scheduled: Boolean = false,
+    /** Sideload builds only. */
+    val sideloadOnly: Boolean = false,
     val sentence: (Map<String, String>) -> String = { title },
     /** True when [event] should start a rule with these settings; [previous] is the same type's last event. */
     val match: (params: Map<String, String>, event: Map<String, String>, previous: Map<String, String>?) -> Boolean =
@@ -139,6 +146,8 @@ class ConstraintDef(
     val description: String,
     val fields: List<FieldDef> = emptyList(),
     val source: Source = Source.SYSTEM,
+    /** Sideload builds only. */
+    val sideloadOnly: Boolean = false,
     val sentence: (Map<String, String>) -> String = { title },
     val check: suspend CheckScope.(Map<String, String>) -> Boolean,
 )
@@ -203,4 +212,21 @@ object StateKeys {
     const val ACCESSIBILITY = "accessibility"
     const val SERVER = "server"
     const val MUSIC = "music.active"
+
+    /** "latitude,longitude" of the phone's last known location. */
+    const val LOCATION = "location"
+
+    /** "idle", "ringing" or "in_call". */
+    const val CALL = "call.state"
+
+    /** Titles of the calendar events happening now, one per line. */
+    const val CALENDAR_NOW = "calendar.now"
+
+    private const val HOME_ASSISTANT = "ha.state:"
+
+    /** The state of Home Assistant entity [entity], such as "on". */
+    fun homeAssistant(entity: String) = HOME_ASSISTANT + entity
+
+    /** The entity in a [homeAssistant] key, or null for other keys. */
+    fun homeAssistantEntity(key: String): String? = key.takeIf { it.startsWith(HOME_ASSISTANT) }?.removePrefix(HOME_ASSISTANT)
 }

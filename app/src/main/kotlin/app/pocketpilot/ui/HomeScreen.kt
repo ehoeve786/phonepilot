@@ -3,12 +3,17 @@ package app.pocketpilot.ui
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -22,6 +27,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -149,6 +155,12 @@ fun HomeScreen(
     onSeeAllRules: () -> Unit = {},
     /** Counts up each time something outside, such as a proposal notification, asks for the Automations tab. */
     openAutomations: Int = 0,
+    /** Agent mode's models in fallback order, with how each last answered. */
+    providers: List<HomeProvider> = emptyList(),
+    /** Battery and network for Home's telemetry tile. */
+    telemetry: HomeTelemetry? = null,
+    /** The quick prompt on Home; the chat opens as well. */
+    onAgentPrompt: (String) -> Unit = {},
 ) {
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     LaunchedEffect(openAutomations) { if (openAutomations > 0) destination = Destination.AUTOMATIONS }
@@ -228,9 +240,23 @@ fun HomeScreen(
         }
         Scaffold(
             modifier = Modifier.weight(1f),
+            // The chat pads itself for the keyboard. Scaffold must not add the keyboard height too, or the input floats above it.
+            contentWindowInsets =
+                if (destination == Destination.CHAT) {
+                    ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.ime)
+                } else {
+                    ScaffoldDefaults.contentWindowInsets
+                },
             topBar = {
                 CenterAlignedTopAppBar(
                     title = { Text(stringResource(R.string.app_name)) },
+                    navigationIcon = {
+                        Image(
+                            painterResource(R.drawable.ic_app_logo),
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 16.dp).size(32.dp),
+                        )
+                    },
                     actions = {
                         IconButton(onClick = { confirmKill = true }) {
                             Icon(
@@ -284,6 +310,8 @@ fun HomeScreen(
                                 shizukuState = shizukuState,
                                 pinnedRules = pinnedRules,
                                 token = token,
+                                providers = providers,
+                                telemetry = telemetry,
                             ),
                         actions =
                             HomeTabActions(
@@ -299,6 +327,10 @@ fun HomeScreen(
                                     onSeeAllRules()
                                 },
                                 onOpenSettings = { settingsOpen = true },
+                                onAgentPrompt = { text ->
+                                    destination = Destination.CHAT
+                                    onAgentPrompt(text)
+                                },
                             ),
                         wide = wide,
                         modifier = content,

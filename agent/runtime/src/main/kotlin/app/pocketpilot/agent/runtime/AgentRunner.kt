@@ -2,6 +2,7 @@ package app.pocketpilot.agent.runtime
 
 import app.pocketpilot.agent.providers.api.Message
 import app.pocketpilot.agent.providers.api.ModelErrorCode
+import app.pocketpilot.agent.providers.api.ModelErrors
 import app.pocketpilot.agent.providers.api.ModelEvent
 import app.pocketpilot.agent.providers.api.ModelRequest
 import app.pocketpilot.agent.providers.api.Part
@@ -36,7 +37,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import java.util.Base64
 
@@ -60,6 +64,8 @@ class AgentRunner(
      * PocketPilot itself, so the app steps out of the way here when it is in front, as during a chat.
      */
     private val beforeScreenWork: suspend () -> Unit = {},
+    /** Told how each model answers, for Home's provider card. */
+    private val health: ProviderHealth? = null,
 ) {
     private val mutableCurrent = MutableStateFlow<AgentRun?>(null)
 
@@ -86,7 +92,7 @@ class AgentRunner(
         mutableCurrent.value?.close()
         val session = sessions.agentSession(task.scopes)
         if (task.preApproved.isNotEmpty()) preConfirm(session.id, task.preApproved)
-        val run = AgentRun(session, task, model, budgets, registry, dispatcher, store, clock, onSessionEnd, beforeScreenWork)
+        val run = AgentRun(session, task, model, budgets, registry, dispatcher, store, clock, onSessionEnd, beforeScreenWork, health)
         mutableCurrent.value = run
         run.launchIn(scope)
         return run
@@ -105,6 +111,7 @@ class AgentRun internal constructor(
     private val clock: Clock,
     private val onSessionEnd: (SessionId) -> Unit,
     private val beforeScreenWork: suspend () -> Unit = {},
+    private val health: ProviderHealth? = null,
 ) {
     val id: String get() = session.id.value
 
@@ -139,6 +146,9 @@ class AgentRun internal constructor(
 
     /** The first step of the current turn; the step budget counts from here. */
     private var turnStart = 0
+
+    /** How many messages there were when the current turn started. */
+    private var turnMessages = 0
 
     /** The owner's chat messages, waiting for the current turn to end. */
     private val inbox = Channel<String>(Channel.UNLIMITED)
@@ -189,7 +199,12 @@ class AgentRun internal constructor(
             val (status, outcome) = turn()
             if (!task.conversation) return end(status, outcome)
             // A chat answers and waits; a turn that ran out or failed still leaves the chat open.
-            if (status == RunStatus.FINISHED) messages += Message(Role.ASSISTANT, listOf(Part.Text(outcome)))
+            if (status == RunStatus.FINISHED) {
+                // The turn's tool calls and screens are not worth resending with every later message:
+                // the answer stays, and the model reads the phone again when a new message needs it.
+                while (messages.size > turnMessages) messages.removeAt(messages.lastIndex)
+                messages += Message(Role.ASSISTANT, listOf(Part.Text(outcome)))
+            }
             val finished = status == RunStatus.FINISHED
             mutableState.update { s ->
                 s.copy(
@@ -225,6 +240,7 @@ class AgentRun internal constructor(
         activeMs = 0
         consecutiveErrors = 0
         turnStart = state.value.steps.size
+        turnMessages = messages.size
         while (true) {
             if (paused.value) awaitResume()
             outOfBudget()?.let { return RunStatus.OUT_OF_BUDGET to it }
@@ -337,6 +353,7 @@ class AgentRun internal constructor(
         name: String,
         argsJson: String,
     ): Pair<ToolResult, StepCall> {
+        if (tools.isLoadCall(name)) return loadTools(name, argsJson)
         val spec = tools.resolve(name)
         val args =
             try {
@@ -356,11 +373,26 @@ class AgentRun internal constructor(
 
                 else -> {
                     if (spec.touchesScreen()) beforeScreenWork()
+                    // A tool called straight from the catalog stays in the request from now on.
+                    tools.markUsed(spec)
                     dispatcher.dispatch(session, spec.name, args)
                 }
             }
         val summary = summary(result).take(SUMMARY_CHARS)
         return result to StepCall(spec?.name ?: name, argsJson, summary, result.isError)
+    }
+
+    private fun loadTools(
+        name: String,
+        argsJson: String,
+    ): Pair<ToolResult, StepCall> {
+        val names =
+            runCatching {
+                (Json.parseToJsonElement(argsJson.ifBlank { "{}" }).jsonObject["names"] as? JsonArray)
+                    ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+            }.getOrNull().orEmpty()
+        val result = ToolResult.success(tools.load(names))
+        return result to StepCall(AgentTools.LOAD_DOTTED, argsJson, summary(result).take(SUMMARY_CHARS), false)
     }
 
     private suspend fun call(
@@ -378,7 +410,7 @@ class AgentRun internal constructor(
             val request =
                 ModelRequest(
                     model = model.model,
-                    system = Prompts.system(model.toolMode, tools.defs, chat = task.conversation),
+                    system = Prompts.system(model.toolMode, tools.defs, chat = task.conversation, catalog = tools.catalog),
                     messages = ImageBudget.apply(TextBudget.apply(messages), if (model.vision) budgets.maxImagesPerRequest else 0),
                     tools = if (model.toolMode == ToolMode.NATIVE) tools.defs else emptyList(),
                     maxTokens = model.maxOutputTokens,
@@ -388,16 +420,29 @@ class AgentRun internal constructor(
             val calls = mutableListOf<ModelEvent.ToolCall>()
             var error: ModelEvent.Error? = null
             var stop = StopReason.OTHER
-            model.provider.stream(request).collect { event ->
-                when (event) {
-                    is ModelEvent.TextDelta -> text.append(event.text)
-                    is ModelEvent.ToolCall -> calls += event
-                    is ModelEvent.Usage -> addUsage(event)
-                    is ModelEvent.Stop -> stop = event.reason
-                    is ModelEvent.Error -> error = event
+            try {
+                model.provider.stream(request).collect { event ->
+                    when (event) {
+                        is ModelEvent.TextDelta -> text.append(event.text)
+                        is ModelEvent.ToolCall -> calls += event
+                        is ModelEvent.Usage -> addUsage(event)
+                        is ModelEvent.Stop -> stop = event.reason
+                        is ModelEvent.Error -> error = event
+                    }
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A timeout or a dropped connection that an adapter did not turn into an error event must not
+                // end the run or the chat; it counts as the model not answering, like any other network failure.
+                error = ModelErrors.network(e)
             }
-            val failure = error ?: return Reply.Answer(text.toString(), calls, stop)
+            val failure = error
+            if (failure == null) {
+                health?.succeeded(model.label)
+                return Reply.Answer(text.toString(), calls, stop)
+            }
+            health?.failed(model.label, failure)
             val next = nextModel()
             if (failure.code in FALL_OVER && next != null) {
                 note("${model.label} is not available (${failure.code}), switching to ${next.label}")
@@ -537,7 +582,10 @@ class AgentRun internal constructor(
         const val MAX_CONSECUTIVE_ERRORS = 3
         const val JSON_RETRIES = 2
         const val MODEL_RETRIES = 2
-        val FALL_OVER = setOf(ModelErrorCode.RATE_LIMIT, ModelErrorCode.QUOTA, ModelErrorCode.AUTH)
+
+        /** Errors that move a run to the next model in the chain: limits, refused keys, timeouts and outages. */
+        val FALL_OVER =
+            setOf(ModelErrorCode.RATE_LIMIT, ModelErrorCode.QUOTA, ModelErrorCode.AUTH, ModelErrorCode.NETWORK, ModelErrorCode.SERVER)
         const val RETRY_BASE_MS = 2_000L
         const val MAX_RETRY_WAIT_MS = 30_000L
         const val SUMMARY_CHARS = 300

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.certificates.CertificateState
 import app.pocketpilot.network.publicaccess.RelayConfig
@@ -69,7 +71,7 @@ fun OwnNetworkCard(
     actions: OwnNetworkActions,
     modifier: Modifier = Modifier,
 ) {
-    Card(modifier = modifier.fillMaxWidth()) {
+    LiquidGlassBentoCard(modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.feature_network_title), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.feature_network_explainer), style = MaterialTheme.typography.bodySmall)

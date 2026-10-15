@@ -48,12 +48,25 @@ class FileToolsTest {
             if (path in contents && !replace) throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, "$path exists")
             contents[path] = bytes
         }
+
+        override suspend fun copy(
+            from: String,
+            to: String,
+            replace: Boolean,
+        ) = write(to, read(from, Int.MAX_VALUE).first, replace)
+
+        override suspend fun delete(path: String) {
+            contents.remove(path) ?: throw ToolException(ToolErrorCode.ELEMENT_NOT_FOUND, "No $path")
+        }
     }
 
     private val files = FakeFiles()
     private val dispatcher =
         CallDispatcher(
-            ToolRegistry(setOf(FilesListTool(files), FilesReadTool(files), FilesWriteTool(files)), PolicyProfile.OSS),
+            ToolRegistry(
+                setOf(FilesListTool(files), FilesReadTool(files), FilesWriteTool(files), FilesCopyTool(files), FilesDeleteTool(files)),
+                PolicyProfile.OSS,
+            ),
             InMemoryAuditSink(),
         )
     private val session = SessionFactory().localTokenSession()
@@ -137,5 +150,31 @@ class FileToolsTest {
                 }
             assertFalse(dispatcher.dispatch(session, "files.write", missing).isError)
             assertEquals("x", files.contents["Documents/none.txt"]!!.decodeToString())
+        }
+
+    @Test
+    fun `copies, moves and deletes files`() =
+        runTest {
+            val copy = { to: String, move: Boolean ->
+                buildJsonObject {
+                    put("from", "Documents/todo.txt")
+                    put("to", to)
+                    put("move", move)
+                }
+            }
+            assertFalse(dispatcher.dispatch(session, "files.copy", copy("Documents/copy.txt", false)).isError)
+            assertEquals("milk\neggs", files.contents["Documents/copy.txt"]!!.decodeToString())
+            assertTrue("Documents/todo.txt" in files.contents)
+            // An existing file is not replaced unless asked.
+            assertTrue(dispatcher.dispatch(session, "files.copy", copy("Documents/photo.jpg", true)).isError)
+            assertTrue("Documents/todo.txt" in files.contents)
+            assertFalse(dispatcher.dispatch(session, "files.copy", copy("Documents/moved.txt", true)).isError)
+            assertFalse("Documents/todo.txt" in files.contents)
+            assertTrue("Documents/moved.txt" in files.contents)
+
+            assertFalse(dispatcher.dispatch(session, "files.delete", buildJsonObject { put("path", "Documents/moved.txt") }).isError)
+            assertFalse("Documents/moved.txt" in files.contents)
+            val folder = dispatcher.dispatch(session, "files.delete", buildJsonObject { put("path", "Documents") })
+            assertEquals(ToolErrorCode.INVALID_ARGUMENTS, folder.errorCode)
         }
 }

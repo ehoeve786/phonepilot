@@ -67,7 +67,10 @@ import app.pocketpilot.core.tools.AppSetPermissionTool
 import app.pocketpilot.core.tools.AppSetStandbyBucketTool
 import app.pocketpilot.core.tools.AppStartActivityTool
 import app.pocketpilot.core.tools.AppStopTool
+import app.pocketpilot.core.tools.BatteryUsageTool
 import app.pocketpilot.core.tools.DeviceInfoTool
+import app.pocketpilot.core.tools.FilesCopyTool
+import app.pocketpilot.core.tools.FilesDeleteTool
 import app.pocketpilot.core.tools.FilesListTool
 import app.pocketpilot.core.tools.FilesReadTool
 import app.pocketpilot.core.tools.FilesWriteTool
@@ -282,6 +285,7 @@ object AppModule {
             AppSendBroadcastTool(admin),
             AdbQueryTool(system),
             AdbLogsTool(system),
+            BatteryUsageTool(system),
             ShellExecTool(shell) { shellSwitch.enabled.value },
         )
 
@@ -444,7 +448,8 @@ object AppModule {
 
     @Provides
     @ElementsIntoSet
-    fun fileTools(files: SafFileStore): Set<ToolHandler> = setOf(FilesListTool(files), FilesReadTool(files), FilesWriteTool(files))
+    fun fileTools(files: SafFileStore): Set<ToolHandler> =
+        setOf(FilesListTool(files), FilesReadTool(files), FilesWriteTool(files), FilesCopyTool(files), FilesDeleteTool(files))
 
     @Provides
     @Singleton

@@ -2,7 +2,7 @@
 
 PocketPilot turns an Android phone into an MCP server that any AI client can drive: Claude, ChatGPT, Gemini, DeepSeek, Qwen, Ollama or a local model. It needs no root and no PC after setup, and works through Shizuku, Accessibility and MediaProjection.
 
-**Status:** early development (milestone M1, repository skeleton). Nothing here is usable on a phone yet.
+**Status:** beta in development. Shizuku and Accessibility control, remote access (Tailscale and WireGuard), the MCP server, Agent mode and the automation engine are built. Remaining work is tracked in the technical specification.
 
 ## Build
 
@@ -29,12 +29,16 @@ Debug builds add `.debug`, so they install next to release builds.
 
 | Path | What lives there |
 |---|---|
-| `app/` | The Android app: activity, DI graph, flavor wiring |
-| `core/model/` | Domain types shared everywhere (pure Kotlin) |
-| `core/common/` | Small utilities such as ULIDs and clocks (pure Kotlin) |
-| `build-logic/` | Gradle convention plugins and the module graph guard |
+| `app/` | The Android app: activity, DI graph, flavor wiring, automation host |
+| `core/` | Domain and engine: `model` and `common` (pure Kotlin), `orchestrator` (routes MCP calls), `capabilities`, `policy`, `tools`, `automation` (rules engine), `audit`, `imaging`, `designsystem` |
+| `capability/` | Phone access: `shizuku`, `accessibility`, `screencapture`, `files`, `notifications`, `apps`, `device`, `api` |
+| `server/` | MCP over HTTP (`mcp`, `http`) and OAuth for remote clients (`oauth`) |
+| `network/` | Remote access: `tailscale` (embedded, via `go/`), `wireguard`, `public-access`, `certificates`, `api` |
+| `agent/` | Agent mode: model `providers-api`, provider adapters (`anthropic`, `gemini`, `openai`, `openai-compatible`), `runtime`, `model-registry` |
+| `feature/` | Screens: `agent`, `automations`, `approvals`, `clients`, `network`, `onboarding` |
+| `build-logic/` | Gradle convention plugins and the module graph guard (`checkModuleGraph`) |
 
-Further modules (orchestrator, capabilities, MCP server, network providers, agent, features) arrive milestone by milestone.
+Each Gradle path mirrors its folder, so `core/policy` is `:core:policy`. Pure Kotlin modules run their tests with `./gradlew :core:policy:test`; Android modules are tested and built in CI.
 
 ## License
 

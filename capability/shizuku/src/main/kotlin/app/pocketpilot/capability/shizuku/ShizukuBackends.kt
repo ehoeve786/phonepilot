@@ -292,8 +292,18 @@ class ShizukuAppController(
         shizuku.call { it.launchPackage(packageName) }
     }
 
-    override suspend fun openUrl(url: String) {
-        shizuku.call { it.openUrl(url) }
+    override suspend fun openUrl(
+        url: String,
+        packageName: String?,
+    ) {
+        val result = shizuku.call { it.openUrl(url, packageName.orEmpty()) }
+        if (result.contains("unable to resolve Intent") || result.startsWith("Error")) {
+            throw ToolException(
+                ToolErrorCode.ELEMENT_NOT_FOUND,
+                "${packageName ?: "No app"} cannot open that link",
+                "Check the package with app.list, or leave package out to use the default browser",
+            )
+        }
     }
 }
 

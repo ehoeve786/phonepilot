@@ -524,6 +524,137 @@ internal object Actions {
                     sentence = { p -> "${p.p("method")} ${p.p("url")}" },
                 ),
                 ActionDef(
+                    type = "files.copy",
+                    category = Category.FILES,
+                    title = "Copy or move a file",
+                    description = "Copies or moves a file within the folders you shared with PocketPilot.",
+                    fields =
+                        listOf(
+                            textField("from", "From", hint = "Folder/file.txt"),
+                            textField("to", "To", hint = "Folder/copy.txt"),
+                            choiceField("mode", "Mode", listOf(Choice("copy", "Copy"), Choice("move", "Move"))),
+                            choiceField("replace", "Replace an existing file", YES_NO.reversed()),
+                        ),
+                    tier = RiskTier.SENSITIVE,
+                    kind =
+                        ActionKind.Tool("files.copy") { p ->
+                            args(
+                                "from" to p.p("from"),
+                                "to" to p.p("to"),
+                                "move" to (p.p("mode") == "move"),
+                                "replace" to (p.p("replace") == "yes"),
+                            )
+                        },
+                    sentence = { p -> "${if (p.p("mode") == "move") "Move" else "Copy"} ${p.p("from")} to ${p.p("to")}" },
+                ),
+                ActionDef(
+                    type = "files.delete",
+                    category = Category.FILES,
+                    title = "Delete a file",
+                    description = "Deletes one file in a shared folder. Asks you each time.",
+                    fields = listOf(textField("path", "Path", hint = "Folder/file.txt")),
+                    tier = RiskTier.SENSITIVE,
+                    kind = ActionKind.Tool("files.delete") { p -> args("path" to p.p("path")) },
+                    sentence = { p -> "Delete ${p.p("path")}" },
+                ),
+                ActionDef(
+                    type = "http.download",
+                    category = Category.FILES,
+                    title = "Download a file",
+                    description = "Saves a web address to a new file in a shared folder; never replaces a file. Up to 50 MB.",
+                    fields = listOf(textField("url", "URL"), textField("path", "Save as", hint = "Folder/file.pdf"), INTO),
+                    tier = RiskTier.SENSITIVE,
+                    kind = ActionKind.Native,
+                    sentence = { p -> "Download to ${p.p("path")}" },
+                ),
+                ActionDef(
+                    type = "json.pick",
+                    category = Category.VARIABLES,
+                    title = "Read a value from JSON",
+                    description =
+                        "Takes one value out of JSON text, such as an HTTP reply, with a path like data.items[0].name.",
+                    fields =
+                        listOf(
+                            FieldDef("json", "JSON", FieldKind.MULTILINE, hint = "Usually a variable, like {reply}"),
+                            textField("path", "Path", hint = "For example current.temperature"),
+                            INTO.copy(required = true, default = "value"),
+                        ),
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Engine,
+                    sentence = { p -> "{${p.p("into")}} = ${p.p("path")}" },
+                ),
+                // Home Assistant
+                ActionDef(
+                    type = "ha.call",
+                    category = Category.HOME,
+                    title = "Home Assistant action",
+                    description = "Calls a Home Assistant action, such as light.turn_on, on an entity.",
+                    fields =
+                        listOf(
+                            textField("service", "Action", hint = "For example light.turn_on"),
+                            textField("entity", "Entity ID", required = false, hint = "For example light.kitchen"),
+                            FieldDef(
+                                "data",
+                                "Extra data (JSON)",
+                                FieldKind.JSON,
+                                required = false,
+                                hint = "For example {\"brightness_pct\": 50}",
+                            ),
+                            INTO,
+                        ),
+                    tier = RiskTier.SENSITIVE,
+                    kind = ActionKind.Native,
+                    sentence = { p -> listOf(p.p("service"), p.p("entity")).filter(String::isNotBlank).joinToString(" ") },
+                ),
+                ActionDef(
+                    type = "ha.get",
+                    category = Category.HOME,
+                    title = "Read a Home Assistant entity",
+                    description = "Saves an entity's state, or one of its attributes, in a variable.",
+                    fields =
+                        listOf(
+                            textField("entity", "Entity ID", hint = "For example sensor.outside_temperature"),
+                            textField("attribute", "Attribute", required = false, hint = "The state when empty"),
+                            INTO.copy(required = true, default = "state"),
+                        ),
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Native,
+                    sentence = { p -> "{${p.p("into")}} = ${p.p("entity")}" },
+                ),
+                // Calendar
+                ActionDef(
+                    type = "calendar.add",
+                    category = Category.CALENDAR,
+                    title = "Add a calendar event",
+                    description = "Adds an event to your calendar. Needs calendar access.",
+                    fields =
+                        listOf(
+                            textField("title", "Title"),
+                            textField("start", "Starts", hint = "2026-10-20 14:30, or 14:30 for today"),
+                            numberField("minutes", "Length (minutes)", default = "60"),
+                            textField("location", "Place", required = false),
+                            textField("calendar", "Calendar", required = false, hint = "The main calendar when empty"),
+                        ),
+                    tier = RiskTier.SENSITIVE,
+                    kind = ActionKind.Native,
+                    sentence = { p -> "Add \"${p.p("title").take(30)}\" at ${p.p("start")}" },
+                ),
+                ActionDef(
+                    type = "calendar.read",
+                    category = Category.CALENDAR,
+                    title = "Read upcoming events",
+                    description = "Saves the next events, one per line as \"start, title\", in a variable. Needs calendar access.",
+                    fields =
+                        listOf(
+                            numberField("hours", "Next (hours)", default = "24"),
+                            textField("title", "Title contains", required = false),
+                            INTO.copy(required = true, default = "events"),
+                        ),
+                    tier = RiskTier.SENSITIVE,
+                    kind = ActionKind.Native,
+                    sentence = { p -> "Read the next ${p.p("hours")} hours of events" },
+                ),
+                ActionDef(
                     type = "adb.query",
                     category = Category.FILES,
                     title = "Read phone state (adb)",

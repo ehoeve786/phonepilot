@@ -14,10 +14,12 @@ object RuleValidator {
             if (def == null) {
                 problems += "Unknown trigger ${spec.type}"
             } else {
+                if (def.sideloadOnly && !sideload) problems += "${def.title} is only in the sideload build"
                 missing(def.fields, spec.params).forEach { problems += "${def.title}: set ${it.label}" }
+                place(def.title, def.fields, spec.params, problems)
             }
         }
-        group(rule.constraints, problems)
+        group(rule.constraints, problems, sideload)
         if (rule.runAs == RunMode.AGENT) {
             if (rule.agentPrompt.isBlank()) problems += "Write the task for Agent mode"
         } else if (rule.actions.isEmpty()) {
@@ -47,7 +49,7 @@ object RuleValidator {
             if (!def.container && (step.children.isNotEmpty() || step.elseChildren.isNotEmpty())) {
                 problems += "${def.title} cannot hold other actions"
             }
-            group(step.constraints, problems)
+            group(step.constraints, problems, sideload)
             actions(step.children, problems, sideload)
             actions(step.elseChildren, problems, sideload)
         }
@@ -56,6 +58,7 @@ object RuleValidator {
     private fun group(
         group: ConstraintGroup,
         problems: MutableList<String>,
+        sideload: Boolean,
     ) {
         group.items.forEach { node ->
             when (node) {
@@ -64,15 +67,28 @@ object RuleValidator {
                     if (def == null) {
                         problems += "Unknown condition ${node.spec.type}"
                     } else {
+                        if (def.sideloadOnly && !sideload) problems += "${def.title} is only in the sideload build"
                         missing(def.fields, node.spec.params).forEach { problems += "${def.title}: set ${it.label}" }
+                        place(def.title, def.fields, node.spec.params, problems)
                     }
                 }
 
                 is ConstraintNode.Group -> {
-                    group(node.group, problems)
+                    group(node.group, problems, sideload)
                 }
             }
         }
+    }
+
+    /** A location setting must be coordinates a map app gives. */
+    private fun place(
+        title: String,
+        fields: List<FieldDef>,
+        params: Map<String, String>,
+        problems: MutableList<String>,
+    ) {
+        if (fields.none { it.key == "at" } || params["at"].isNullOrBlank()) return
+        if (Place.coordinates(params["at"].orEmpty()) == null) problems += "$title: give the place as latitude, longitude"
     }
 
     private fun missing(

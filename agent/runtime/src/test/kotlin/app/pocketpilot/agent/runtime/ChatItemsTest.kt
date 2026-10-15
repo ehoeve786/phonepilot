@@ -2,6 +2,7 @@ package app.pocketpilot.agent.runtime
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class ChatItemsTest {
     private fun step(
@@ -64,5 +65,24 @@ class ChatItemsTest {
                 steps = listOf(step(0, calls = listOf(tap))),
             )
         assertEquals(ChatItem.Note("Stopped by the owner"), chatItems(run).last())
+    }
+
+    @Test
+    fun `transcript includes the owner's messages and the agent's replies`() {
+        val run =
+            RunState(
+                id = "r1",
+                goal = "Hi",
+                provider = "fake",
+                model = "m",
+                startedAtMillis = 0,
+                status = RunStatus.WAITING,
+                conversation = true,
+                steps = listOf(step(0, reply = "Hello"), step(1, user = "Tap it")),
+            )
+        val text = transcript(run)
+        assertTrue(text.contains("Reply: Hello"))
+        assertTrue(text.contains("Owner: Tap it"))
+        assertEquals("2. Owner: Tap it", stepLine(run.steps[1]))
     }
 }

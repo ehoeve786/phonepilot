@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Icon
+import android.location.LocationManager
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import app.pocketpilot.R
@@ -38,6 +39,30 @@ class AutomationAlarmReceiver : BroadcastReceiver() {
         const val EXTRA_RULE = "rule"
         const val EXTRA_INDEX = "index"
     }
+}
+
+/** A proximity alert from [PlaceWatcher]: the phone entered or left one of the rules' places. */
+class PlaceReceiver : BroadcastReceiver() {
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) {
+        val place = intent.getStringExtra(EXTRA_PLACE) ?: return
+        if (!intent.hasExtra(LocationManager.KEY_PROXIMITY_ENTERING)) return
+        context.automations().onPlace(place, intent.getBooleanExtra(LocationManager.KEY_PROXIMITY_ENTERING, false))
+    }
+
+    companion object {
+        const val EXTRA_PLACE = "place"
+    }
+}
+
+/** The next start or end of a calendar event that a rule waits for. */
+class CalendarAlarmReceiver : BroadcastReceiver() {
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) = context.automations().onCalendarAlarm()
 }
 
 /**

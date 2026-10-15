@@ -491,6 +491,14 @@ class AutomationEngine(
                 assign(context, name, result)
             }
 
+            "json.pick" -> {
+                val value =
+                    JsonPick.pick(params["json"].orEmpty(), params.p("path"))
+                        ?: throw AutomationFailure("Nothing at ${params.p("path")} in that JSON")
+                save(value)
+                return "{$into} = ${value.take(MAX_NOTE)}"
+            }
+
             "var.random" -> {
                 val min = params.p("min").toIntOrNull() ?: 1
                 val max = params.p("max").toIntOrNull() ?: 6

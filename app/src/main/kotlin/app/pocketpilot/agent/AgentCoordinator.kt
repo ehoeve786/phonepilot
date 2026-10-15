@@ -20,6 +20,7 @@ import app.pocketpilot.agent.runtime.RunModel
 import app.pocketpilot.agent.runtime.RunState
 import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.agent.runtime.ToolMode
+import app.pocketpilot.agent.runtime.chatsToDelete
 import app.pocketpilot.core.model.Scope
 import app.pocketpilot.feature.agent.ModelList
 import app.pocketpilot.feature.agent.ModelOption
@@ -170,6 +171,21 @@ class AgentCoordinator(
         if (run.state.value.active) run.stop() else run.close()
     }
 
+    /** Deletes the earlier chats with these ids. The chat on screen is kept, even if it is listed. */
+    fun deleteChats(ids: Set<String>) = deleteChatsWhere(ids)
+
+    /** Deletes every earlier chat, keeping the chat on screen. Task runs under Activity stay. */
+    fun deleteAllChats() = deleteChatsWhere(null)
+
+    private fun deleteChatsWhere(picked: Set<String>?) {
+        val keep = current.value?.id
+        scope.launch {
+            val ids = chatsToDelete(mutableHistory.value, keep, picked)
+            withContext(Dispatchers.IO) { runs.delete(ids) }
+            refreshHistory()
+        }
+    }
+
     /** Saves [profile]; [newKeys] join its saved keys, or replace them when [clearSaved]. */
     fun saveProfile(
         profile: AgentProfile,
@@ -267,7 +283,7 @@ class AgentCoordinator(
             provider =
                 keys(profile)
                     .takeIf { it.size > 1 }
-                    ?.let { all -> KeyRotatingProvider(all.map { provider(profile, it) }) }
+                    ?.let { all -> KeyRotatingProvider(all.map { provider(profile, it) }, roundRobin = true) }
                     ?: provider(profile, keys(profile).firstOrNull()),
             model = profile.model,
             toolMode = if (descriptor.tools == ToolSupport.NATIVE) ToolMode.NATIVE else ToolMode.JSON_FALLBACK,

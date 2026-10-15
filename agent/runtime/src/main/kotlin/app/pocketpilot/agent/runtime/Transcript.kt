@@ -4,6 +4,8 @@ package app.pocketpilot.agent.runtime
 fun stepLine(step: AgentStep): String =
     buildString {
         append(step.index + 1).append(". ")
+        step.user?.let { append("Owner: ").append(it.lineSequence().first().take(LINE_TEXT)) }
+        step.reply?.let { append("Reply: ").append(it.lineSequence().first().take(LINE_TEXT)) }
         step.note?.let { append("· ").append(it) }
         step.text?.let { append(it.lineSequence().first().take(LINE_TEXT)) }
         for (call in step.calls) {
@@ -31,6 +33,8 @@ fun transcript(run: RunState): String =
         for (step in run.steps) {
             appendLine()
             appendLine("Step ${step.index + 1}${step.screenHash?.let { " (screen $it)" } ?: ""}")
+            step.user?.let { appendLine("Owner: $it") }
+            step.reply?.let { appendLine("Reply: $it") }
             step.note?.let { appendLine("Note: $it") }
             step.text?.let { appendLine(it) }
             for (call in step.calls) {

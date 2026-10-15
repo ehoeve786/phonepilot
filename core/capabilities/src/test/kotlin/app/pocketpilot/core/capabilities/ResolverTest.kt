@@ -196,7 +196,10 @@ class ResolverTest {
                         launched += "$id $packageName"
                     }
 
-                    override suspend fun openUrl(url: String) {
+                    override suspend fun openUrl(
+                        url: String,
+                        packageName: String?,
+                    ) {
                         launched += "$id $url"
                     }
                 }

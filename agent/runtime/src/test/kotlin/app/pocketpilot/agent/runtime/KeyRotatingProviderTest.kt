@@ -82,4 +82,50 @@ class KeyRotatingProviderTest {
             assertEquals(ModelErrorCode.INVALID_REQUEST, (events.single() as ModelEvent.Error).code)
             assertEquals(0, spare.calls)
         }
+
+    @Test
+    fun roundRobinStartsEachRequestOnTheNextKey() =
+        runTest {
+            val a = Key("a", limited = false)
+            val b = Key("b", limited = false)
+            val provider = KeyRotatingProvider(listOf(a, b), roundRobin = true)
+
+            val served = (1..4).map { (provider.stream(request).toList().first() as ModelEvent.TextDelta).text }
+
+            assertEquals(listOf("a", "b", "a", "b"), served)
+        }
+
+    @Test
+    fun roundRobinSkipsALimitedKeyWithoutLosingTheTurn() =
+        runTest {
+            val a = Key("a", limited = true)
+            val b = Key("b", limited = false)
+            val provider = KeyRotatingProvider(listOf(a, b), roundRobin = true)
+
+            val served = (1..3).map { (provider.stream(request).toList().first() as ModelEvent.TextDelta).text }
+
+            assertEquals(listOf("b", "b", "b"), served)
+            assertEquals(2, a.calls, "the limited key is tried again on its own turn, and may have recovered")
+        }
+
+    @Test
+    fun aTimeoutIsLeftToTheNextProviderInsteadOfTheNextKey() =
+        runTest {
+            val slow =
+                object : ModelProvider {
+                    override val id = "gemini"
+                    override val displayName = "Gemini"
+
+                    override suspend fun listModels() = emptyList<ModelInfo>()
+
+                    override fun stream(request: ModelRequest): Flow<ModelEvent> =
+                        flowOf(ModelEvent.Error(ModelErrorCode.NETWORK, "timeout"))
+                }
+            val spare = Key("b", false)
+
+            val events = KeyRotatingProvider(listOf(slow, spare), roundRobin = true).stream(request).toList()
+
+            assertEquals(ModelErrorCode.NETWORK, (events.single() as ModelEvent.Error).code)
+            assertEquals(0, spare.calls)
+        }
 }

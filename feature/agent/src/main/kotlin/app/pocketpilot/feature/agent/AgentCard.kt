@@ -3,12 +3,12 @@ package app.pocketpilot.feature.agent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -42,6 +42,7 @@ import app.pocketpilot.agent.runtime.RunState
 import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.agent.runtime.stepLine
 import app.pocketpilot.agent.runtime.transcript
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import kotlinx.coroutines.delay
 import java.util.UUID
 
@@ -96,7 +97,7 @@ fun AgentCard(
     actions: AgentActions,
     modifier: Modifier = Modifier,
 ) {
-    Card(modifier = modifier.fillMaxWidth()) {
+    LiquidGlassBentoCard(modifier = modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.feature_agent_title), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.feature_agent_explainer), style = MaterialTheme.typography.bodySmall)

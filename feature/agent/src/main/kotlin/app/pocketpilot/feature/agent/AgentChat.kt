@@ -8,15 +8,19 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -24,8 +28,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -51,6 +53,8 @@ import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.agent.runtime.chatItems
 import app.pocketpilot.agent.runtime.stepLine
 import app.pocketpilot.agent.runtime.transcript
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
+import app.pocketpilot.designsystem.agent.AgentCommandBar
 import java.text.DateFormat
 import java.util.Date
 
@@ -65,6 +69,10 @@ data class ChatActions(
     val stop: () -> Unit,
     /** Closes the current chat, stopping it if it is working. */
     val endChat: () -> Unit,
+    /** Deletes the earlier chats with these ids; the chat on screen is kept. */
+    val deleteChats: (Set<String>) -> Unit,
+    /** Deletes every earlier chat. */
+    val deleteAllChats: () -> Unit,
     /** Opens the model list, under Activity, Agent. */
     val openModels: () -> Unit,
 )
@@ -87,7 +95,6 @@ fun AgentChat(
     var profileId by rememberSaveable { mutableStateOf<String?>(null) }
     var allowSettings by rememberSaveable { mutableStateOf(false) }
     var useFallbacks by rememberSaveable { mutableStateOf(true) }
-    var input by rememberSaveable { mutableStateOf("") }
 
     val earlier = history.filter { it.conversation && it.id != current?.id }.take(EARLIER_SHOWN)
     val viewing = viewingId?.let { id -> earlier.firstOrNull { it.id == id } }
@@ -96,14 +103,13 @@ fun AgentChat(
     val profile = profiles.firstOrNull { it.id == profileId } ?: profiles.firstOrNull()
     val working = live?.active == true
 
-    fun send() {
-        val text = input.trim()
+    fun send(prompt: String) {
+        val text = prompt.trim()
         if (text.isEmpty() || profile == null) return
         if (live?.status != RunStatus.WAITING || !actions.send(text)) {
             hiddenId = null
             actions.start(text, profile.id, allowSettings, useFallbacks && profiles.size > 1)
         }
-        input = ""
     }
 
     Column(modifier.fillMaxSize().imePadding()) {
@@ -111,9 +117,12 @@ fun AgentChat(
             profiles = profiles,
             profile = profile,
             earlier = earlier,
+            past = history.filter { it.conversation && it.id != current?.id },
             canStartNew = shown != null,
             onProfile = { profileId = it },
             onOpenEarlier = { viewingId = it },
+            onDeleteChats = actions.deleteChats,
+            onDeleteAll = actions.deleteAllChats,
             onNewChat = {
                 if (viewing == null) {
                     actions.endChat()
@@ -140,7 +149,7 @@ fun AgentChat(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 profiles.isEmpty() -> NoModels(actions.openModels)
-                shown == null -> EmptyChat(onSuggestion = { input = it })
+                shown == null -> EmptyChat(onSuggestion = ::send)
                 else -> Messages(shown)
             }
         }
@@ -167,11 +176,11 @@ fun AgentChat(
                     }
                 }
             }
-            InputBar(
-                text = input,
-                onText = { input = it },
+            // The same bar as Home's quick prompt, so the chat and Home share one layout.
+            AgentCommandBar(
+                onSubmit = ::send,
                 enabled = !working,
-                onSend = ::send,
+                modifier = Modifier.padding(12.dp),
             )
         }
     }
@@ -182,68 +191,164 @@ private fun ChatHeader(
     profiles: List<AgentProfile>,
     profile: AgentProfile?,
     earlier: List<RunState>,
+    past: List<RunState>,
     canStartNew: Boolean,
     onProfile: (String) -> Unit,
     onOpenEarlier: (String) -> Unit,
+    onDeleteChats: (Set<String>) -> Unit,
+    onDeleteAll: () -> Unit,
     onNewChat: () -> Unit,
     onManageModels: () -> Unit,
 ) {
     var modelsOpen by remember { mutableStateOf(false) }
     var earlierOpen by remember { mutableStateOf(false) }
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    var managing by remember { mutableStateOf(false) }
+    LiquidGlassBentoCard(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
     ) {
-        Box(Modifier.weight(1f)) {
-            TextButton(onClick = { modelsOpen = true }) {
-                Text(profile?.name ?: stringResource(R.string.feature_agent_chat_no_model), maxLines = 1)
-            }
-            DropdownMenu(expanded = modelsOpen, onDismissRequest = { modelsOpen = false }) {
-                for (p in profiles) {
-                    DropdownMenuItem(
-                        text = {
-                            Column {
-                                Text(p.name)
-                                Text(p.model, style = MaterialTheme.typography.bodySmall)
-                            }
-                        },
-                        onClick = {
-                            onProfile(p.id)
-                            modelsOpen = false
-                        },
-                    )
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.weight(1f)) {
+                TextButton(onClick = { modelsOpen = true }) {
+                    Text(profile?.name ?: stringResource(R.string.feature_agent_chat_no_model), maxLines = 1)
                 }
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.feature_agent_chat_manage_models)) },
-                    onClick = {
-                        modelsOpen = false
-                        onManageModels()
-                    },
-                )
-            }
-        }
-        if (earlier.isNotEmpty()) {
-            Box {
-                TextButton(onClick = { earlierOpen = true }) { Text(stringResource(R.string.feature_agent_chat_earlier)) }
-                DropdownMenu(expanded = earlierOpen, onDismissRequest = { earlierOpen = false }) {
-                    for (run in earlier) {
+                DropdownMenu(expanded = modelsOpen, onDismissRequest = { modelsOpen = false }) {
+                    for (p in profiles) {
                         DropdownMenuItem(
                             text = {
                                 Column {
-                                    Text(run.goal, maxLines = 1)
-                                    Text(dateTime(run.startedAtMillis), style = MaterialTheme.typography.bodySmall)
+                                    Text(p.name)
+                                    Text(p.model, style = MaterialTheme.typography.bodySmall)
                                 }
                             },
                             onClick = {
-                                onOpenEarlier(run.id)
+                                onProfile(p.id)
+                                modelsOpen = false
+                            },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.feature_agent_chat_manage_models)) },
+                        onClick = {
+                            modelsOpen = false
+                            onManageModels()
+                        },
+                    )
+                }
+            }
+            if (earlier.isNotEmpty()) {
+                Box {
+                    TextButton(onClick = { earlierOpen = true }) { Text(stringResource(R.string.feature_agent_chat_earlier)) }
+                    DropdownMenu(expanded = earlierOpen, onDismissRequest = { earlierOpen = false }) {
+                        for (run in earlier) {
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(run.goal, maxLines = 1)
+                                        Text(dateTime(run.startedAtMillis), style = MaterialTheme.typography.bodySmall)
+                                    }
+                                },
+                                onClick = {
+                                    onOpenEarlier(run.id)
+                                    earlierOpen = false
+                                },
+                            )
+                        }
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.feature_agent_chat_manage)) },
+                            onClick = {
                                 earlierOpen = false
+                                managing = true
                             },
                         )
                     }
                 }
             }
+            TextButton(enabled = canStartNew, onClick = onNewChat) { Text(stringResource(R.string.feature_agent_chat_new)) }
         }
-        TextButton(enabled = canStartNew, onClick = onNewChat) { Text(stringResource(R.string.feature_agent_chat_new)) }
+    }
+    if (managing) {
+        ManageChatsDialog(
+            past = past,
+            onDeleteChats = onDeleteChats,
+            onDeleteAll = onDeleteAll,
+            onDismiss = { managing = false },
+        )
+    }
+}
+
+/** Picks earlier chats to delete, or deletes them all after a confirmation. */
+@Composable
+private fun ManageChatsDialog(
+    past: List<RunState>,
+    onDeleteChats: (Set<String>) -> Unit,
+    onDeleteAll: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var picked by remember { mutableStateOf(emptySet<String>()) }
+    var confirmAll by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.feature_agent_chat_manage_title)) },
+        text = {
+            if (past.isEmpty()) {
+                Text(stringResource(R.string.feature_agent_chat_no_earlier))
+            } else {
+                LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(past, key = { it.id }) { run ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { picked = if (run.id in picked) picked - run.id else picked + run.id }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = run.id in picked, onCheckedChange = null)
+                            Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                                Text(run.goal, maxLines = 1)
+                                Text(dateTime(run.startedAtMillis), style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = picked.isNotEmpty(),
+                onClick = {
+                    onDeleteChats(picked)
+                    onDismiss()
+                },
+            ) { Text(stringResource(R.string.feature_agent_chat_delete_selected)) }
+        },
+        dismissButton = {
+            Row {
+                if (past.isNotEmpty()) {
+                    TextButton(onClick = { confirmAll = true }) { Text(stringResource(R.string.feature_agent_chat_delete_all)) }
+                }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.feature_agent_chat_cancel)) }
+            }
+        },
+    )
+    if (confirmAll) {
+        AlertDialog(
+            onDismissRequest = { confirmAll = false },
+            text = { Text(stringResource(R.string.feature_agent_chat_delete_all_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteAll()
+                    onDismiss()
+                }) { Text(stringResource(R.string.feature_agent_chat_delete_all)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmAll = false }) { Text(stringResource(R.string.feature_agent_chat_cancel)) }
+            },
+        )
     }
 }
 
@@ -309,20 +414,34 @@ private fun Bubble(
     text: String,
     mine: Boolean,
 ) {
+    val shape =
+        RoundedCornerShape(
+            topStart = BUBBLE_RADIUS,
+            topEnd = BUBBLE_RADIUS,
+            bottomStart = if (mine) BUBBLE_RADIUS else BUBBLE_TAIL,
+            bottomEnd = if (mine) BUBBLE_TAIL else BUBBLE_RADIUS,
+        )
+    val content: @Composable () -> Unit = {
+        SelectionContainer {
+            Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+        }
+    }
     Box(Modifier.fillMaxWidth(), contentAlignment = if (mine) Alignment.CenterEnd else Alignment.CenterStart) {
-        Surface(
-            shape =
-                RoundedCornerShape(
-                    topStart = BUBBLE_RADIUS,
-                    topEnd = BUBBLE_RADIUS,
-                    bottomStart = if (mine) BUBBLE_RADIUS else BUBBLE_TAIL,
-                    bottomEnd = if (mine) BUBBLE_TAIL else BUBBLE_RADIUS,
-                ),
-            color = if (mine) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.widthIn(max = BUBBLE_MAX_WIDTH),
-        ) {
-            SelectionContainer {
-                Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+        if (mine) {
+            Surface(
+                shape = shape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.widthIn(max = BUBBLE_MAX_WIDTH),
+                content = content,
+            )
+        } else {
+            // The agent's answers sit on the glass, like Home's cards.
+            LiquidGlassBentoCard(
+                modifier = Modifier.widthIn(max = BUBBLE_MAX_WIDTH),
+                shape = shape,
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                content()
             }
         }
     }
@@ -394,32 +513,6 @@ private fun WorkingBar(
 }
 
 @Composable
-private fun InputBar(
-    text: String,
-    onText: (String) -> Unit,
-    enabled: Boolean,
-    onSend: () -> Unit,
-) {
-    Row(
-        Modifier.fillMaxWidth().padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        OutlinedTextField(
-            text,
-            onText,
-            modifier = Modifier.weight(1f),
-            placeholder = { Text(stringResource(R.string.feature_agent_chat_hint)) },
-            maxLines = INPUT_MAX_LINES,
-            shape = RoundedCornerShape(24.dp),
-        )
-        Button(enabled = enabled && text.isNotBlank(), onClick = onSend) {
-            Text(stringResource(R.string.feature_agent_chat_send))
-        }
-    }
-}
-
-@Composable
 private fun EmptyChat(onSuggestion: (String) -> Unit) {
     val suggestions =
         listOf(
@@ -438,7 +531,15 @@ private fun EmptyChat(onSuggestion: (String) -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
         )
-        suggestions.forEach { s -> SuggestionChip(onClick = { onSuggestion(s) }, label = { Text(s) }) }
+        suggestions.forEach { s ->
+            LiquidGlassBentoCard(
+                onClick = { onSuggestion(s) },
+                shape = RoundedCornerShape(24.dp),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
+            ) {
+                Text(s, style = MaterialTheme.typography.labelLarge)
+            }
+        }
     }
 }
 
@@ -461,4 +562,3 @@ private val BUBBLE_TAIL = 4.dp
 private val BUBBLE_MAX_WIDTH = 320.dp
 private const val EARLIER_SHOWN = 20
 private const val WORK_STEPS_SHOWN = 30
-private const val INPUT_MAX_LINES = 5

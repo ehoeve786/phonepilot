@@ -5,11 +5,16 @@ import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.automation.AndroidAutomationHost
 import app.pocketpilot.automation.AutomationNotifier
 import app.pocketpilot.automation.AutomationRuntime
+import app.pocketpilot.automation.Calendars
+import app.pocketpilot.automation.HomeAssistant
 import app.pocketpilot.automation.PhoneState
+import app.pocketpilot.automation.PlaceWatcher
 import app.pocketpilot.automation.TriggerSources
 import app.pocketpilot.capability.api.notifications.NotificationPoster
+import app.pocketpilot.capability.files.SafFileStore
 import app.pocketpilot.capability.shizuku.ShizukuConnection
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
+import app.pocketpilot.capability.shizuku.ShizukuSystemReader
 import app.pocketpilot.core.automation.AutomationCatalogTool
 import app.pocketpilot.core.automation.AutomationListTool
 import app.pocketpilot.core.automation.AutomationProposeTool
@@ -23,6 +28,7 @@ import app.pocketpilot.core.policy.AppMode
 import app.pocketpilot.core.policy.AppPolicy
 import app.pocketpilot.core.policy.PolicyEngine
 import app.pocketpilot.core.tools.NotifyPostTool
+import app.pocketpilot.network.api.SecretStore
 import app.pocketpilot.security.ShellSwitch
 import app.pocketpilot.server.http.McpHttpServer
 import dagger.Lazy
@@ -32,6 +38,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.ElementsIntoSet
+import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import java.io.File
 import javax.inject.Singleton
@@ -57,6 +64,15 @@ object AutomationModule {
 
     @Provides
     @Singleton
+    fun homeAssistant(
+        store: RuleStore,
+        secrets: SecretStore,
+        http: HttpClient,
+        scope: CoroutineScope,
+    ): HomeAssistant = HomeAssistant(store, secrets, http, scope)
+
+    @Provides
+    @Singleton
     fun phoneState(
         @ApplicationContext context: Context,
         shizuku: ShizukuConnection,
@@ -79,8 +95,13 @@ object AutomationModule {
         profile: PolicyProfile,
         notifier: AutomationNotifier,
         scope: CoroutineScope,
+        files: SafFileStore,
+        homeAssistant: HomeAssistant,
+        logs: ShizukuSystemReader,
     ): AutomationRuntime {
         val hidden = { pkg: String -> appPolicy.modeFor(pkg) == AppMode.DENY }
+        val calendars = Calendars(context)
+        val places = PlaceWatcher(context)
         val host =
             AndroidAutomationHost(
                 context = context,
@@ -91,6 +112,10 @@ object AutomationModule {
                 shellOn = { profile.shellExecAvailable && shellSwitch.enabled.value },
                 hidden = hidden,
                 agent = { agent.get() },
+                files = files,
+                homeAssistant = homeAssistant,
+                calendars = calendars,
+                places = places,
                 sideload = profile.shellExecAvailable,
             )
         return AutomationRuntime(
@@ -100,7 +125,11 @@ object AutomationModule {
             notifier,
             shell,
             scope,
-        ) { emit -> TriggerSources(context, phone, scope, hidden, emit) }
+            calendars,
+            profile.shellExecAvailable,
+        ) { emit ->
+            TriggerSources(context, phone, scope, hidden, places, calendars, homeAssistant, logs, profile.shellExecAvailable, emit)
+        }
     }
 
     /**
@@ -117,7 +146,7 @@ object AutomationModule {
     ): Set<ToolHandler> =
         setOf(
             NotifyPostTool(notifier),
-            AutomationCatalogTool(),
+            AutomationCatalogTool(profile.shellExecAvailable),
             AutomationListTool(store),
             AutomationProposeTool(store, profile.shellExecAvailable) { notifier.proposed(it) },
             AutomationRunTool(store) { runtime.get().engine },

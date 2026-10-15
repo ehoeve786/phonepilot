@@ -2,6 +2,7 @@ package app.pocketpilot.capability.accessibility
 
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.delay
@@ -34,6 +35,39 @@ object A11yBridge {
 
     /** The package of the last window that came to the front, for "app opened" automations. */
     val frontPackage: StateFlow<String?> = windowPackage.asStateFlow()
+
+    /** Counts screen events, so watchers can react when the screen changes. */
+    val changeCount: StateFlow<Long> = changes.asStateFlow()
+
+    /**
+     * The package of the window in front and the texts on it, or null while the service is off.
+     * Password fields are left out.
+     */
+    fun frontWindowText(maxNodes: Int = MAX_TEXT_NODES): Pair<String, List<String>>? {
+        val root = current.value?.rootInActiveWindow ?: return null
+        val pkg = root.packageName?.toString() ?: return null
+        val texts = mutableListOf<String>()
+        val queue = ArrayDeque<AccessibilityNodeInfo>().apply { add(root) }
+        var visited = 0
+        while (queue.isNotEmpty() && visited < maxNodes) {
+            val node = queue.removeFirst()
+            visited++
+            if (!node.isPassword) {
+                node.text
+                    ?.toString()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let(texts::add)
+                node.contentDescription
+                    ?.toString()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let(texts::add)
+            }
+            for (i in 0 until node.childCount) node.getChild(i)?.let(queue::add)
+        }
+        return pkg to texts
+    }
+
+    private const val MAX_TEXT_NODES = 600
 
     internal fun attach(service: PocketPilotA11yService) {
         current.value = service

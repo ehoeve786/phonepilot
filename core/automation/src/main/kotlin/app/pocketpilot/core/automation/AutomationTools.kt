@@ -46,8 +46,11 @@ private fun automationSpec(
 private fun invalid(message: String): Nothing =
     throw ToolException(ToolErrorCode.INVALID_ARGUMENTS, message, "Call automation.catalog for the types and their settings.")
 
-/** `automation.catalog`: every trigger, condition and action type with its settings. */
-class AutomationCatalogTool : ToolHandler {
+/** `automation.catalog`: every trigger, condition and action type this build offers, with its settings. */
+class AutomationCatalogTool(
+    /** False in the Play build, which leaves out sideload-only types. */
+    private val sideload: Boolean = true,
+) : ToolHandler {
     override val spec =
         automationSpec(
             "automation.catalog",
@@ -68,15 +71,26 @@ class AutomationCatalogTool : ToolHandler {
             buildString {
                 if (kind == null || kind == "triggers") {
                     appendLine("triggers (variables they set: {trigger.<name>}):")
-                    AutomationCatalog.triggers.forEach { appendLine(line(it.type, it.title, it.fields, it.variables)) }
+                    AutomationCatalog.triggers.filter { sideload || !it.sideloadOnly }.forEach {
+                        appendLine(
+                            line(it.type, it.title, it.fields, it.variables),
+                        )
+                    }
                 }
                 if (kind == null || kind == "conditions") {
                     appendLine("conditions:")
-                    AutomationCatalog.constraints.forEach { appendLine(line(it.type, it.title, it.fields)) }
+                    AutomationCatalog.constraints.filter { sideload || !it.sideloadOnly }.forEach {
+                        appendLine(
+                            line(it.type, it.title, it.fields),
+                        )
+                    }
                 }
                 if (kind == null || kind == "actions") {
                     appendLine("actions (tier in brackets; flow.if/flow.while/flow.wait_until use the step's conditions):")
-                    AutomationCatalog.actions.forEach { appendLine(line(it.type, "${it.title} [${it.tier.name.lowercase()}]", it.fields)) }
+                    AutomationCatalog.actions
+                        .filter {
+                            sideload || !it.sideloadOnly
+                        }.forEach { appendLine(line(it.type, "${it.title} [${it.tier.name.lowercase()}]", it.fields)) }
                 }
             }
         return ToolResult.success(text.trimEnd())

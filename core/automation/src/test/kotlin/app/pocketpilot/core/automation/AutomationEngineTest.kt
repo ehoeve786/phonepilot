@@ -450,4 +450,137 @@ class AutomationEngineTest {
     fun `every template is a valid rule`() {
         Templates.all.forEach { assertEquals(emptyList(), RuleValidator.problems(it), it.name) }
     }
+
+    private fun matches(
+        type: String,
+        params: Map<String, String>,
+        event: Map<String, String>,
+    ): Boolean {
+        val def = AutomationCatalog.trigger(type)!!
+        return def.match(RuleValidator.withDefaults(def.fields, params), event, null)
+    }
+
+    @Test
+    fun `wave 2 triggers match their events`() {
+        val home = mapOf("at" to "49.2827, -123.1207", "radius" to "200", "event" to "exit")
+        val key = Place.from(home)!!.key
+        assertTrue(matches("location.place", home, mapOf("event" to "exit", "place" to key)))
+        assertFalse(matches("location.place", home, mapOf("event" to "enter", "place" to key)))
+        assertFalse(matches("location.place", home, mapOf("event" to "exit", "place" to "0.00000,0.00000,200")))
+
+        assertTrue(matches("call.changed", mapOf("number" to "+1 (604) 555"), mapOf("event" to "ringing", "number" to "16045551234")))
+        assertFalse(matches("call.changed", mapOf("event" to "missed"), mapOf("event" to "ended", "number" to "")))
+        assertTrue(
+            matches("sms.received", mapOf("from" to "Bank", "text" to "code"), mapOf("from" to "MyBank", "text" to "Your code is 1")),
+        )
+
+        assertTrue(matches("sensor.shake", emptyMap(), mapOf("strength" to "hard")))
+        assertFalse(matches("sensor.shake", mapOf("strength" to "hard"), mapOf("strength" to "medium")))
+        assertTrue(matches("sensor.flip", emptyMap(), mapOf("position" to "down")))
+
+        assertTrue(matches("calendar.event", mapOf("title" to "standup"), mapOf("event" to "start", "title" to "Daily Standup")))
+        assertFalse(matches("calendar.event", emptyMap(), mapOf("event" to "start", "title" to "Holiday", "all_day" to "yes")))
+
+        val door = mapOf("entity" to "binary_sensor.front_door", "to" to "on")
+        assertTrue(matches("ha.state", door, mapOf("entity" to "binary_sensor.front_door", "state" to "on", "previous" to "off")))
+        assertFalse(matches("ha.state", door, mapOf("entity" to "binary_sensor.front_door", "state" to "off", "previous" to "on")))
+
+        assertTrue(matches("intent.action", mapOf("action" to "com.example.DONE"), mapOf("action" to "com.example.DONE")))
+        assertTrue(matches("media.changed", mapOf("state" to "track"), mapOf("state" to "track", "package" to "com.spotify.music")))
+        assertTrue(matches("log.line", mapOf("text" to "OOM"), mapOf("line" to "lowmemorykiller: oom kill", "tag" to "lmkd")))
+    }
+
+    @Test
+    fun `wave 2 conditions read phone state`() =
+        runTest {
+            val host = FakeHost()
+            val engine = engine(this, host)
+            val r = rule(emptyList())
+
+            fun check(spec: ConstraintSpec) = ConstraintGroup.of(spec)
+            host.state[StateKeys.LOCATION] = "49.2830,-123.1210"
+            val home = mapOf("at" to "49.2827, -123.1207", "radius" to "100")
+            assertTrue(engine.check(r, check(ConstraintSpec("location.inside", home))))
+            assertFalse(engine.check(r, check(ConstraintSpec("location.inside", home + ("state" to "no")))))
+            host.state[StateKeys.LOCATION] = "49.30,-123.12"
+            assertFalse(engine.check(r, check(ConstraintSpec("location.inside", home))))
+
+            host.state[StateKeys.CALL] = "idle"
+            assertTrue(engine.check(r, check(ConstraintSpec("call.state", mapOf("state" to "idle")))))
+            assertFalse(engine.check(r, check(ConstraintSpec("call.state", emptyMap()))))
+
+            host.state[StateKeys.CALENDAR_NOW] = "Team meeting\nLunch"
+            assertTrue(engine.check(r, check(ConstraintSpec("calendar.busy", mapOf("title" to "meeting")))))
+            assertFalse(engine.check(r, check(ConstraintSpec("calendar.busy", mapOf("state" to "no")))))
+
+            host.state[StateKeys.homeAssistant("lock.front_door")] = "locked"
+            assertTrue(engine.check(r, check(ConstraintSpec("ha.state", mapOf("entity" to "lock.front_door", "value" to "Locked")))))
+            assertFalse(
+                engine.check(
+                    r,
+                    check(
+                        ConstraintSpec(
+                            "ha.state",
+                            mapOf(
+                                "entity" to "lock.front_door",
+                                "op" to "not_equals",
+                                "value" to "locked",
+                            ),
+                        ),
+                    ),
+                ),
+            )
+            assertFalse(engine.check(r, check(ConstraintSpec("ha.state", mapOf("entity" to "lock.back_door", "value" to "locked")))))
+        }
+
+    @Test
+    fun `json pick reads a value into a variable`() =
+        runTest {
+            val host = FakeHost()
+            val record =
+                engine(this, host).run(
+                    rule(
+                        listOf(
+                            ActionStep(
+                                "var.set",
+                                mapOf(
+                                    "name" to "reply",
+                                    "value" to "{\"data\":{\"items\":[{\"name\":\"Tea\"},{\"name\":\"Milk\"}]}}",
+                                ),
+                            ),
+                            ActionStep("json.pick", mapOf("json" to "{reply}", "path" to "data.items[1].name", "into" to "item")),
+                            ActionStep("json.pick", mapOf("json" to "{reply}", "path" to "data.items.-1", "into" to "last")),
+                            ActionStep("notify.post", mapOf("title" to "{item} / {last}")),
+                        ),
+                    ),
+                    "Test",
+                )
+            assertEquals(RunOutcome.OK, record.outcome, record.lines.toString())
+            val title = (host.calls.single { it.first == "notify.post" }.second["title"] as JsonPrimitive).content
+            assertEquals("Milk / {\"name\":\"Milk\"}", title)
+            assertEquals(null, JsonPick.pick("{\"a\":1}", "b"))
+            assertEquals("", JsonPick.pick("{\"a\":null}", "a"))
+        }
+
+    @Test
+    fun `sideload-only triggers are refused in the Play build and places must be coordinates`() {
+        val sms =
+            Rule(
+                id = "s",
+                name = "SMS",
+                triggers = listOf(TriggerSpec("sms.received")),
+                actions =
+                    listOf(
+                        ActionStep(
+                            "flow.log",
+                            mapOf("text" to "x"),
+                        ),
+                    ),
+            )
+        assertEquals(emptyList(), RuleValidator.problems(sms, sideload = true))
+        assertTrue(RuleValidator.problems(sms, sideload = false).any { "sideload" in it })
+        val badPlace = sms.copy(triggers = listOf(TriggerSpec("location.place", mapOf("at" to "my house"))))
+        assertTrue(RuleValidator.problems(badPlace).any { "latitude, longitude" in it })
+        assertEquals(1600.0, Place.distanceMeters(49.0, -123.0, 49.0144, -123.0), 10.0)
+    }
 }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- A glass highlight across the top of the tile. -->
+    <path
+        android:pathData="M24,34 Q54,20 84,34"
+        android:strokeColor="#40FFFFFF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round" />
+    <!-- Two P letters, the second in the accent blue. -->
+    <path
+        android:pathData="M26,72 V36 H38 A10,10 0 0 1 38,56 H26"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M60,72 V36 H72 A10,10 0 0 1 72,56 H60"
+        android:strokeColor="#FF8AB4FF"
+        android:strokeWidth="8"
+        android:strokeLineJoin="round" />
+</vector>

@@ -124,7 +124,10 @@ class AgentRunnerTest {
 
     private fun fail(code: ModelErrorCode): suspend (ModelRequest) -> List<ModelEvent> = { listOf(ModelEvent.Error(code, "boom")) }
 
-    private fun TestScope.runner(beforeScreenWork: suspend () -> Unit = {}): AgentRunner {
+    private fun TestScope.runner(
+        health: ProviderHealth? = null,
+        beforeScreenWork: suspend () -> Unit = {},
+    ): AgentRunner {
         val clock = Clock { testScheduler.currentTime }
         val registry = ToolRegistry(setOf(info, snapshot, capture, tap, broken, shell), PolicyProfile.OSS)
         return AgentRunner(
@@ -133,6 +136,7 @@ class AgentRunnerTest {
             SessionFactory(clock),
             clock = clock,
             beforeScreenWork = beforeScreenWork,
+            health = health,
         )
     }
 
@@ -217,6 +221,84 @@ class AgentRunnerTest {
             assertTrue(jsonOnly.requests.isEmpty())
             assertEquals(2, openRouter.requests.size)
             assertEquals(0.22, end.costUsd!!, 1e-9)
+        }
+
+    @Test
+    fun `fails over from Gemini to Groq to Mistral on a rate limit, a timeout and an outage`() =
+        runTest {
+            val health = ProviderHealth(Clock { testScheduler.currentTime })
+            val gemini =
+                ScriptedProvider({ listOf(ModelEvent.Error(ModelErrorCode.RATE_LIMIT, "HTTP 429: Rate limit", retryAfterMs = 5_000)) })
+            val groq = ScriptedProvider(fail(ModelErrorCode.NETWORK))
+            val openRouter = ScriptedProvider(fail(ModelErrorCode.SERVER))
+            val mistral = ScriptedProvider(say("Done on Mistral"))
+            val chain =
+                RunModel(
+                    gemini,
+                    "gemini-2.5-flash",
+                    label = "Gemini",
+                    fallback =
+                        RunModel(
+                            groq,
+                            "llama-3.3-70b",
+                            label = "Groq",
+                            fallback =
+                                RunModel(
+                                    openRouter,
+                                    "or",
+                                    label = "OpenRouter",
+                                    fallback = RunModel(mistral, "mistral-small", label = "Mistral"),
+                                ),
+                        ),
+                )
+            val end = runner(health).start(AgentTask("Hello", scopes), chain, AgentBudgets(), backgroundScope).finished()
+
+            assertEquals(RunStatus.FINISHED, end.status)
+            assertEquals("Done on Mistral", end.outcome)
+            assertEquals(
+                listOf(
+                    "Gemini is not available (RATE_LIMIT), switching to Groq",
+                    "Groq is not available (NETWORK), switching to OpenRouter",
+                    "OpenRouter is not available (SERVER), switching to Mistral",
+                ),
+                end.steps.mapNotNull { it.note },
+            )
+            val status = health.status.value
+            assertEquals(ProviderState.LIMITED, status.getValue("Gemini").state)
+            assertEquals(5_000L, status.getValue("Gemini").retryAtMillis)
+            assertEquals(ProviderState.DOWN, status.getValue("Groq").state)
+            assertEquals(ProviderState.DOWN, status.getValue("OpenRouter").state)
+            assertEquals(ProviderState.READY, status.getValue("Mistral").state)
+        }
+
+    @Test
+    fun `an adapter that throws a timeout fails the turn but not the chat`() =
+        runTest {
+            val throwing =
+                object : ModelProvider {
+                    override val id = "gemini"
+                    override val displayName = "Gemini"
+
+                    override suspend fun listModels() = emptyList<ModelInfo>()
+
+                    override fun stream(request: ModelRequest): Flow<ModelEvent> =
+                        flow { throw java.net.SocketTimeoutException("timed out") }
+                }
+            val health = ProviderHealth(Clock { testScheduler.currentTime })
+            val chat = AgentTask("Hello", scopes, conversation = true)
+            val run = runner(health).start(chat, RunModel(throwing, "gemini", label = "Gemini"), AgentBudgets(), backgroundScope)
+
+            val waiting = run.state.first { it.status == RunStatus.WAITING }
+
+            assertTrue(waiting.outcome!!.contains("NETWORK"), waiting.outcome)
+            assertTrue(run.state.value.open, "the chat is still there for the owner's next message")
+            assertEquals(
+                ProviderState.DOWN,
+                health.status.value
+                    .getValue("Gemini")
+                    .state,
+            )
+            run.stop()
         }
 
     @Test
@@ -460,6 +542,26 @@ class AgentRunnerTest {
             assertEquals(RunStatus.FINISHED, end.status)
             assertEquals("Tapped it", end.outcome)
             assertTrue(end.endedAtMillis != null)
+        }
+
+    @Test
+    fun `a finished chat turn keeps only its answer in the history`() =
+        runTest {
+            val provider = ScriptedProvider(callTool("ui_tap"), say("Tapped it"), say("You're welcome"))
+            val run =
+                runner().start(
+                    AgentTask("Tap the button", scopes, conversation = true),
+                    RunModel(provider, "fake-1"),
+                    AgentBudgets(),
+                    backgroundScope,
+                )
+            run.answered(1)
+            assertTrue(run.send("Thanks"))
+            run.answered(2)
+            val history = provider.requests.last().messages
+            assertEquals(listOf(Role.USER, Role.ASSISTANT, Role.USER), history.map(Message::role))
+            assertEquals("Tapped it", (history[1].parts.single() as Part.Text).text)
+            assertTrue(history.none { message -> message.parts.any { it is Part.ToolCall || it is Part.ToolResult } })
         }
 
     @Test

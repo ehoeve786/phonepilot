@@ -132,6 +132,19 @@ data class RunState(
     val open: Boolean get() = active || status == RunStatus.WAITING
 }
 
+/**
+ * The stored chats a delete removes. [picked] null means every earlier chat. The chat on screen ([keep])
+ * is never one of them, and task runs under Activity are left alone.
+ */
+fun chatsToDelete(
+    history: List<RunState>,
+    keep: String?,
+    picked: Set<String>?,
+): Set<String> =
+    history
+        .filter { it.conversation && it.id != keep && (picked == null || it.id in picked) }
+        .mapTo(mutableSetOf(), RunState::id)
+
 /** Keeps run transcripts; the app stores them on disk. */
 interface RunStore {
     suspend fun save(run: RunState)

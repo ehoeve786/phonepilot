@@ -2,6 +2,7 @@ package app.pocketpilot.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -17,6 +18,7 @@ import app.pocketpilot.capability.api.BackendIds
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.capabilities.CapabilityStatus
 import app.pocketpilot.core.model.CapabilityId
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.feature.onboarding.SetupChecklist
 import app.pocketpilot.feature.onboarding.SetupStep
 
@@ -34,7 +36,7 @@ internal fun DoctorCard(
     /** Every setup step, re-checked with its one-tap fix. */
     setupSteps: List<SetupStep> = emptyList(),
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.doctor_title), style = MaterialTheme.typography.titleMedium)
             SetupChecklist(setupSteps)

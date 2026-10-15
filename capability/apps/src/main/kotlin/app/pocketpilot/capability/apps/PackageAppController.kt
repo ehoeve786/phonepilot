@@ -57,8 +57,11 @@ class PackageAppController(
         start(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED))
     }
 
-    override suspend fun openUrl(url: String) {
-        start(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    override suspend fun openUrl(
+        url: String,
+        packageName: String?,
+    ) {
+        start(Intent(Intent.ACTION_VIEW, Uri.parse(url)).setPackage(packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     private fun start(intent: Intent) {

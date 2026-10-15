@@ -4,6 +4,22 @@ import app.pocketpilot.capability.api.apps.ActivityEntry
 
 /** Reads `dumpsys package` and `appops get` output. */
 internal object AppAdminParsers {
+    /**
+     * Shortens `dumpsys package <pkg>` to [max] characters. Big system apps such as Settings dump more than
+     * that, mostly resolver tables, so the head (activities) and the "Packages:" section (the install
+     * record and permissions) each keep up to half.
+     */
+    fun trimDump(
+        dump: String,
+        max: Int,
+    ): String {
+        if (dump.length <= max) return dump
+        val packages = dump.indexOf("\nPackages:\n")
+        if (packages < 0) return dump.take(max)
+        val tail = dump.substring(packages + 1).take(max / 2)
+        return dump.take(minOf(packages, max - tail.length - 1)) + "\n" + tail
+    }
+
     private val GRANT = Regex("^\\s+([A-Za-z0-9_.]+): granted=(true|false)")
     private val OP = Regex("^\\s*(?:Uid mode: )?([A-Z][A-Z0-9_]+): ([a-z]+)")
 

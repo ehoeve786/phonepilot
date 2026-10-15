@@ -18,8 +18,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -45,6 +43,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.core.automation.AutomationJson
 import app.pocketpilot.core.automation.AutomationSettings
@@ -52,6 +51,7 @@ import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RunOutcome
 import app.pocketpilot.core.automation.RunRecord
 import app.pocketpilot.core.automation.Templates
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 
 /** An installed app, for the app picker. */
 data class AppOption(
@@ -71,6 +71,8 @@ data class AutomationsState(
     val tools: List<String> = emptyList(),
     /** False in the Play build: no shell actions. */
     val sideload: Boolean = true,
+    /** A Home Assistant access token is saved. */
+    val homeAssistantToken: Boolean = false,
 )
 
 /** What the Automations tab can ask for. */
@@ -90,6 +92,8 @@ class AutomationsActions(
     val setSettings: (AutomationSettings) -> Unit,
     /** Loads [AutomationsState.apps] the first time a picker needs them. */
     val loadApps: () -> Unit,
+    /** Saves Home Assistant's address, and its token when one is typed. */
+    val setHomeAssistant: (url: String, token: String) -> Unit = { _, _ -> },
 )
 
 private val RuleSaver =
@@ -221,7 +225,11 @@ private fun RulesList(
                 Text(stringResource(R.string.feature_automations_templates), style = MaterialTheme.typography.titleSmall)
             }
             items(Templates.all, key = { "t" + it.id }) { template ->
-                Card(onClick = { onNewFrom(template) }, modifier = Modifier.fillMaxWidth()) {
+                LiquidGlassBentoCard(
+                    onClick = { onNewFrom(template) },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(0.dp),
+                ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(template.name, style = MaterialTheme.typography.titleMedium)
                         Text(Templates.summary(template), style = MaterialTheme.typography.bodyMedium)
@@ -263,10 +271,7 @@ private fun SettingsCard(
     var cap by rememberSaveable(state.settings.agentMonthlyCapUsd) {
         mutableStateOf(state.settings.agentMonthlyCapUsd?.let { "%.2f".format(it) } ?: "")
     }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -296,7 +301,48 @@ private fun SettingsCard(
                     onClick = { actions.setSettings(state.settings.copy(agentMonthlyCapUsd = cap.trim().toDoubleOrNull())) },
                 ) { Text(stringResource(R.string.feature_automations_save)) }
             }
+            HomeAssistantSettings(state, actions)
         }
+    }
+}
+
+@Composable
+private fun HomeAssistantSettings(
+    state: AutomationsState,
+    actions: AutomationsActions,
+) {
+    var url by rememberSaveable(state.settings.homeAssistantUrl) { mutableStateOf(state.settings.homeAssistantUrl.orEmpty()) }
+    var token by rememberSaveable { mutableStateOf("") }
+    Text(stringResource(R.string.feature_automations_ha), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.feature_automations_ha_text), style = MaterialTheme.typography.bodyMedium)
+    OutlinedTextField(
+        value = url,
+        onValueChange = { url = it },
+        label = { Text(stringResource(R.string.feature_automations_ha_url)) },
+        placeholder = { Text("https://homeassistant.local:8123") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = token,
+            onValueChange = { token = it },
+            label = { Text(stringResource(R.string.feature_automations_ha_token)) },
+            placeholder = {
+                if (state.homeAssistantToken) Text(stringResource(R.string.feature_automations_ha_token_saved))
+            },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            onClick = {
+                actions.setHomeAssistant(url.trim(), token.trim())
+                token = ""
+            },
+        ) { Text(stringResource(R.string.feature_automations_save)) }
     }
 }
 
@@ -341,18 +387,20 @@ private fun HistoryList(runs: List<RunRecord>) {
 private fun RunCard(run: RunRecord) {
     var open by rememberSaveable(run.id) { mutableStateOf(false) }
     val failed = run.outcome == RunOutcome.FAILED
-    Card(
+    LiquidGlassBentoCard(
         onClick = { open = !open },
         modifier = Modifier.fillMaxWidth(),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = if (failed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerLow,
-            ),
+        contentPadding = PaddingValues(0.dp),
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(run.ruleName, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                Text(outcomeLabel(run.outcome), style = MaterialTheme.typography.labelMedium)
+                // A failed run is marked in the error colour, since the glass card has no tinted state.
+                Text(
+                    outcomeLabel(run.outcome),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                )
             }
             Text(
                 "${run.reason} · ${DateUtils.getRelativeTimeSpanString(run.startedAtMillis)}",

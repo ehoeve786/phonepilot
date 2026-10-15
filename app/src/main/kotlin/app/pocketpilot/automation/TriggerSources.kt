@@ -24,19 +24,27 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
+import android.provider.Telephony
+import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
 import app.pocketpilot.capability.accessibility.A11yBridge
+import app.pocketpilot.capability.api.shell.SystemReader
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
+import app.pocketpilot.core.automation.Place
+import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.TriggerEvent
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import java.util.TimeZone
 
 /**
  * Turns what happens on the phone into [TriggerEvent]s: system broadcasts, network and audio device
  * callbacks, the front app from the Accessibility service and notifications from the listener.
- * Registered only while at least one rule is on.
+ * Registered only while at least one rule is on; sensors, location, calls, logs, the calendar and Home
+ * Assistant only while a rule uses them (see [use]).
  */
 class TriggerSources(
     private val context: Context,
@@ -44,8 +52,22 @@ class TriggerSources(
     private val scope: CoroutineScope,
     /** Apps on the deny list never trigger rules, so their content cannot leak into actions. */
     private val hidden: (String) -> Boolean,
+    private val places: PlaceWatcher,
+    private val calendars: Calendars,
+    private val homeAssistant: HomeAssistant,
+    logs: SystemReader,
+    /** Text messages are read in the sideload build only. */
+    private val sideload: Boolean,
     private val emit: (TriggerEvent) -> Unit,
 ) {
+    private val sensors = SensorWatcher(context, emit)
+    private val logWatcher = LogWatcher(logs, scope, hidden, emit)
+    private var callReceiver: BroadcastReceiver? = null
+    private var smsReceiver: BroadcastReceiver? = null
+    private var actionReceiver: Pair<Set<String>, BroadcastReceiver>? = null
+    private var mediaWatch: MediaWatch? = null
+    private var screenText: Pair<Set<String>, Job>? = null
+
     private var receiver: BroadcastReceiver? = null
     private var packageReceiver: BroadcastReceiver? = null
     private val callbacks = mutableListOf<ConnectivityManager.NetworkCallback>()
@@ -89,8 +111,53 @@ class TriggerSources(
             }
     }
 
+    /**
+     * Starts the sources that cost battery or need a permission only while an enabled rule in [rules]
+     * uses them, and stops the rest. Called whenever the rules change, after [start].
+     */
+    @Synchronized
+    fun use(rules: List<Rule>) {
+        val triggers = rules.flatMap { it.triggers }
+        val types = triggers.map { it.type }.toSet()
+
+        fun params(type: String) = triggers.filter { it.type == type }.map { it.params }
+
+        places.watch(params("location.place").mapNotNull(Place::from))
+        sensors.watch(shake = "sensor.shake" in types, flip = "sensor.flip" in types, proximity = "sensor.proximity" in types)
+        logWatcher.watch(params("log.line").mapNotNull { it["text"]?.trim()?.takeIf(String::isNotEmpty) }.toSet(), "app.crash" in types)
+        calendars.watch(if ("calendar.event" in types) emit else null)
+        homeAssistant.watch(
+            params("ha.state").mapNotNull { it["entity"]?.trim()?.takeIf(String::isNotEmpty) }.toSet(),
+        ) { entity, state, previous ->
+            emit(TriggerEvent("ha.state", mapOf("entity" to entity, "state" to state, "previous" to previous)))
+        }
+        if ("call.changed" in types) watchCalls() else unregister(callReceiver).also { callReceiver = null }
+        if ("sms.received" in types && sideload) watchSms() else unregister(smsReceiver).also { smsReceiver = null }
+        watchActions(params("intent.action").mapNotNull { it["action"]?.trim()?.takeIf(String::isNotEmpty) }.toSet())
+        if ("media.changed" in types) {
+            if (mediaWatch == null) mediaWatch = MediaWatch(context, hidden, emit).also { it.start() }
+        } else {
+            mediaWatch?.stop()
+            mediaWatch = null
+        }
+        watchScreenText(params("screen.text").mapNotNull { it["text"]?.trim()?.takeIf(String::isNotEmpty) }.toSet())
+    }
+
     @Synchronized
     fun stop() {
+        places.watch(emptyList())
+        sensors.stop()
+        logWatcher.stop()
+        calendars.watch(null)
+        homeAssistant.stop()
+        listOfNotNull(callReceiver, smsReceiver, actionReceiver?.second).forEach(::unregister)
+        callReceiver = null
+        smsReceiver = null
+        actionReceiver = null
+        mediaWatch?.stop()
+        mediaWatch = null
+        screenText?.second?.cancel()
+        screenText = null
         listOfNotNull(receiver, packageReceiver).forEach { runCatching { context.unregisterReceiver(it) } }
         receiver = null
         packageReceiver = null
@@ -102,6 +169,163 @@ class TriggerSources(
         jobs.forEach { it.cancel() }
         jobs.clear()
     }
+
+    private fun unregister(receiver: BroadcastReceiver?) {
+        if (receiver != null) runCatching { context.unregisterReceiver(receiver) }
+    }
+
+    /**
+     * Ringing, answered, ended and missed, from the call state broadcasts. The number comes with
+     * call log access, in the sideload build; Android then sends each broadcast twice, once without it.
+     */
+    private fun watchCalls() {
+        if (callReceiver != null) return
+        var last = TelephonyManager.EXTRA_STATE_IDLE
+        var number = ""
+        var answered = false
+        val receiver =
+            object : BroadcastReceiver() {
+                override fun onReceive(
+                    context: Context,
+                    intent: Intent,
+                ) {
+                    val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE) ?: return
+
+                    @Suppress("DEPRECATION")
+                    val incoming = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+                    if (state == last) {
+                        // The second copy, with the number: a ringing call fires once it is known.
+                        if (state == TelephonyManager.EXTRA_STATE_RINGING && number.isEmpty() && !incoming.isNullOrEmpty()) {
+                            number = incoming
+                            emit(call("ringing", number))
+                        }
+                        return
+                    }
+                    val before = last
+                    last = state
+                    when (state) {
+                        TelephonyManager.EXTRA_STATE_RINGING -> {
+                            number = incoming.orEmpty()
+                            answered = false
+                            if (number.isNotEmpty() || !granted(Manifest.permission.READ_CALL_LOG)) emit(call("ringing", number))
+                        }
+
+                        TelephonyManager.EXTRA_STATE_OFFHOOK -> {
+                            if (before == TelephonyManager.EXTRA_STATE_IDLE) number = incoming.orEmpty()
+                            answered = true
+                            emit(call("answered", number))
+                        }
+
+                        TelephonyManager.EXTRA_STATE_IDLE -> {
+                            emit(call(if (answered) "ended" else "missed", number))
+                            number = ""
+                            answered = false
+                        }
+                    }
+                }
+            }
+        register(receiver, IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED))
+        callReceiver = receiver
+    }
+
+    private fun call(
+        event: String,
+        number: String,
+    ) = TriggerEvent("call.changed", mapOf("event" to event, "number" to number))
+
+    private fun watchSms() {
+        if (smsReceiver != null) return
+        val receiver =
+            object : BroadcastReceiver() {
+                override fun onReceive(
+                    context: Context,
+                    intent: Intent,
+                ) {
+                    val parts =
+                        Telephony.Sms.Intents
+                            .getMessagesFromIntent(intent)
+                            ?.filterNotNull()
+                            .orEmpty()
+                    if (parts.isEmpty()) return
+                    val from = parts.first().originatingAddress.orEmpty()
+                    val text = parts.joinToString("") { it.messageBody.orEmpty() }
+                    emit(TriggerEvent("sms.received", mapOf("from" to from, "text" to text.take(MAX_EXTRA_VALUE))))
+                }
+            }
+        register(receiver, IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION))
+        smsReceiver = receiver
+    }
+
+    /** "Any broadcast": one receiver for every action the rules name, open to other apps. */
+    private fun watchActions(actions: Set<String>) {
+        if (actionReceiver?.first == actions) return
+        unregister(actionReceiver?.second)
+        actionReceiver = null
+        if (actions.isEmpty()) return
+        val receiver =
+            object : BroadcastReceiver() {
+                override fun onReceive(
+                    context: Context,
+                    intent: Intent,
+                ) {
+                    val action = intent.action ?: return
+                    val extras = intent.extras
+                    val data =
+                        extras
+                            ?.keySet()
+                            ?.take(MAX_EXTRAS)
+                            ?.mapNotNull { key ->
+                                @Suppress("DEPRECATION")
+                                val value = runCatching { extras.get(key) }.getOrNull()
+                                if (value is String || value is Number ||
+                                    value is Boolean
+                                ) {
+                                    key to value.toString().take(MAX_EXTRA_VALUE)
+                                } else {
+                                    null
+                                }
+                            }?.toMap()
+                            .orEmpty()
+                    emit(TriggerEvent("intent.action", data + mapOf("action" to action, "data" to intent.dataString.orEmpty())))
+                }
+            }
+        val filter = IntentFilter().apply { actions.forEach(::addAction) }
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+        actionReceiver = actions to receiver
+    }
+
+    /** "Text appears on screen": checks the front window's text after the screen settles. */
+    @OptIn(FlowPreview::class)
+    private fun watchScreenText(texts: Set<String>) {
+        if (screenText?.first == texts) return
+        screenText?.second?.cancel()
+        screenText = null
+        if (texts.isEmpty()) return
+        val job =
+            scope.launch {
+                var shown = emptySet<String>()
+                var lastPackage: String? = null
+                A11yBridge.changeCount.debounce(SCREEN_SETTLE_MS).collect {
+                    val (pkg, onScreen) = A11yBridge.frontWindowText() ?: return@collect
+                    if (pkg != lastPackage) {
+                        shown = emptySet()
+                        lastPackage = pkg
+                    }
+                    if (pkg == context.packageName || hidden(pkg)) return@collect
+                    val now =
+                        texts
+                            .mapNotNull { wanted -> onScreen.firstOrNull { it.contains(wanted, ignoreCase = true) }?.let { wanted to it } }
+                            .toMap()
+                    (now.keys - shown).forEach { wanted ->
+                        emit(TriggerEvent("screen.text", mapOf("text" to now.getValue(wanted).take(MAX_EXTRA_VALUE), "package" to pkg)))
+                    }
+                    shown = now.keys
+                }
+            }
+        screenText = texts to job
+    }
+
+    private fun granted(permission: String) = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
     private fun register(
         receiver: BroadcastReceiver,
@@ -385,5 +609,8 @@ class TriggerSources(
     private companion object {
         val IGNORED = setOf("com.android.systemui")
         const val SETTLE_MS = 2_000L
+        const val SCREEN_SETTLE_MS = 1_000L
+        const val MAX_EXTRAS = 20
+        const val MAX_EXTRA_VALUE = 2_000
     }
 }

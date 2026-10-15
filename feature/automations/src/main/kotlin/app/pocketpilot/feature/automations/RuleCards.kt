@@ -5,13 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +34,7 @@ import app.pocketpilot.core.automation.Describe
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RunMode
 import app.pocketpilot.core.model.RiskTier
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 
 /** The risk tier as a small tag, coloured by the status roles of the design spec. */
 @Composable
@@ -83,11 +84,10 @@ fun AutomationRuleCard(
     onPinnedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    ElevatedCard(
-        onClick = onOpen,
+    LiquidGlassBentoCard(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp),
+        onClick = onOpen,
+        contentPadding = PaddingValues(0.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -201,10 +201,9 @@ internal fun ProposalCard(
     onEdit: () -> Unit,
     onDecline: () -> Unit,
 ) {
-    ElevatedCard(
+    LiquidGlassBentoCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp),
+        contentPadding = PaddingValues(0.dp),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(rule.name, style = MaterialTheme.typography.titleMedium)

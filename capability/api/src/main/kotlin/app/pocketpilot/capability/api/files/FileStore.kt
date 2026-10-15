@@ -35,6 +35,16 @@ interface FileStore : CapabilityBackend {
         bytes: ByteArray,
         replace: Boolean,
     )
+
+    /** Copies the file at [from] to [to], creating it in its existing folder; replaces a file only when [replace]. */
+    suspend fun copy(
+        from: String,
+        to: String,
+        replace: Boolean,
+    )
+
+    /** Deletes the file at [path]; folders are never deleted. */
+    suspend fun delete(path: String)
 }
 
 /** Splits a tool's path into segments, refusing anything that could climb out of a granted folder. */

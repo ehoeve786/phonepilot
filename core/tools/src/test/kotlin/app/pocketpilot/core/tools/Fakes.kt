@@ -121,8 +121,11 @@ internal class FakeApps(
         reader.foregroundApp = ForegroundApp(packageName, null)
     }
 
-    override suspend fun openUrl(url: String) {
-        launched += url
+    override suspend fun openUrl(
+        url: String,
+        packageName: String?,
+    ) {
+        launched += listOfNotNull(url, packageName).joinToString(" in ")
     }
 }
 

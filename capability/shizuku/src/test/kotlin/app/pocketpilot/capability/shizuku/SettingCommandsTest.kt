@@ -34,6 +34,15 @@ class SettingCommandsTest {
     }
 
     @Test
+    fun `a setting that every command refuses fails with the last error`() {
+        failing += "cmd wifi"
+        failing += "svc wifi"
+        val error = assertFailsWith<IllegalStateException> { commands.set(SettingKey.WIFI, "on") }
+        assertEquals("failed: svc wifi enable", error.message)
+        assertEquals(listOf("cmd wifi set-wifi-enabled enabled", "svc wifi enable"), ran)
+    }
+
+    @Test
     fun `scales brightness and volume to percent`() {
         outputs["settings get system screen_brightness_mode"] = "0"
         outputs["settings get system screen_brightness"] = "128"

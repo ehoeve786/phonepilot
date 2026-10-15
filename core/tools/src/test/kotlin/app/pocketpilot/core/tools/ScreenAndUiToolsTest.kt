@@ -193,6 +193,13 @@ class ScreenAndUiToolsTest {
             assertFalse(call("app.list", """{"includeSystem":false}""").text().contains("settings"))
             assertEquals(ToolErrorCode.INVALID_ARGUMENTS, call("app.open_url", """{"url":"intent://x#Intent;end"}""").errorCode)
             assertFalse(call("app.open_url", """{"url":"https://example.com"}""").isError)
+            val chrome = call("app.open_url", """{"url":"https://example.com","package":"com.android.chrome","returnSnapshot":false}""")
+            assertEquals("Opened https://example.com in com.android.chrome.", chrome.text())
+            assertEquals(listOf("https://example.com", "https://example.com in com.android.chrome"), apps.launched)
+            assertEquals(
+                ToolErrorCode.INVALID_ARGUMENTS,
+                call("app.open_url", """{"url":"https://example.com","package":"-p x"}""").errorCode,
+            )
         }
 
     @Test

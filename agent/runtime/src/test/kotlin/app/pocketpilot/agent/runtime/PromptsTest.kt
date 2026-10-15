@@ -12,4 +12,11 @@ class PromptsTest {
         assertEquals(1, Regex("</untrusted_data>").findAll(message).count())
         assertTrue(message.trimEnd().endsWith("</untrusted_data>"))
     }
+
+    @Test
+    fun `the system prompt requires the terminal action and a visible result`() {
+        val prompt = Prompts.system(ToolMode.NATIVE, emptyList())
+        assertTrue(prompt.contains("terminal action"))
+        assertTrue(prompt.contains("never give a calculation"))
+    }
 }

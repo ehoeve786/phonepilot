@@ -80,6 +80,25 @@ internal fun either(
     value: String?,
 ): Boolean = param.isNullOrBlank() || param == "any" || param.equals(value, ignoreCase = true)
 
+/** Blank [param] matches anything; otherwise [value] contains it, comparing only digits when [param] is a phone number. */
+internal fun digitsContain(
+    param: String?,
+    value: String?,
+): Boolean {
+    if (param.isNullOrBlank()) return true
+    val digits = param.filter(Char::isDigit)
+    if (digits.isEmpty() || digits.length < param.count { !it.isWhitespace() && it !in "+-()." }) return containsText(param, value)
+    return value?.filter(Char::isDigit)?.contains(digits) == true
+}
+
+/** Where a location trigger or condition is: a spot and a radius. */
+internal val PLACE_FIELDS =
+    listOf(
+        textField("name", "Name", required = false, hint = "For example Home"),
+        textField("at", "Latitude, longitude", hint = "For example 49.2827, -123.1207"),
+        numberField("radius", "Radius (meters)", default = "150", hint = "At least 50; 150 or more is more reliable"),
+    )
+
 internal fun Map<String, String>.p(key: String): String = this[key].orEmpty().trim()
 
 internal fun Map<String, String>.appsText(): String = p("apps").ifBlank { "any app" }

@@ -1,11 +1,11 @@
 package app.pocketpilot.feature.automations
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +18,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -53,6 +52,7 @@ import app.pocketpilot.core.automation.RuleValidator
 import app.pocketpilot.core.automation.RunMode
 import app.pocketpilot.core.automation.TriggerSpec
 import app.pocketpilot.core.model.RiskTier
+import app.pocketpilot.designsystem.LiquidGlassBentoCard
 
 /** A picker or a settings sheet the editor has open; only one at a time. */
 private sealed interface EditorSheet {
@@ -72,7 +72,10 @@ private sealed interface EditorSheet {
 }
 
 /** Opens sheets for the editor's sections, so nested editors share one sheet slot. */
-private class Sheets {
+private class Sheets(
+    /** False in the Play build, which hides sideload-only triggers and conditions. */
+    private val sideload: Boolean,
+) {
     var open by mutableStateOf<EditorSheet?>(null)
 
     fun pickTrigger(
@@ -82,7 +85,9 @@ private class Sheets {
         open =
             EditorSheet.Pick(
                 title,
-                AutomationCatalog.triggers.map { PickerItem(it.type, it.title, it.description, it.category) },
+                AutomationCatalog.triggers
+                    .filter { sideload || !it.sideloadOnly }
+                    .map { PickerItem(it.type, it.title, it.description, it.category) },
             ) { type ->
                 val def = AutomationCatalog.trigger(type) ?: return@Pick
                 if (def.fields.isEmpty()) {
@@ -101,7 +106,9 @@ private class Sheets {
         open =
             EditorSheet.Pick(
                 title,
-                AutomationCatalog.constraints.map { PickerItem(it.type, it.title, it.description, it.category) },
+                AutomationCatalog.constraints
+                    .filter { sideload || !it.sideloadOnly }
+                    .map { PickerItem(it.type, it.title, it.description, it.category) },
             ) { type ->
                 val def = AutomationCatalog.constraint(type) ?: return@Pick
                 if (def.fields.isEmpty()) {
@@ -166,7 +173,7 @@ internal fun RuleEditor(
     modifier: Modifier = Modifier,
 ) {
     var rule by remember(initial.id) { mutableStateOf(initial) }
-    val sheets = remember { Sheets() }
+    val sheets = remember(state.sideload) { Sheets(state.sideload) }
     val problems = RuleValidator.problems(rule, state.sideload)
     val context = FieldContext(state.apps, state.rules, state.tools, rule.id, onLoadApps)
 
@@ -342,7 +349,7 @@ private fun ItemRow(
     onClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    OutlinedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    LiquidGlassBentoCard(onClick = onClick, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(vertical = 12.dp))
             IconButton(onClick = onDelete) {
@@ -407,10 +414,7 @@ private fun ConstraintGroupEditor(
                 }
 
                 is ConstraintNode.Group -> {
-                    OutlinedCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    ) {
+                    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
                         Column(Modifier.padding(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
@@ -503,7 +507,7 @@ private fun ActionStepCard(
 ) {
     val def = AutomationCatalog.action(step.type)
     var more by rememberSaveable(step.type, index, depth) { mutableStateOf(!step.constraints.isEmpty || step.onError != OnError.STOP) }
-    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(

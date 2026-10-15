@@ -16,19 +16,23 @@ import android.view.KeyEvent
 import android.widget.Toast
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.agent.runtime.RunStatus
+import app.pocketpilot.capability.api.files.FileStore
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.core.automation.AgentOutcome
 import app.pocketpilot.core.automation.AutomationFailure
 import app.pocketpilot.core.automation.AutomationHost
+import app.pocketpilot.core.automation.AutomationJson
 import app.pocketpilot.core.automation.NotificationInfo
 import app.pocketpilot.core.automation.Rule
+import app.pocketpilot.core.automation.StateKeys
 import app.pocketpilot.core.common.Clock
 import app.pocketpilot.core.common.UlidGenerator
 import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.SessionId
 import app.pocketpilot.core.model.SessionKind
+import app.pocketpilot.core.model.ToolException
 import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.orchestrator.CallDispatcher
 import app.pocketpilot.core.policy.PolicyEngine
@@ -37,6 +41,11 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.coroutines.resume
@@ -55,6 +64,10 @@ class AndroidAutomationHost(
     private val shellOn: () -> Boolean,
     private val hidden: (String) -> Boolean,
     private val agent: () -> AgentCoordinator,
+    private val files: FileStore,
+    private val homeAssistant: HomeAssistant,
+    private val calendars: Calendars,
+    private val places: PlaceWatcher,
     override val sideload: Boolean,
 ) : AutomationHost {
     private val ids = UlidGenerator(Clock.System)
@@ -88,7 +101,14 @@ class AndroidAutomationHost(
 
     override fun closeSession(session: Session) = policy.endSession(session.id)
 
-    override suspend fun state(key: String): String? = phone.read(key)
+    override suspend fun state(key: String): String? {
+        StateKeys.homeAssistantEntity(key)?.let { return homeAssistant.stateOf(it) }
+        return when (key) {
+            StateKeys.LOCATION -> places.lastLocation()
+            StateKeys.CALENDAR_NOW -> withContext(Dispatchers.IO) { runCatching { calendars.now() }.getOrNull() }
+            else -> phone.read(key)
+        }
+    }
 
     override suspend fun notifications(): List<NotificationInfo> =
         if (!ListenerNotificationSource.available.value) {
@@ -115,12 +135,31 @@ class AndroidAutomationHost(
     ): String? {
         when (type) {
             "screen.wake" -> wake()
+
             "media.control" -> media(params["command"].orEmpty())
+
             "speak" -> speak(params["text"].orEmpty())
+
             "vibrate" -> vibrate(params["ms"]?.toLongOrNull() ?: DEFAULT_VIBRATE_MS)
+
             "flashlight" -> torch(params["state"] != "off")
+
             "toast" -> withContext(Dispatchers.Main) { Toast.makeText(context, params["text"].orEmpty(), Toast.LENGTH_LONG).show() }
+
             "http.request" -> return http(params)
+
+            "http.download" -> return download(params)
+
+            "ha.call" -> return homeAssistant.call(params.p("service"), params.p("entity"), jsonObject(params["data"]))
+
+            "ha.get" -> return homeGet(params.p("entity"), params.p("attribute"))
+
+            "calendar.add" -> return calendarAdd(params)
+
+            "calendar.read" -> return withContext(
+                Dispatchers.IO,
+            ) { calendars.upcoming(params.p("hours").toIntOrNull() ?: 24, params.p("title")) }
+
             else -> throw AutomationFailure("This build cannot run $type")
         }
         return null
@@ -247,6 +286,75 @@ class AndroidAutomationHost(
             }
         }
 
+    /** Saves a web address to a new file in a shared folder; returns the file's path. */
+    private suspend fun download(params: Map<String, String>): String {
+        val url = params.p("url")
+        if (!url.startsWith("https://") && !url.startsWith("http://")) throw AutomationFailure("The URL must start with https://")
+        val path = params.p("path").ifBlank { throw AutomationFailure("Give the path to save to") }
+        val bytes =
+            withContext(Dispatchers.IO) {
+                val connection = URL(url).openConnection() as HttpURLConnection
+                try {
+                    connection.connectTimeout = HTTP_TIMEOUT_MS
+                    connection.readTimeout = HTTP_TIMEOUT_MS
+                    val status = connection.responseCode
+                    if (status >= HTTP_ERROR) throw AutomationFailure("HTTP $status")
+                    if (connection.contentLengthLong > MAX_DOWNLOAD_BYTES) throw AutomationFailure("The file is over 50 MB")
+                    connection.inputStream.use { input ->
+                        val out = ByteArrayOutputStream()
+                        val buffer = ByteArray(BUFFER_BYTES)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            out.write(buffer, 0, read)
+                            if (out.size() > MAX_DOWNLOAD_BYTES) throw AutomationFailure("The file is over 50 MB")
+                        }
+                        out.toByteArray()
+                    }
+                } finally {
+                    connection.disconnect()
+                }
+            }
+        try {
+            files.write(path, bytes, replace = false)
+        } catch (e: ToolException) {
+            throw AutomationFailure(e.message ?: "Could not save $path")
+        }
+        return path
+    }
+
+    private suspend fun homeGet(
+        entity: String,
+        attribute: String,
+    ): String {
+        if (entity.isBlank()) throw AutomationFailure("Give the entity ID")
+        val json = homeAssistant.entity(entity)
+        if (attribute.isBlank()) return json["state"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        val value = (json["attributes"] as? JsonObject)?.get(attribute) ?: throw AutomationFailure("$entity has no attribute $attribute")
+        return (value as? JsonPrimitive)?.contentOrNull ?: value.toString()
+    }
+
+    private suspend fun calendarAdd(params: Map<String, String>): String =
+        withContext(Dispatchers.IO) {
+            calendars.add(
+                title = params.p("title").ifBlank { throw AutomationFailure("Give the event a title") },
+                start = params.p("start"),
+                minutes = params.p("minutes").toIntOrNull() ?: DEFAULT_EVENT_MINUTES,
+                location = params.p("location"),
+                calendar = params.p("calendar"),
+            )
+        }
+
+    private fun jsonObject(text: String?): JsonObject =
+        if (text.isNullOrBlank()) {
+            JsonObject(emptyMap())
+        } else {
+            runCatching { AutomationJson.json.parseToJsonElement(text).jsonObject }.getOrNull()
+                ?: throw AutomationFailure("Extra data must be a JSON object")
+        }
+
+    private fun Map<String, String>.p(key: String): String = this[key].orEmpty().trim()
+
     /** Frees text-to-speech when automations turn off. */
     fun release() {
         tts?.shutdown()
@@ -266,5 +374,8 @@ class AndroidAutomationHost(
         const val HTTP_ERROR = 400
         const val MAX_REPLY_CHARS = 100_000
         const val MAX_ERROR_CHARS = 200
+        const val MAX_DOWNLOAD_BYTES = 50L * 1024 * 1024
+        const val BUFFER_BYTES = 64 * 1024
+        const val DEFAULT_EVENT_MINUTES = 60
     }
 }
