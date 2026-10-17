@@ -406,6 +406,7 @@ class AgentRun internal constructor(
     /** Asks the model, retrying provider errors that may pass. */
     private suspend fun ask(): Reply {
         var attempt = 0
+        var corrections = 0
         while (true) {
             val request =
                 ModelRequest(
@@ -441,6 +442,20 @@ class AgentRun internal constructor(
             if (failure == null) {
                 health?.succeeded(model.label)
                 return Reply.Answer(text.toString(), calls, stop)
+            }
+            val unloaded = unloadedTool(failure)
+            if (unloaded != null && corrections < MAX_CORRECTIONS) {
+                // The provider refused a call to a tool it was not sent, so the model never ran it. Say how to load it and ask again.
+                corrections++
+                note("The model called $unloaded before loading it, so the provider refused it; asking it to load it first")
+                addToUserMessage(
+                    listOf(
+                        Part.Text(
+                            "$unloaded is not loaded yet. Load it first with ${AgentTools.LOAD}, passing its name in names, then call it.",
+                        ),
+                    ),
+                )
+                continue
             }
             health?.failed(model.label, failure)
             val next = nextModel()
@@ -575,7 +590,13 @@ class AgentRun internal constructor(
         ) : Reply
     }
 
+    /** The tool a provider refused because the request did not list it, as Groq reports it. */
+    private fun unloadedTool(failure: ModelEvent.Error): String? =
+        if (failure.code == ModelErrorCode.INVALID_REQUEST) UNLOADED_CALL.find(failure.message)?.groupValues?.get(1) else null
+
     private companion object {
+        val UNLOADED_CALL = Regex("attempted to call tool '([^']+)' which was not in request\\.tools")
+        const val MAX_CORRECTIONS = 2
         const val DEVICE_INFO = "device.info"
         const val SCREEN_SNAPSHOT = "screen.snapshot"
         const val SCREEN_CAPTURE = "screen.capture"

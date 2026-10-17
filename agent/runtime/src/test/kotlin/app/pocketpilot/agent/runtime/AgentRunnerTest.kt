@@ -194,6 +194,39 @@ class AgentRunnerTest {
         }
 
     @Test
+    fun `a call the provider refuses for an unloaded tool makes the model load it and ask again`() =
+        runTest {
+            val refused =
+                ModelEvent.Error(
+                    ModelErrorCode.INVALID_REQUEST,
+                    "HTTP 400: attempted to call tool 'shell.exec' which was not in request.tools",
+                )
+            val provider = ScriptedProvider({ listOf(refused) }, say("It is 10:00"))
+
+            val end =
+                runner()
+                    .start(
+                        AgentTask("What time is it?", scopes),
+                        RunModel(provider, "fake-1"),
+                        AgentBudgets(),
+                        backgroundScope,
+                    ).finished()
+
+            assertEquals(RunStatus.FINISHED, end.status)
+            assertEquals("It is 10:00", end.outcome)
+            assertTrue(end.steps.any { it.note?.startsWith("The model called shell.exec before loading it") == true })
+            val retry =
+                provider.requests[1]
+                    .messages
+                    .last()
+                    .parts
+                    .filterIsInstance<Part.Text>()
+                    .last()
+                    .text
+            assertTrue(retry.startsWith("shell.exec is not loaded yet. Load it first with ${AgentTools.LOAD}"), retry)
+        }
+
+    @Test
     fun `moves to the next model when one runs out, skipping models that call tools differently`() =
         runTest {
             val gemini = ScriptedProvider(fail(ModelErrorCode.QUOTA))
