@@ -344,10 +344,11 @@ class AutomationEngine(
 
             "ui.tap_run" -> {
                 val snapshot = callTool(context, "screen.snapshot", JsonObject(emptyMap()))
-                val run =
-                    RunRows.pick(snapshot, params.p("from"), params.p("to"))
-                        ?: throw AutomationFailure("No open run starts from ${params.p("from")} to ${params.p("to")} on a Monday to Friday")
-                callTool(context, "ui.tap", args("element" to run.element, "snapshotId" to run.snapshotId, "returnSnapshot" to false))
+                val run = RunRows.pick(snapshot, params.p("from"), params.p("to"))
+                context.vars[params.p("into")] = if (run == null) "no" else "yes"
+                if (run != null) {
+                    callTool(context, "ui.tap", args("element" to run.element, "snapshotId" to run.snapshotId, "returnSnapshot" to false))
+                }
             }
 
             "screen.read" -> {

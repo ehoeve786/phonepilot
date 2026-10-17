@@ -40,6 +40,7 @@ class AutomationEngineTest {
         val calls = mutableListOf<Pair<String, JsonObject>>()
         val state = mutableMapOf<String, String>()
         var settings = mutableMapOf("wifi" to "on")
+        var schedule = "done"
         val opened = mutableListOf<Set<String>>()
         var closed = 0
 
@@ -62,6 +63,10 @@ class AutomationEngineTest {
 
                 "screen.find" -> {
                     ToolResult.success("snapshot s7\ne4 button \"Start\" [0,0][10,10]")
+                }
+
+                "screen.snapshot" -> {
+                    ToolResult.success(schedule)
                 }
 
                 "app.stop" -> {
@@ -220,6 +225,49 @@ class AutomationEngineTest {
             assertEquals(RunOutcome.OK, record.outcome)
             val titles = host.calls.filter { it.first == "notify.post" }.map { (it.second["title"] as JsonPrimitive).content }
             assertEquals(listOf("Low 8"), titles)
+        }
+
+    @Test
+    fun `tap run takes the first weekday run in the window and says yes`() =
+        runTest {
+            val host = FakeHost()
+            host.schedule = "snapshot a11 com.delco.courier 1080x2316\n  e41 text \"Monday \" [56,888,214,949]\n" +
+                "  e49 button desc=\"6:00 AM - 10:00 AM, GVA - Downtown\" [0,1562,1080,1843] click"
+            val record =
+                engine(this, host).run(
+                    rule(
+                        listOf(
+                            ActionStep("ui.tap_run", mapOf("from" to "06:00", "to" to "15:00")),
+                            ActionStep("notify.post", mapOf("title" to "{run_found}")),
+                        ),
+                    ),
+                    "Test",
+                )
+            assertEquals(RunOutcome.OK, record.outcome, record.lines.toString())
+            val tap = host.calls.single { it.first == "ui.tap" }.second
+            assertEquals("e49", (tap["element"] as JsonPrimitive).content)
+            assertEquals("yes", (host.calls.single { it.first == "notify.post" }.second["title"] as JsonPrimitive).content)
+        }
+
+    @Test
+    fun `tap run with no matching run taps nothing and says no`() =
+        runTest {
+            val host = FakeHost()
+            host.schedule = "snapshot a11 com.delco.courier 1080x2316\n  e41 text \"Sunday \" [56,888,214,949]\n" +
+                "  e49 button desc=\"6:00 AM - 10:00 AM, GVA - Downtown\" [0,1562,1080,1843] click"
+            val record =
+                engine(this, host).run(
+                    rule(
+                        listOf(
+                            ActionStep("ui.tap_run", mapOf("from" to "06:00", "to" to "15:00")),
+                            ActionStep("notify.post", mapOf("title" to "{run_found}")),
+                        ),
+                    ),
+                    "Test",
+                )
+            assertEquals(RunOutcome.OK, record.outcome, record.lines.toString())
+            assertEquals(emptyList(), host.calls.filter { it.first == "ui.tap" })
+            assertEquals("no", (host.calls.single { it.first == "notify.post" }.second["title"] as JsonPrimitive).content)
         }
 
     @Test
