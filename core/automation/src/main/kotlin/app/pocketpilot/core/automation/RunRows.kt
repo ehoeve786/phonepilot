@@ -7,7 +7,7 @@ data class RunRow(
 )
 
 /**
- * Finds the first run on a schedule list that starts inside a time window on a Monday to Friday. Each run
+ * Finds the first run on a schedule list that starts inside a time window on the chosen days. Each run
  * row reads like `button desc="6:00 AM - 10:00 AM, GVA - Downtown"` and sits under its day's heading, such as
  * `text "Monday "`, in the order the screen lists them.
  */
@@ -15,13 +15,30 @@ object RunRows {
     private val SNAPSHOT = Regex("""^snapshot (\S+)""")
     private val DAY = Regex("""text "(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) *"""")
     private val ROW = Regex("""^\s*(e\d+) button desc="(\d{1,2}):(\d{2}) ([AP]M) - [^"]*".*\bclick\b""")
-    private val WEEKDAYS = setOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+    private val DAY_CODES =
+        mapOf(
+            "mon" to "Monday",
+            "tue" to "Tuesday",
+            "wed" to "Wednesday",
+            "thu" to "Thursday",
+            "fri" to "Friday",
+            "sat" to "Saturday",
+            "sun" to "Sunday",
+        )
 
-    /** The first weekday run starting from [from] to [to] (both HH:mm, inclusive), or null when none is listed. */
+    /** Full day names for codes such as "mon,fri" (case and spaces ignored); unknown codes are skipped. */
+    fun dayNames(codes: String): Set<String> =
+        codes
+            .split(",")
+            .mapNotNull { DAY_CODES[it.trim().lowercase()] }
+            .toSet()
+
+    /** The first run on one of [days] (full day names) starting from [from] to [to] (both HH:mm, inclusive), or null. */
     fun pick(
         snapshot: String,
         from: String,
         to: String,
+        days: Set<String>,
     ): RunRow? {
         val earliest = minutesOf(from) ?: return null
         val latest = minutesOf(to) ?: return null
@@ -33,7 +50,7 @@ object RunRows {
             val row = ROW.find(line)
             if (heading != null) {
                 day = heading.groupValues[1]
-            } else if (row != null && day in WEEKDAYS) {
+            } else if (row != null && day in days) {
                 val (element, hour, minute, half) = row.destructured
                 val start = startMinutes(hour.toInt(), minute.toInt(), half)
                 if (start in earliest..latest) return RunRow(snapshotId, element)
