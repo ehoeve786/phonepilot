@@ -342,6 +342,14 @@ class AutomationEngine(
                 callTool(context, "ui.tap", args("element" to element, "snapshotId" to snapshot, "returnSnapshot" to false))
             }
 
+            "ui.tap_run" -> {
+                val snapshot = callTool(context, "screen.snapshot", JsonObject(emptyMap()))
+                val run =
+                    RunRows.pick(snapshot, params.p("from"), params.p("to"))
+                        ?: throw AutomationFailure("No open run starts from ${params.p("from")} to ${params.p("to")} on a Monday to Friday")
+                callTool(context, "ui.tap", args("element" to run.element, "snapshotId" to run.snapshotId, "returnSnapshot" to false))
+            }
+
             "screen.read" -> {
                 save(callTool(context, "screen.snapshot", JsonObject(emptyMap())))
             }
