@@ -336,8 +336,11 @@ class AutomationEngine(
                 val found = callTool(context, "screen.find", args("text" to params.p("text")))
                 val lines = found.lines()
                 val snapshot = lines.firstOrNull()?.removePrefix("snapshot ")?.trim()
+                // A heading such as "Add Run?" matches "ADD RUN" too; prefer the match the owner can press.
+                val matches = lines.drop(1).filter { it.isNotBlank() }
                 val element =
-                    lines.drop(1).firstOrNull { it.isNotBlank() }?.substringBefore(' ')
+                    (matches.firstOrNull { Regex("""\bclick\b""").containsMatchIn(it) } ?: matches.firstOrNull())
+                        ?.substringBefore(' ')
                         ?: throw AutomationFailure("\"${params.p("text")}\" is not on screen")
                 callTool(context, "ui.tap", args("element" to element, "snapshotId" to snapshot, "returnSnapshot" to false))
             }

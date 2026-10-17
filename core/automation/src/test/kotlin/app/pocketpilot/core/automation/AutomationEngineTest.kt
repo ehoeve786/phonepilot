@@ -41,6 +41,7 @@ class AutomationEngineTest {
         val state = mutableMapOf<String, String>()
         var settings = mutableMapOf("wifi" to "on")
         var schedule = "done"
+        var found = "snapshot s7\ne4 button \"Start\" [0,0][10,10]"
         val opened = mutableListOf<Set<String>>()
         var closed = 0
 
@@ -62,7 +63,7 @@ class AutomationEngineTest {
                 }
 
                 "screen.find" -> {
-                    ToolResult.success("snapshot s7\ne4 button \"Start\" [0,0][10,10]")
+                    ToolResult.success(found)
                 }
 
                 "screen.snapshot" -> {
@@ -268,6 +269,16 @@ class AutomationEngineTest {
             assertEquals(RunOutcome.OK, record.outcome, record.lines.toString())
             assertEquals(emptyList(), host.calls.filter { it.first == "ui.tap" })
             assertEquals("no", (host.calls.single { it.first == "notify.post" }.second["title"] as JsonPrimitive).content)
+        }
+
+    @Test
+    fun `tap by text skips a heading and presses the button with that text`() =
+        runTest {
+            val host = FakeHost()
+            host.found = "snapshot s9\ne69 text \"Add Run?\" [0,0][10,10]\ne75 button desc=\"ADD RUN\" click [0,2245][1080,2316]"
+            engine(this, host).run(rule(listOf(ActionStep("ui.tap_text", mapOf("text" to "ADD RUN")))), "Test")
+            val tap = host.calls.single { it.first == "ui.tap" }.second
+            assertEquals("e75", (tap["element"] as JsonPrimitive).content)
         }
 
     @Test
