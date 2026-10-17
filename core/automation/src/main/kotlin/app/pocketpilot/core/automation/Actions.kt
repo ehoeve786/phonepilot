@@ -304,12 +304,12 @@ internal object Actions {
                     type = "ui.tap_run",
                     category = ui,
                     title = "Take the first open run in a time window",
-                    description = "On a schedule list, taps the first run that starts between the two times on a Monday to Friday.",
+                    description = "On a schedule list, taps the first run that starts between the two times on the days you pick.",
                     fields =
                         listOf(
+                            FieldDef("days", "Days", FieldKind.DAYS, default = "mon,tue,wed,thu,fri"),
                             textField("from", "Earliest start", default = "06:00", hint = "HH:mm"),
                             textField("to", "Latest start", default = "15:00", hint = "HH:mm"),
-                            textField("days", "Days", default = "mon,tue,wed,thu,fri", hint = "mon,tue,wed,thu,fri,sat,sun"),
                             textField("into", "Save yes or no in variable", default = "run_found", hint = "yes when a run was taken"),
                         ),
                     tier = RiskTier.INTERACT,
