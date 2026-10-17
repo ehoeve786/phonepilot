@@ -309,11 +309,12 @@ internal object Actions {
                         listOf(
                             textField("from", "Earliest start", default = "06:00", hint = "HH:mm"),
                             textField("to", "Latest start", default = "15:00", hint = "HH:mm"),
+                            textField("into", "Save yes or no in variable", default = "run_found", hint = "yes when a run was taken"),
                         ),
                     tier = RiskTier.INTERACT,
                     kind = ActionKind.Engine,
                     tools = setOf("screen.snapshot", "ui.tap"),
-                    sentence = { p -> "Take the first Monday to Friday run starting ${p.p("from")} to ${p.p("to")}" },
+                    sentence = { p -> "Take the first Monday to Friday run starting ${p.p("from")} to ${p.p("to")}, if there is one" },
                 ),
                 ActionDef(
                     type = "ui.global_action",
