@@ -233,6 +233,20 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a swipe between two points sends the points and no direction`() =
+        runTest {
+            val host = FakeHost()
+            val swipe =
+                mapOf("direction" to "down", "fromX" to "540", "fromY" to "870", "toX" to "540", "toY" to "1730", "durationMs" to "1000")
+            engine(this, host).run(rule(listOf(ActionStep("ui.swipe", swipe))), "Test")
+            val sent = host.calls.single { it.first == "ui.swipe" }.second
+            assertEquals("870", (sent["fromY"] as JsonPrimitive).content)
+            assertEquals("1730", (sent["toY"] as JsonPrimitive).content)
+            assertEquals("1000", (sent["durationMs"] as JsonPrimitive).content)
+            assertFalse(sent.containsKey("direction"))
+        }
+
+    @Test
     fun `rule constraints skip the run`() =
         runTest {
             val host = FakeHost()
