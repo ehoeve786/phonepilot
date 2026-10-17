@@ -38,6 +38,9 @@ object Placeholders {
         text: String,
         lookup: (String) -> String?,
     ): String = PATTERN.replace(text) { match -> lookup(match.groupValues[1]) ?: match.value }
+
+    /** True when [text] has a placeholder, so its value can change from one run to the next. */
+    fun contains(text: String): Boolean = PATTERN.containsMatchIn(text)
 }
 
 /** Sentences for the builder's cards and the proposal sheet. */

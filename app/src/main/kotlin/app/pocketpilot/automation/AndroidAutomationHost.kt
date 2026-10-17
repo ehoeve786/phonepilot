@@ -26,6 +26,7 @@ import app.pocketpilot.core.automation.AutomationJson
 import app.pocketpilot.core.automation.NotificationInfo
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.StateKeys
+import app.pocketpilot.core.automation.fixedShellCommands
 import app.pocketpilot.core.common.Clock
 import app.pocketpilot.core.common.UlidGenerator
 import app.pocketpilot.core.model.Scope
@@ -96,6 +97,7 @@ class AndroidAutomationHost(
                 createdAtMillis = System.currentTimeMillis(),
             )
         policy.preConfirm(session.id, tools - SHELL_EXEC)
+        policy.preConfirmDetails(session.id, SHELL_EXEC, rule.fixedShellCommands())
         if (rule.startedByOwner()) policy.markOwnerStarted(session.id)
         return session
     }

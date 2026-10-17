@@ -201,6 +201,19 @@ class PolicyEngineTest {
         }
 
     @Test
+    fun `a command the owner typed into a rule runs, any other command asks`() =
+        runTest {
+            val engine = engine()
+            val shell = spec("shell.exec", RiskTier.SENSITIVE, Scope.SHELL_EXEC)
+            val run = Session(SessionId("01JA0000000000000000000002"), SessionKind.AUTOMATION, "Rule", Scope.KNOWN, 0)
+            engine.preConfirmDetails(run.id, "shell.exec", setOf("dumpsys battery"))
+            assertEquals(Decision.Allow, engine.before(run, shell, detail = "dumpsys battery"))
+            assertEquals(emptyList(), asked, "the typed-out command is not asked again")
+            engine.before(run, shell, detail = "rm -rf /sdcard/x")
+            assertEquals(listOf("rm -rf /sdcard/x"), asked.map { it.detail })
+        }
+
+    @Test
     fun `stopped clients are refused, agent runs are not`() =
         runTest {
             stopped = true
