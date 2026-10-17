@@ -361,7 +361,7 @@ internal object Actions {
                     type = "ui.swipe",
                     category = ui,
                     title = "Swipe",
-                    description = "Swipes across the middle of the screen.",
+                    description = "Swipes across the middle of the screen, or between two points when all four are set.",
                     fields =
                         listOf(
                             choiceField(
@@ -369,10 +369,42 @@ internal object Actions {
                                 "Direction",
                                 listOf(Choice("up", "Up"), Choice("down", "Down"), Choice("left", "Left"), Choice("right", "Right")),
                             ),
+                            numberField(
+                                "fromX",
+                                "From X (pixels)",
+                                required = false,
+                                hint = "Leave all four points blank to use the direction",
+                            ),
+                            numberField("fromY", "From Y (pixels)", required = false),
+                            numberField("toX", "To X (pixels)", required = false),
+                            numberField("toY", "To Y (pixels)", required = false),
+                            numberField("durationMs", "Duration (ms)", default = "300", required = false),
                         ),
                     tier = RiskTier.INTERACT,
-                    kind = ActionKind.Tool("ui.swipe") { p -> args("direction" to p.p("direction"), "returnSnapshot" to false) },
-                    sentence = { p -> "Swipe ${p.p("direction")}" },
+                    kind =
+                        ActionKind.Tool("ui.swipe") { p ->
+                            val points = listOf("fromX", "fromY", "toX", "toY").map { p.p(it) }
+                            // The tool rejects a direction sent with points, so only the points go when all four are set.
+                            if (points.all(String::isNotEmpty)) {
+                                args(
+                                    "fromX" to points[0],
+                                    "fromY" to points[1],
+                                    "toX" to points[2],
+                                    "toY" to points[3],
+                                    "durationMs" to p.p("durationMs"),
+                                    "returnSnapshot" to false,
+                                )
+                            } else {
+                                args("direction" to p.p("direction"), "durationMs" to p.p("durationMs"), "returnSnapshot" to false)
+                            }
+                        },
+                    sentence = { p ->
+                        if (p.p("fromX").isNotEmpty()) {
+                            "Swipe from (${p.p("fromX")}, ${p.p("fromY")}) to (${p.p("toX")}, ${p.p("toY")})"
+                        } else {
+                            "Swipe ${p.p("direction")}"
+                        }
+                    },
                 ),
                 ActionDef(
                     type = "screen.wait_for",
