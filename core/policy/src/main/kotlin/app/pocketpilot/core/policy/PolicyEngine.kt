@@ -232,6 +232,16 @@ class PolicyEngine(
         confirmedSensitive.getOrPut(id) { HashSet() } += tools
     }
 
+    /** Treats each exact [details] of [tool] as confirmed for session [id]; any other detail still asks. */
+    @Synchronized
+    fun preConfirmDetails(
+        id: SessionId,
+        tool: String,
+        details: Set<String>,
+    ) {
+        confirmedSensitive.getOrPut(id) { HashSet() } += details.map { confirmationKey(tool, it) }
+    }
+
     /**
      * Marks a session the owner started on the phone itself, such as a rule run from a button or a
      * MacroDroid event. Its actions run without the control overlay; sensitive tools were already

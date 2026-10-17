@@ -185,3 +185,18 @@ data class TriggerEvent(
     /** Set when the event is meant for one rule only, such as its own alarm. */
     val ruleId: String? = null,
 )
+
+/**
+ * The shell commands a rule types out in full. The owner approves them with the rule, so they run
+ * without a prompt each time. A command with a placeholder can take its text from an event's extras or
+ * a screen, so it still asks for each command.
+ */
+fun Rule.fixedShellCommands(): Set<String> {
+    fun ActionStep.all(): List<ActionStep> = listOf(this) + children.flatMap { it.all() } + elseChildren.flatMap { it.all() }
+    return actions
+        .flatMap { it.all() }
+        .filter { it.type == "shell.exec" }
+        .map { it.params["command"].orEmpty().trim() }
+        .filter { it.isNotEmpty() && !Placeholders.contains(it) }
+        .toSet()
+}
