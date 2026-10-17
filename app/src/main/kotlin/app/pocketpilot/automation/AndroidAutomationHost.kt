@@ -96,8 +96,13 @@ class AndroidAutomationHost(
                 createdAtMillis = System.currentTimeMillis(),
             )
         policy.preConfirm(session.id, tools - SHELL_EXEC)
+        if (rule.startedByOwner()) policy.markOwnerStarted(session.id)
         return session
     }
+
+    /** A rule only the owner starts, from its Run button or a MacroDroid event, rather than a schedule or a phone event. */
+    private fun Rule.startedByOwner(): Boolean =
+        triggers.isNotEmpty() && triggers.all { it.type == "manual" || it.type == "intent.received" }
 
     override fun closeSession(session: Session) = policy.endSession(session.id)
 

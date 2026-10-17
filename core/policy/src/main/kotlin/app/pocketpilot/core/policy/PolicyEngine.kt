@@ -83,6 +83,7 @@ class PolicyEngine(
     private val toolModes: ToolModes? = null,
 ) {
     private val confirmedSensitive = HashMap<SessionId, MutableSet<String>>()
+    private val ownerStarted = HashSet<SessionId>()
 
     /** Checks a call before it runs. */
     suspend fun before(
@@ -192,7 +193,9 @@ class PolicyEngine(
                 }
             }
         }
-        if (spec.riskTier > RiskTier.READ && session.kind != SessionKind.LOCAL_UI) indicator?.acting(session)
+        if (spec.riskTier > RiskTier.READ && session.kind != SessionKind.LOCAL_UI && !isOwnerStarted(session.id)) {
+            indicator?.acting(session)
+        }
         return Decision.Allow
     }
 
@@ -229,12 +232,26 @@ class PolicyEngine(
         confirmedSensitive.getOrPut(id) { HashSet() } += tools
     }
 
-    /** Forgets a session's confirmations and rate-limit window when it ends. */
+    /**
+     * Marks a session the owner started on the phone itself, such as a rule run from a button or a
+     * MacroDroid event. Its actions run without the control overlay; sensitive tools were already
+     * confirmed when the owner made the rule, and the raw shell still asks for each new command.
+     */
+    @Synchronized
+    fun markOwnerStarted(id: SessionId) {
+        ownerStarted += id
+    }
+
+    /** Forgets a session's confirmations, its owner-started mark and its rate-limit window when it ends. */
     @Synchronized
     fun endSession(id: SessionId) {
         confirmedSensitive.remove(id)
+        ownerStarted -= id
         rateLimiter.forget(id.value)
     }
+
+    @Synchronized
+    private fun isOwnerStarted(id: SessionId): Boolean = id in ownerStarted
 
     @Synchronized
     private fun alreadyConfirmed(
