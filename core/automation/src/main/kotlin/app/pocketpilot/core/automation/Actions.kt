@@ -301,6 +301,21 @@ internal object Actions {
                     sentence = { p -> "Tap \"${p.p("text")}\"" },
                 ),
                 ActionDef(
+                    type = "ui.tap_run",
+                    category = ui,
+                    title = "Take the first open run in a time window",
+                    description = "On a schedule list, taps the first run that starts between the two times on a Monday to Friday.",
+                    fields =
+                        listOf(
+                            textField("from", "Earliest start", default = "06:00", hint = "HH:mm"),
+                            textField("to", "Latest start", default = "15:00", hint = "HH:mm"),
+                        ),
+                    tier = RiskTier.INTERACT,
+                    kind = ActionKind.Engine,
+                    tools = setOf("screen.snapshot", "ui.tap"),
+                    sentence = { p -> "Take the first Monday to Friday run starting ${p.p("from")} to ${p.p("to")}" },
+                ),
+                ActionDef(
                     type = "ui.global_action",
                     category = ui,
                     title = "Back, Home, Recents and more",
