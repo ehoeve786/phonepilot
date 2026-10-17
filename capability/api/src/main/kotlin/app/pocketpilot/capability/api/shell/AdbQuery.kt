@@ -98,6 +98,7 @@ object AdbQuery {
             "uname",
             "nproc",
             "getenforce",
+            "date",
             "ip",
             "ifconfig",
             "netstat",
@@ -167,6 +168,11 @@ object AdbQuery {
 
             "top" -> {
                 require("-b" in args && "-n" in args) { "Run top with -b -n 1 so it ends" }
+            }
+
+            "date" -> {
+                // Shows the phone's clock; -s and a bare date string would set it, so only output options pass.
+                require(args.all { it == "-u" || it == "-R" || it.startsWith("+") }) { "date only shows the time; it cannot set it" }
             }
 
             "ps", "df", "free", "netstat", "uptime", "uname", "nproc", "getenforce" -> {
