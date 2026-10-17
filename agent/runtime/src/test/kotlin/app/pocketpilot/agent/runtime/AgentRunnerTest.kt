@@ -227,6 +227,35 @@ class AgentRunnerTest {
         }
 
     @Test
+    fun `an answer whose result is not on the screen makes the model read the screen again`() =
+        runTest {
+            screen = "Display 72"
+            val provider =
+                ScriptedProvider(
+                    say("128 × 46 = 5,888"),
+                    {
+                        screen = "Display 5,888"
+                        callTool("screen_snapshot")(it)
+                    },
+                    say("128 × 46 = 5,888"),
+                )
+
+            val end =
+                runner()
+                    .start(
+                        AgentTask("Work out 128 times 46", scopes),
+                        RunModel(provider, "fake-1"),
+                        AgentBudgets(),
+                        backgroundScope,
+                    ).finished()
+
+            assertEquals(RunStatus.FINISHED, end.status)
+            assertEquals("128 × 46 = 5,888", end.outcome)
+            assertEquals(3, provider.requests.size)
+            assertTrue(end.steps.any { it.note?.startsWith("The answer's result is not on the screen") == true })
+        }
+
+    @Test
     fun `moves to the next model when one runs out, skipping models that call tools differently`() =
         runTest {
             val gemini = ScriptedProvider(fail(ModelErrorCode.QUOTA))

@@ -144,6 +144,12 @@ class AgentRun internal constructor(
     private var segmentStart = 0L
     private var consecutiveErrors = 0
 
+    /** The last screen the phone showed, from a screen tool's output; a calculation answer must match it. */
+    private var latestScreen: String? = null
+
+    /** Answers sent back this turn because the result they state is not on the screen. */
+    private var unshownResults = 0
+
     /** The first step of the current turn; the step budget counts from here. */
     private var turnStart = 0
 
@@ -239,6 +245,7 @@ class AgentRun internal constructor(
         segmentStart = clock.nowMillis()
         activeMs = 0
         consecutiveErrors = 0
+        unshownResults = 0
         turnStart = state.value.steps.size
         turnMessages = messages.size
         while (true) {
@@ -288,6 +295,14 @@ class AgentRun internal constructor(
 
     /** Returns the closing summary when the model is done, or null to go on. */
     private suspend fun nativeStep(reply: Reply.Answer): String? {
+        if (reply.calls.isEmpty() && resultMissing(reply.text) && unshownResults < MAX_UNSHOWN) {
+            // A model that answers a calculation from memory is sent back to read the display first.
+            unshownResults++
+            messages += Message(Role.ASSISTANT, listOf(Part.Text(reply.text)))
+            note("The answer's result is not on the screen, so the model is asked to check it")
+            addToUserMessage(listOf(Part.Text(Prompts.resultNotShown)))
+            return null
+        }
         if (reply.calls.isEmpty()) return reply.text.ifBlank { "Done" }
         messages +=
             Message(
@@ -378,6 +393,7 @@ class AgentRun internal constructor(
                     dispatcher.dispatch(session, spec.name, args)
                 }
             }
+        seen(spec, result)
         val summary = summary(result).take(SUMMARY_CHARS)
         return result to StepCall(spec?.name ?: name, argsJson, summary, result.isError)
     }
@@ -400,7 +416,30 @@ class AgentRun internal constructor(
         args: JsonObject = JsonObject(emptyMap()),
     ): ToolResult {
         if (tools.resolve(tool)?.touchesScreen() == true) beforeScreenWork()
-        return dispatcher.dispatch(session, tool, args)
+        return dispatcher.dispatch(session, tool, args).also { seen(tools.resolve(tool), it) }
+    }
+
+    /** Keeps the screen the phone last showed, so a calculation answer can be checked against it. */
+    private fun seen(
+        spec: ToolSpec?,
+        result: ToolResult,
+    ) {
+        if (!result.isError && spec != null && (spec.touchesScreen() || spec.name == SCREEN_SNAPSHOT)) {
+            latestScreen = summary(result)
+        }
+    }
+
+    /** True when the answer states a result the latest screen does not show, such as "= 5,888" over a display of 72. */
+    private fun resultMissing(answer: String): Boolean {
+        val screen = latestScreen ?: return false
+        val claimed =
+            CALC_RESULT
+                .findAll(answer)
+                .lastOrNull()
+                ?.groupValues
+                ?.get(1)
+                ?.replace(",", "") ?: return false
+        return !screen.replace(",", "").contains(claimed)
     }
 
     /** Asks the model, retrying provider errors that may pass. */
@@ -595,6 +634,8 @@ class AgentRun internal constructor(
         if (failure.code == ModelErrorCode.INVALID_REQUEST) UNLOADED_CALL.find(failure.message)?.groupValues?.get(1) else null
 
     private companion object {
+        val CALC_RESULT = Regex("=\\s*(-?\\d[\\d,]*(?:\\.\\d+)?)")
+        const val MAX_UNSHOWN = 2
         val UNLOADED_CALL = Regex("attempted to call tool '([^']+)' which was not in request\\.tools")
         const val MAX_CORRECTIONS = 2
         const val DEVICE_INFO = "device.info"
