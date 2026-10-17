@@ -45,8 +45,8 @@ internal object Prompts {
             if (catalog.isNotBlank()) {
                 appendLine()
                 appendLine(
-                    "More tools. Call one by its name alone, such as device.battery_usage, when you know its arguments, " +
-                        "or load their full definitions first with ${AgentTools.LOAD}:",
+                    "More tools. Before you call one, load its full definition with ${AgentTools.LOAD}, passing its name " +
+                        "in names, such as [\"device.battery_usage\"]. Calling a tool that is not loaded fails.",
                 )
                 appendLine(catalog)
             }
