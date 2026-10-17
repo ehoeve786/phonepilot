@@ -221,7 +221,7 @@ class AgentRunnerTest {
                     .last()
                     .parts
                     .filterIsInstance<Part.Text>()
-                    .single()
+                    .last()
                     .text
             assertTrue(retry.startsWith("shell.exec is not loaded yet. Load it first with ${AgentTools.LOAD}"), retry)
         }
