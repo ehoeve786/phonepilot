@@ -801,7 +801,11 @@ internal object Actions {
                     category = Category.FLOW,
                     title = "Wait until",
                     description = "Waits until its conditions hold, checking every few seconds; fails after the timeout.",
-                    fields = listOf(numberField("timeout", "Timeout (seconds)", default = "60")),
+                    fields =
+                        listOf(
+                            numberField("timeout", "Timeout (seconds)", default = "60"),
+                            numberField("poll", "Check every (seconds)", default = "2", required = false, hint = "0.25 to 10"),
+                        ),
                     tier = RiskTier.READ,
                     kind = ActionKind.Engine,
                     conditional = true,

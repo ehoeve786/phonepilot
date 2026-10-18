@@ -417,9 +417,10 @@ class AutomationEngine(
             "flow.wait_until" -> {
                 val timeout = (params.p("timeout").toLongOrNull() ?: 60).coerceIn(1, MAX_WAIT_S.toLong()) * 1000
                 val until = clock.nowMillis() + timeout
+                val poll = (params.p("poll").toDoubleOrNull() ?: 2.0).coerceIn(0.25, 10.0)
                 while (!holds(context, step.constraints)) {
                     if (clock.nowMillis() >= until) throw AutomationFailure("Timed out after ${timeout / 1000} s")
-                    delay(POLL_MS)
+                    delay((poll * 1000).toLong())
                 }
             }
 
@@ -682,7 +683,6 @@ class AutomationEngine(
         const val MAX_NOTE = 200
         const val MAX_WAIT_S = 3600.0
         const val DEFAULT_WHILE = 20
-        const val POLL_MS = 2_000L
 
         /** Every tool [rule] may call, so an owner-made rule is not asked about each one. */
         fun toolsOf(rule: Rule): Set<String> {
