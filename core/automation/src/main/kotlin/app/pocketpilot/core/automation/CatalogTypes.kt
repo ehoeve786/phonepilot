@@ -237,4 +237,12 @@ object StateKeys {
 
     /** The text in a [screenText] key, or null for other keys. */
     fun screenTextOf(key: String): String? = key.takeIf { it.startsWith(SCREEN_TEXT) }?.removePrefix(SCREEN_TEXT)
+
+    private const val SCREEN_TAB = "screen.tab:"
+
+    /** Whether the tab labelled [label] has its selection bar on the screen now, as "on" or "off". */
+    fun screenTab(label: String) = SCREEN_TAB + label
+
+    /** The label in a [screenTab] key, or null for other keys. */
+    fun screenTabOf(key: String): String? = key.takeIf { it.startsWith(SCREEN_TAB) }?.removePrefix(SCREEN_TAB)
 }

@@ -16,6 +16,13 @@ interface ScreenReader : CapabilityBackend {
     /** True when [snapshotId] is one of this reader's recent snapshots. */
     fun owns(snapshotId: String): Boolean
 
+    /**
+     * True when the tab labelled [label] has its selection bar: a text-less node that spans the tab's
+     * width and ends at its bottom edge. Reads the layout tree only, never a capture. Readers that
+     * cannot walk the tree answer false.
+     */
+    suspend fun hasSelectionBarOf(label: String): Boolean = false
+
     /** The app in front, from the most recent window change. */
     suspend fun foreground(): ForegroundApp?
 

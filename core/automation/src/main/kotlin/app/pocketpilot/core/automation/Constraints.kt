@@ -62,6 +62,24 @@ internal object Constraints {
                 sentence = { p -> "\"${p.p("text")}\" ${p.p("state").ifBlank { "on" }} the screen" },
                 check = { p -> onOff(state(StateKeys.screenText(p.p("text")))) == p.p("state").ifBlank { "on" } },
             ),
+            ConstraintDef(
+                type = "screen.tab",
+                category = Category.SCREEN,
+                title = "Tab selected",
+                description = "The tab with this name is selected, shown by the bar under it. Needs no screenshot.",
+                fields =
+                    listOf(
+                        textField("label", "Tab name"),
+                        choiceField("state", "Is", ON_OFF),
+                    ),
+                sentence = { p ->
+                    val selected = p.p("state").ifBlank { "on" } == "on"
+                    "the \"${p.p("label")}\" tab ${if (selected) "is" else "is not"} selected"
+                },
+                check = { p ->
+                    onOff(state(StateKeys.screenTab(p.p("label")))) == p.p("state").ifBlank { "on" }
+                },
+            ),
             // Battery and power
             ConstraintDef(
                 type = "battery.level",

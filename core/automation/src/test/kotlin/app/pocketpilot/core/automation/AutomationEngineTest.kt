@@ -335,6 +335,18 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a tab check runs the rule only while that tab is selected`() =
+        runTest {
+            val host = FakeHost()
+            val onOpenRuns = ConstraintSpec("screen.tab", mapOf("label" to "Open Runs"))
+            val rule = rule(listOf(ActionStep("notify.post", mapOf("title" to "x"))), ConstraintGroup.of(onOpenRuns))
+            host.state[StateKeys.screenTab("Open Runs")] = "off"
+            assertEquals(RunOutcome.SKIPPED, engine(this, host).run(rule, "Test").outcome)
+            host.state[StateKeys.screenTab("Open Runs")] = "on"
+            assertEquals(RunOutcome.OK, engine(this, host).run(rule, "Test").outcome)
+        }
+
+    @Test
     fun `group modes combine checks`() =
         runTest {
             val host = FakeHost()

@@ -113,6 +113,7 @@ class AndroidAutomationHost(
     override suspend fun state(key: String): String? {
         StateKeys.homeAssistantEntity(key)?.let { return homeAssistant.stateOf(it) }
         StateKeys.screenTextOf(key)?.let { return screenShows(it) }
+        StateKeys.screenTabOf(key)?.let { return tabSelected(it) }
         return when (key) {
             StateKeys.LOCATION -> places.lastLocation()
             StateKeys.CALENDAR_NOW -> withContext(Dispatchers.IO) { runCatching { calendars.now() }.getOrNull() }
@@ -127,6 +128,19 @@ class AndroidAutomationHost(
                 screen.snapshot().elements.any { element ->
                     listOfNotNull(element.text, element.description).any { it.contains(text, ignoreCase = true) }
                 }
+            }.getOrDefault(false)
+        return if (shown) "on" else "off"
+    }
+
+    /**
+     * "on" when the tab named [label] has its selection bar on the screen, else "off". Reads the layout
+     * tree, so no capture is taken. Nothing is read while a hidden app is in front.
+     */
+    private suspend fun tabSelected(label: String): String {
+        val shown =
+            runCatching {
+                if (hidden(screen.foreground()?.packageName.orEmpty())) return@runCatching false
+                screen.hasSelectionBarOf(label)
             }.getOrDefault(false)
         return if (shown) "on" else "off"
     }
