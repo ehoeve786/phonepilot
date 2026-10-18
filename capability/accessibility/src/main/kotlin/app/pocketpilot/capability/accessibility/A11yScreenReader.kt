@@ -6,6 +6,7 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import app.pocketpilot.capability.api.BackendIds
+import app.pocketpilot.capability.api.screen.Bounds
 import app.pocketpilot.capability.api.screen.ForegroundApp
 import app.pocketpilot.capability.api.screen.RawNode
 import app.pocketpilot.capability.api.screen.ScreenPrivacy
