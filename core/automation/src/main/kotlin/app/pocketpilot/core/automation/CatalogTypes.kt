@@ -237,4 +237,20 @@ object StateKeys {
 
     /** The text in a [screenText] key, or null for other keys. */
     fun screenTextOf(key: String): String? = key.takeIf { it.startsWith(SCREEN_TEXT) }?.removePrefix(SCREEN_TEXT)
+
+    private const val SCREEN_PIXEL = "screen.pixel:"
+
+    /** The color of the screen pixel at ([x], [y]) as "#RRGGBB", or null when it cannot be read. */
+    fun screenPixel(
+        x: Int,
+        y: Int,
+    ) = "$SCREEN_PIXEL$x,$y"
+
+    /** The position in a [screenPixel] key, or null for other keys. */
+    fun screenPixelOf(key: String): Pair<Int, Int>? {
+        val parts = key.takeIf { it.startsWith(SCREEN_PIXEL) }?.removePrefix(SCREEN_PIXEL)?.split(',') ?: return null
+        val x = parts.getOrNull(0)?.toIntOrNull() ?: return null
+        val y = parts.getOrNull(1)?.toIntOrNull() ?: return null
+        return x to y
+    }
 }

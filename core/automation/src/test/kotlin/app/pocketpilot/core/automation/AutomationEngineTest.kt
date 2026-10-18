@@ -335,6 +335,18 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a color check runs the rule only where the pixel is near the color`() =
+        runTest {
+            val host = FakeHost()
+            val onBar = ConstraintSpec("screen.color", mapOf("x" to "540", "y" to "226", "color" to "#1CCB73"))
+            val rule = rule(listOf(ActionStep("notify.post", mapOf("title" to "x"))), ConstraintGroup.of(onBar))
+            host.state[StateKeys.screenPixel(540, 226)] = "#1BC672"
+            assertEquals(RunOutcome.OK, engine(this, host).run(rule, "Test").outcome)
+            host.state[StateKeys.screenPixel(540, 226)] = "#161E23"
+            assertEquals(RunOutcome.SKIPPED, engine(this, host).run(rule, "Test").outcome)
+        }
+
+    @Test
     fun `group modes combine checks`() =
         runTest {
             val host = FakeHost()

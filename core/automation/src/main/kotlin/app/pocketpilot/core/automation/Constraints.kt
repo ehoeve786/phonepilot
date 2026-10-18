@@ -1,6 +1,7 @@
 package app.pocketpilot.core.automation
 
 import java.time.LocalTime
+import kotlin.math.abs
 
 /** The constraints this build can check. Most read phone state through [CheckScope.state]. */
 internal object Constraints {
@@ -61,6 +62,30 @@ internal object Constraints {
                     ),
                 sentence = { p -> "\"${p.p("text")}\" ${p.p("state").ifBlank { "on" }} the screen" },
                 check = { p -> onOff(state(StateKeys.screenText(p.p("text")))) == p.p("state").ifBlank { "on" } },
+            ),
+            ConstraintDef(
+                type = "screen.color",
+                category = Category.SCREEN,
+                title = "Color on screen",
+                description = "The screen pixel at a point is close to a color, such as the bar under a selected tab.",
+                fields =
+                    listOf(
+                        numberField("x", "X, in screen pixels"),
+                        numberField("y", "Y, in screen pixels"),
+                        textField("color", "Color", hint = "#1CCB73"),
+                        choiceField("state", "Is", ON_OFF),
+                    ),
+                sentence = { p -> "the pixel at ${p.p("x")}, ${p.p("y")} ${p.p("state").ifBlank { "on" }} ${p.p("color")}" },
+                check = { p ->
+                    val (x, y) = p.p("x").toIntOrNull() to p.p("y").toIntOrNull()
+                    val near =
+                        if (x == null || y == null) {
+                            false
+                        } else {
+                            colorNear(state(StateKeys.screenPixel(x, y)), p.p("color"))
+                        }
+                    near == (p.p("state").ifBlank { "on" } == "on")
+                },
             ),
             // Battery and power
             ConstraintDef(
@@ -385,6 +410,25 @@ internal object Constraints {
                 },
             ),
         )
+
+    /** True when [actual] ("#RRGGBB") is within [TOLERANCE] of [target] on every channel. */
+    private fun colorNear(
+        actual: String?,
+        target: String,
+    ): Boolean {
+        val a = rgb(actual ?: return false) ?: return false
+        val t = rgb(target) ?: return false
+        return (0..2).all { channel -> abs(a[channel] - t[channel]) <= TOLERANCE }
+    }
+
+    private fun rgb(hex: String): IntArray? {
+        val digits = hex.removePrefix("#")
+        if (digits.length != 6) return null
+        val value = digits.toIntOrNull(16) ?: return null
+        return intArrayOf(value shr 16 and 0xFF, value shr 8 and 0xFF, value and 0xFF)
+    }
+
+    private const val TOLERANCE = 60
 
     /** True when [time] is in [from, to), with windows past midnight wrapping around. */
     fun inWindow(

@@ -11,6 +11,7 @@ import app.pocketpilot.automation.PhoneState
 import app.pocketpilot.automation.PlaceWatcher
 import app.pocketpilot.automation.TriggerSources
 import app.pocketpilot.capability.api.notifications.NotificationPoster
+import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.files.SafFileStore
 import app.pocketpilot.capability.shizuku.ShizukuConnection
@@ -100,6 +101,7 @@ object AutomationModule {
         homeAssistant: HomeAssistant,
         logs: ShizukuSystemReader,
         screen: ScreenReader,
+        capturer: ScreenCapturer,
     ): AutomationRuntime {
         val hidden = { pkg: String -> appPolicy.modeFor(pkg) == AppMode.DENY }
         val calendars = Calendars(context)
@@ -119,6 +121,7 @@ object AutomationModule {
                 calendars = calendars,
                 places = places,
                 screen = screen,
+                capturer = capturer,
                 sideload = profile.shellExecAvailable,
             )
         return AutomationRuntime(

@@ -17,6 +17,7 @@ import android.widget.Toast
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.capability.api.files.FileStore
+import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
@@ -71,6 +72,7 @@ class AndroidAutomationHost(
     private val calendars: Calendars,
     private val places: PlaceWatcher,
     private val screen: ScreenReader,
+    private val capturer: ScreenCapturer,
     override val sideload: Boolean,
 ) : AutomationHost {
     private val ids = UlidGenerator(Clock.System)
@@ -113,6 +115,7 @@ class AndroidAutomationHost(
     override suspend fun state(key: String): String? {
         StateKeys.homeAssistantEntity(key)?.let { return homeAssistant.stateOf(it) }
         StateKeys.screenTextOf(key)?.let { return screenShows(it) }
+        StateKeys.screenPixelOf(key)?.let { (x, y) -> return screenPixel(x, y) }
         return when (key) {
             StateKeys.LOCATION -> places.lastLocation()
             StateKeys.CALENDAR_NOW -> withContext(Dispatchers.IO) { runCatching { calendars.now() }.getOrNull() }
@@ -124,12 +127,29 @@ class AndroidAutomationHost(
     private suspend fun screenShows(text: String): String {
         val shown =
             runCatching {
-                screen.snapshot().elements.any { element ->
-                    listOfNotNull(element.text, element.description).any { it.contains(text, ignoreCase = true) }
-                }
+                val snapshot = screen.snapshot()
+                !deniedApp(snapshot.packageName) &&
+                    snapshot.elements.any { element ->
+                        listOfNotNull(element.text, element.description).any { it.contains(text, ignoreCase = true) }
+                    }
             }.getOrDefault(false)
         return if (shown) "on" else "off"
     }
+
+    /** The color of the pixel at ([x], [y]) as "#RRGGBB"; null when it cannot be read or the app in front is denied. */
+    private suspend fun screenPixel(
+        x: Int,
+        y: Int,
+    ): String? =
+        runCatching {
+            if (deniedApp(screen.snapshot().packageName)) return null
+            val frame = capturer.capture()
+            if (x !in 0 until frame.width || y !in 0 until frame.height) return null
+            "#%06X".format(frame.pixels[y * frame.width + x] and 0xFFFFFF)
+        }.getOrNull()
+
+    /** A denied app is in front; its screen is never read, even by a rule. */
+    private fun deniedApp(packageName: String?): Boolean = packageName != null && hidden(packageName)
 
     override suspend fun notifications(): List<NotificationInfo> =
         if (!ListenerNotificationSource.available.value) {
