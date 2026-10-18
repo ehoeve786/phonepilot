@@ -17,6 +17,7 @@ import android.widget.Toast
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.capability.api.files.FileStore
+import app.pocketpilot.capability.api.screen.Bounds
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
@@ -113,6 +114,7 @@ class AndroidAutomationHost(
     override suspend fun state(key: String): String? {
         StateKeys.homeAssistantEntity(key)?.let { return homeAssistant.stateOf(it) }
         StateKeys.screenTextOf(key)?.let { return screenShows(it) }
+        StateKeys.screenNodeOf(key)?.let { return nodeShown(it) }
         return when (key) {
             StateKeys.LOCATION -> places.lastLocation()
             StateKeys.CALENDAR_NOW -> withContext(Dispatchers.IO) { runCatching { calendars.now() }.getOrNull() }
@@ -127,6 +129,20 @@ class AndroidAutomationHost(
                 screen.snapshot().elements.any { element ->
                     listOfNotNull(element.text, element.description).any { it.contains(text, ignoreCase = true) }
                 }
+            }.getOrDefault(false)
+        return if (shown) "on" else "off"
+    }
+
+    /**
+     * "on" when a layout node with the bounds in [spec] ("left,top,right,bottom") is on the screen, else "off".
+     * Reads the layout tree, so no capture is taken. Nothing is read while a hidden app is in front.
+     */
+    private suspend fun nodeShown(spec: String): String {
+        val shown =
+            runCatching {
+                if (hidden(screen.foreground()?.packageName.orEmpty())) return@runCatching false
+                val (left, top, right, bottom) = spec.split(",").map(String::toInt)
+                screen.hasNodeAt(Bounds(left, top, right, bottom))
             }.getOrDefault(false)
         return if (shown) "on" else "off"
     }

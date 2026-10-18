@@ -237,4 +237,17 @@ object StateKeys {
 
     /** The text in a [screenText] key, or null for other keys. */
     fun screenTextOf(key: String): String? = key.takeIf { it.startsWith(SCREEN_TEXT) }?.removePrefix(SCREEN_TEXT)
+
+    private const val SCREEN_NODE = "screen.node:"
+
+    /** Whether a layout node with these screen bounds is on the screen now, as "on" or "off". */
+    fun screenNode(
+        left: String,
+        top: String,
+        right: String,
+        bottom: String,
+    ) = "$SCREEN_NODE$left,$top,$right,$bottom"
+
+    /** The "left,top,right,bottom" part of a [screenNode] key, or null for other keys. */
+    fun screenNodeOf(key: String): String? = key.takeIf { it.startsWith(SCREEN_NODE) }?.removePrefix(SCREEN_NODE)
 }

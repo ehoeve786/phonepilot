@@ -335,6 +335,19 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `an element check runs the rule only where the layout node is`() =
+        runTest {
+            val host = FakeHost()
+            val onOpenRuns = ConstraintSpec("screen.node", mapOf("left" to "360", "top" to "223", "right" to "720", "bottom" to "229"))
+            val rule = rule(listOf(ActionStep("notify.post", mapOf("title" to "x"))), ConstraintGroup.of(onOpenRuns))
+            val key = StateKeys.screenNode("360", "223", "720", "229")
+            host.state[key] = "off"
+            assertEquals(RunOutcome.SKIPPED, engine(this, host).run(rule, "Test").outcome)
+            host.state[key] = "on"
+            assertEquals(RunOutcome.OK, engine(this, host).run(rule, "Test").outcome)
+        }
+
+    @Test
     fun `group modes combine checks`() =
         runTest {
             val host = FakeHost()

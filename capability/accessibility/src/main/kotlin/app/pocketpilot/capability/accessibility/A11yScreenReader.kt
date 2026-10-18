@@ -78,6 +78,23 @@ class A11yScreenReader(
 
     override suspend fun awaitChange(timeoutMs: Long): Boolean = A11yBridge.awaitChange(timeoutMs, ScreenReader.DEFAULT_QUIET_MS)
 
+    override suspend fun hasNodeAt(bounds: Bounds): Boolean =
+        withContext(Dispatchers.Default) {
+            val service = A11yBridge.require()
+            orderedWindows(service).any { window -> window.root?.let { containsNodeAt(it, bounds) } == true }
+        }
+
+    private fun containsNodeAt(
+        node: AccessibilityNodeInfo,
+        bounds: Bounds,
+    ): Boolean {
+        val rect = Rect().also(node::getBoundsInScreen)
+        if (rect.left == bounds.left && rect.top == bounds.top && rect.right == bounds.right && rect.bottom == bounds.bottom) {
+            return true
+        }
+        return (0 until node.childCount).any { i -> node.getChild(i)?.let { containsNodeAt(it, bounds) } == true }
+    }
+
     override fun bounds(target: Target.OnElement): Bounds = recent.element(target).bounds
 
     override fun owns(snapshotId: String): Boolean = recent.contains(snapshotId)

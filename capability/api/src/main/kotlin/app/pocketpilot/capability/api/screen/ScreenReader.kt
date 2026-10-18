@@ -16,6 +16,12 @@ interface ScreenReader : CapabilityBackend {
     /** True when [snapshotId] is one of this reader's recent snapshots. */
     fun owns(snapshotId: String): Boolean
 
+    /**
+     * True when a node with exactly these screen bounds is in the layout tree, whether or not it has
+     * text. Reads the tree only, never a capture. Readers that cannot walk the tree answer false.
+     */
+    suspend fun hasNodeAt(bounds: Bounds): Boolean = false
+
     /** The app in front, from the most recent window change. */
     suspend fun foreground(): ForegroundApp?
 

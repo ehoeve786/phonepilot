@@ -62,6 +62,28 @@ internal object Constraints {
                 sentence = { p -> "\"${p.p("text")}\" ${p.p("state").ifBlank { "on" }} the screen" },
                 check = { p -> onOff(state(StateKeys.screenText(p.p("text")))) == p.p("state").ifBlank { "on" } },
             ),
+            ConstraintDef(
+                type = "screen.node",
+                category = Category.SCREEN,
+                title = "Element at a position",
+                description = "An element with exactly these screen bounds is in the layout now. Needs no screenshot.",
+                fields =
+                    listOf(
+                        numberField("left", "Left"),
+                        numberField("top", "Top"),
+                        numberField("right", "Right"),
+                        numberField("bottom", "Bottom"),
+                        choiceField("state", "Is", ON_OFF),
+                    ),
+                sentence = { p ->
+                    val box = "[${p.p("left")},${p.p("top")}][${p.p("right")},${p.p("bottom")}]"
+                    "an element at $box ${p.p("state").ifBlank { "on" }} the screen"
+                },
+                check = { p ->
+                    val key = StateKeys.screenNode(p.p("left"), p.p("top"), p.p("right"), p.p("bottom"))
+                    onOff(state(key)) == p.p("state").ifBlank { "on" }
+                },
+            ),
             // Battery and power
             ConstraintDef(
                 type = "battery.level",
