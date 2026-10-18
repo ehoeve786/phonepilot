@@ -229,4 +229,12 @@ object StateKeys {
 
     /** The entity in a [homeAssistant] key, or null for other keys. */
     fun homeAssistantEntity(key: String): String? = key.takeIf { it.startsWith(HOME_ASSISTANT) }?.removePrefix(HOME_ASSISTANT)
+
+    private const val SCREEN_TEXT = "screen.text:"
+
+    /** Whether [text] is on the screen now, as "on" or "off". */
+    fun screenText(text: String) = SCREEN_TEXT + text
+
+    /** The text in a [screenText] key, or null for other keys. */
+    fun screenTextOf(key: String): String? = key.takeIf { it.startsWith(SCREEN_TEXT) }?.removePrefix(SCREEN_TEXT)
 }

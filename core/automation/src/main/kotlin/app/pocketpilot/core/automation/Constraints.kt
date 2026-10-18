@@ -49,6 +49,19 @@ internal object Constraints {
                 sentence = { p -> daysText(p.p("days")).replaceFirstChar(Char::uppercase) },
                 check = { p -> now.dayOfWeek in parseDays(p.p("days")) },
             ),
+            ConstraintDef(
+                type = "screen.text",
+                category = Category.SCREEN,
+                title = "Text on screen",
+                description = "The text is shown on the screen now.",
+                fields =
+                    listOf(
+                        textField("text", "Text"),
+                        choiceField("state", "Is", ON_OFF),
+                    ),
+                sentence = { p -> "\"${p.p("text")}\" ${p.p("state").ifBlank { "on" }} the screen" },
+                check = { p -> onOff(state(StateKeys.screenText(p.p("text")))) == p.p("state").ifBlank { "on" } },
+            ),
             // Battery and power
             ConstraintDef(
                 type = "battery.level",
