@@ -417,7 +417,7 @@ class AutomationEngine(
             "flow.wait_until" -> {
                 val timeout = (params.p("timeout").toLongOrNull() ?: 60).coerceIn(1, MAX_WAIT_S.toLong()) * 1000
                 val until = clock.nowMillis() + timeout
-                val poll = (params.p("poll").toDoubleOrNull() ?: 2.0).coerceIn(0.25, 10.0)
+                val poll = (params.p("poll").toDoubleOrNull() ?: 2.0).coerceIn(0.001, 10.0)
                 while (!holds(context, step.constraints)) {
                     if (clock.nowMillis() >= until) throw AutomationFailure("Timed out after ${timeout / 1000} s")
                     delay((poll * 1000).toLong())

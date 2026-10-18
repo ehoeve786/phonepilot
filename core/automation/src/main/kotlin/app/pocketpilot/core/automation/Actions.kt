@@ -804,7 +804,7 @@ internal object Actions {
                     fields =
                         listOf(
                             numberField("timeout", "Timeout (seconds)", default = "60"),
-                            numberField("poll", "Check every (seconds)", default = "2", required = false, hint = "0.25 to 10"),
+                            numberField("poll", "Check every (seconds)", default = "2", required = false, hint = "0.001 to 10"),
                         ),
                     tier = RiskTier.READ,
                     kind = ActionKind.Engine,
