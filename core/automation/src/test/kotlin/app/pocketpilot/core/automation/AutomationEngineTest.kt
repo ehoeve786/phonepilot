@@ -323,6 +323,18 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a screen text check runs the rule only while the text is shown`() =
+        runTest {
+            val host = FakeHost()
+            val onOpenRuns = ConstraintSpec("screen.text", mapOf("text" to "No Runs Available"))
+            val rule = rule(listOf(ActionStep("notify.post", mapOf("title" to "x"))), ConstraintGroup.of(onOpenRuns))
+            host.state[StateKeys.screenText("No Runs Available")] = "off"
+            assertEquals(RunOutcome.SKIPPED, engine(this, host).run(rule, "Test").outcome)
+            host.state[StateKeys.screenText("No Runs Available")] = "on"
+            assertEquals(RunOutcome.OK, engine(this, host).run(rule, "Test").outcome)
+        }
+
+    @Test
     fun `group modes combine checks`() =
         runTest {
             val host = FakeHost()

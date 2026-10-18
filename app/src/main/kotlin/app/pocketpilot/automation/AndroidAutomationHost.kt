@@ -17,6 +17,7 @@ import android.widget.Toast
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.capability.api.files.FileStore
+import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.core.automation.AgentOutcome
@@ -69,6 +70,7 @@ class AndroidAutomationHost(
     private val homeAssistant: HomeAssistant,
     private val calendars: Calendars,
     private val places: PlaceWatcher,
+    private val screen: ScreenReader,
     override val sideload: Boolean,
 ) : AutomationHost {
     private val ids = UlidGenerator(Clock.System)
@@ -110,11 +112,23 @@ class AndroidAutomationHost(
 
     override suspend fun state(key: String): String? {
         StateKeys.homeAssistantEntity(key)?.let { return homeAssistant.stateOf(it) }
+        StateKeys.screenTextOf(key)?.let { return screenShows(it) }
         return when (key) {
             StateKeys.LOCATION -> places.lastLocation()
             StateKeys.CALENDAR_NOW -> withContext(Dispatchers.IO) { runCatching { calendars.now() }.getOrNull() }
             else -> phone.read(key)
         }
+    }
+
+    /** "on" when [text] is on the screen now, else "off"; a screen that cannot be read counts as "off". */
+    private suspend fun screenShows(text: String): String {
+        val shown =
+            runCatching {
+                screen.snapshot().elements.any { element ->
+                    listOfNotNull(element.text, element.description).any { it.contains(text, ignoreCase = true) }
+                }
+            }.getOrDefault(false)
+        return if (shown) "on" else "off"
     }
 
     override suspend fun notifications(): List<NotificationInfo> =
