@@ -6,7 +6,6 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import app.pocketpilot.capability.api.BackendIds
-import app.pocketpilot.capability.api.screen.Bounds
 import app.pocketpilot.capability.api.screen.ForegroundApp
 import app.pocketpilot.capability.api.screen.RawNode
 import app.pocketpilot.capability.api.screen.ScreenPrivacy
@@ -78,21 +77,34 @@ class A11yScreenReader(
 
     override suspend fun awaitChange(timeoutMs: Long): Boolean = A11yBridge.awaitChange(timeoutMs, ScreenReader.DEFAULT_QUIET_MS)
 
-    override suspend fun hasNodeAt(bounds: Bounds): Boolean =
+    override suspend fun hasSelectionBarOf(label: String): Boolean =
         withContext(Dispatchers.Default) {
             val service = A11yBridge.require()
-            orderedWindows(service).any { window -> window.root?.let { containsNodeAt(it, bounds) } == true }
+            orderedWindows(service).any { window -> window.root?.let { hasBarUnder(it, label) } == true }
         }
 
-    private fun containsNodeAt(
+    /**
+     * Finds the tab with content description [label] and looks for a bar beside it in the same row. The bar
+     * matches the tab's width and ends at the tab's bottom edge, so no screen size is assumed.
+     */
+    private fun hasBarUnder(
         node: AccessibilityNodeInfo,
-        bounds: Bounds,
+        label: String,
     ): Boolean {
-        val rect = Rect().also(node::getBoundsInScreen)
-        if (rect.left == bounds.left && rect.top == bounds.top && rect.right == bounds.right && rect.bottom == bounds.bottom) {
-            return true
+        if (node.contentDescription?.toString() == label) {
+            val tab = Rect().also(node::getBoundsInScreen)
+            val row = node.parent ?: return false
+            return (0 until row.childCount).any { i ->
+                val sibling = row.getChild(i) ?: return@any false
+                val bar = Rect().also(sibling::getBoundsInScreen)
+                sibling.text == null &&
+                    bar.left == tab.left &&
+                    bar.right == tab.right &&
+                    bar.bottom == tab.bottom &&
+                    bar.height() in 1..SELECTION_BAR_MAX_HEIGHT
+            }
         }
-        return (0 until node.childCount).any { i -> node.getChild(i)?.let { containsNodeAt(it, bounds) } == true }
+        return (0 until node.childCount).any { i -> node.getChild(i)?.let { hasBarUnder(it, label) } == true }
     }
 
     override fun bounds(target: Target.OnElement): Bounds = recent.element(target).bounds
@@ -177,5 +189,8 @@ class A11yScreenReader(
     private companion object {
         /** A safety cap on very deep trees, well above the 300-element default. */
         const val MAX_RAW_NODES = 6_000
+
+        /** A tab's selection bar is a thin line; anything taller is not one. */
+        const val SELECTION_BAR_MAX_HEIGHT = 12
     }
 }

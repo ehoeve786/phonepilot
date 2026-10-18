@@ -63,25 +63,21 @@ internal object Constraints {
                 check = { p -> onOff(state(StateKeys.screenText(p.p("text")))) == p.p("state").ifBlank { "on" } },
             ),
             ConstraintDef(
-                type = "screen.node",
+                type = "screen.tab",
                 category = Category.SCREEN,
-                title = "Element at a position",
-                description = "An element with exactly these screen bounds is in the layout now. Needs no screenshot.",
+                title = "Tab selected",
+                description = "The tab with this name is selected, shown by the bar under it. Needs no screenshot.",
                 fields =
                     listOf(
-                        numberField("left", "Left"),
-                        numberField("top", "Top"),
-                        numberField("right", "Right"),
-                        numberField("bottom", "Bottom"),
+                        textField("label", "Tab name"),
                         choiceField("state", "Is", ON_OFF),
                     ),
                 sentence = { p ->
-                    val box = "[${p.p("left")},${p.p("top")}][${p.p("right")},${p.p("bottom")}]"
-                    "an element at $box ${p.p("state").ifBlank { "on" }} the screen"
+                    val selected = p.p("state").ifBlank { "on" } == "on"
+                    "the \"${p.p("label")}\" tab ${if (selected) "is" else "is not"} selected"
                 },
                 check = { p ->
-                    val key = StateKeys.screenNode(p.p("left"), p.p("top"), p.p("right"), p.p("bottom"))
-                    onOff(state(key)) == p.p("state").ifBlank { "on" }
+                    onOff(state(StateKeys.screenTab(p.p("label")))) == p.p("state").ifBlank { "on" }
                 },
             ),
             // Battery and power

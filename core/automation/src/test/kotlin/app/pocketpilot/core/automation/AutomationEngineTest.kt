@@ -335,15 +335,14 @@ class AutomationEngineTest {
         }
 
     @Test
-    fun `an element check runs the rule only where the layout node is`() =
+    fun `a tab check runs the rule only while that tab is selected`() =
         runTest {
             val host = FakeHost()
-            val onOpenRuns = ConstraintSpec("screen.node", mapOf("left" to "360", "top" to "223", "right" to "720", "bottom" to "229"))
+            val onOpenRuns = ConstraintSpec("screen.tab", mapOf("label" to "Open Runs"))
             val rule = rule(listOf(ActionStep("notify.post", mapOf("title" to "x"))), ConstraintGroup.of(onOpenRuns))
-            val key = StateKeys.screenNode("360", "223", "720", "229")
-            host.state[key] = "off"
+            host.state[StateKeys.screenTab("Open Runs")] = "off"
             assertEquals(RunOutcome.SKIPPED, engine(this, host).run(rule, "Test").outcome)
-            host.state[key] = "on"
+            host.state[StateKeys.screenTab("Open Runs")] = "on"
             assertEquals(RunOutcome.OK, engine(this, host).run(rule, "Test").outcome)
         }
 

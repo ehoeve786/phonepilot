@@ -17,10 +17,11 @@ interface ScreenReader : CapabilityBackend {
     fun owns(snapshotId: String): Boolean
 
     /**
-     * True when a node with exactly these screen bounds is in the layout tree, whether or not it has
-     * text. Reads the tree only, never a capture. Readers that cannot walk the tree answer false.
+     * True when the tab labelled [label] has its selection bar: a text-less node that spans the tab's
+     * width and ends at its bottom edge. Reads the layout tree only, never a capture. Readers that
+     * cannot walk the tree answer false.
      */
-    suspend fun hasNodeAt(bounds: Bounds): Boolean = false
+    suspend fun hasSelectionBarOf(label: String): Boolean = false
 
     /** The app in front, from the most recent window change. */
     suspend fun foreground(): ForegroundApp?
