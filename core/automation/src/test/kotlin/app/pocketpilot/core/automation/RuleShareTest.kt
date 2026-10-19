@@ -39,7 +39,7 @@ class RuleShareTest {
     fun `run history and the rule id are not shared`() {
         val withHistory = rule.copy(lastRun = RunSummary(atMillis = 1, outcome = RunOutcome.OK, actions = 1))
 
-        val received = parseSharedRule(withHistory.shareMessage()) { "new-id" }!!
+        val received = parseSharedRule(withHistory.shareFileJson()) { "new-id" }!!
 
         assertFalse(withHistory.shareText().contains("OK"))
         assertEquals("new-id", received.id)
@@ -47,10 +47,8 @@ class RuleShareTest {
     }
 
     @Test
-    fun `a share link opens as a disabled proposal with the same steps`() {
-        val message = rule.shareMessage()
-
-        val received = parseSharedRule(message) { "new-id" }!!
+    fun `a shared file opens as a disabled proposal with the same steps`() {
+        val received = parseSharedRule(rule.shareFileJson()) { "new-id" }!!
 
         assertEquals("new-id", received.id)
         assertEquals("Morning", received.name)
@@ -63,8 +61,8 @@ class RuleShareTest {
     }
 
     @Test
-    fun `text without a damaged or missing link is not a rule`() {
+    fun `text that is not a shared rule is not a rule`() {
         assertNull(parseSharedRule("hello there") { "x" })
-        assertNull(parseSharedRule("pocketpilot://rule/not-base64!") { "x" })
+        assertNull(parseSharedRule("{\"unrelated\":true}") { "x" })
     }
 }

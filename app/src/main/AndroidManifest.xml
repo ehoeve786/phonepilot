@@ -55,17 +55,16 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- A rule shared from another phone: a pocketpilot://rule link, or text that contains one. -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="pocketpilot" android:host="rule" />
-            </intent-filter>
+            <!-- A rule shared from another phone as a .pocketpilot file. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/vnd.pocketpilot.rule+json" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/vnd.pocketpilot.rule+json" />
             </intent-filter>
         </activity>
 
@@ -75,6 +74,17 @@
             android:exported="false"
             android:launchMode="singleTop"
             android:taskAffinity="app.pocketpilot.approvals" />
+
+        <!-- Shares a rule file with another app; only the files in the shared cache folder are readable. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.shared"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/shared_rule_paths" />
+        </provider>
 
         <receiver
             android:name=".agent.AgentControlReceiver"
