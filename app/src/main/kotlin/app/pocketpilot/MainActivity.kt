@@ -99,6 +99,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.time.YearMonth
 import javax.inject.Inject
 
@@ -188,8 +190,12 @@ class MainActivity : ComponentActivity() {
                 Intent.ACTION_VIEW -> intent.data
                 else -> null
             } ?: return
-        val json = runCatching { contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }.getOrNull()
-        val rule = json?.let { parseSharedRule(it) { ruleStore.newId() } } ?: return
+        val json = runCatching { contentResolver.openInputStream(uri)?.use(::readCapped) }.getOrNull()
+        val rule = json?.let { parseSharedRule(it) { ruleStore.newId() } }
+        if (rule == null) {
+            Toast.makeText(this, R.string.app_shared_rule_unreadable, Toast.LENGTH_LONG).show()
+            return
+        }
         if (RuleValidator.problems(rule, policyProfile.shellExecAvailable).isNotEmpty()) {
             Toast.makeText(this, R.string.app_shared_rule_invalid, Toast.LENGTH_LONG).show()
             return
@@ -197,6 +203,19 @@ class MainActivity : ComponentActivity() {
         ruleStore.upsert(rule)
         openProposals = true
         openAutomations.intValue++
+    }
+
+    /** The shared file's text, or null when it is larger than [MAX_SHARED_RULE_BYTES]. */
+    private fun readCapped(input: InputStream): String? {
+        val bytes = ByteArrayOutputStream()
+        val chunk = ByteArray(8 * 1024)
+        while (true) {
+            val read = input.read(chunk)
+            if (read < 0) break
+            if (bytes.size() + read > MAX_SHARED_RULE_BYTES) return null
+            bytes.write(chunk, 0, read)
+        }
+        return bytes.toString(Charsets.UTF_8.name())
     }
 
     private fun handleOpen(intent: Intent?) {
@@ -285,7 +304,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        handleOpen(intent)
+        // The launching intent is redelivered when the activity is recreated, so handle it only on a fresh start.
+        if (savedInstanceState == null) handleOpen(intent)
         val crashReports = (application as PocketPilotApplication).crashReports
         crashReports.load()
         certificates.load()
@@ -689,6 +709,7 @@ class MainActivity : ComponentActivity() {
         const val OPEN_AUTOMATIONS = "automations"
         const val OPEN_CHAT = "chat"
         const val OPEN_PROPOSALS = "proposals"
+        private const val MAX_SHARED_RULE_BYTES = 256 * 1024
         private const val SHIZUKU_TIMEOUT_MS = 10_000L
         private const val TELEMETRY_REFRESH_MS = 30_000L
         private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"

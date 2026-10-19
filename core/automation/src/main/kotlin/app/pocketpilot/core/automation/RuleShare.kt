@@ -59,9 +59,11 @@ fun parseSharedRule(
 ): Rule? =
     runCatching {
         val shared = AutomationJson.json.decodeFromString(SharedRule.serializer(), json)
+        val name = shared.name.trim()
+        if (name.isEmpty()) return@runCatching null
         Rule(
             id = newId(),
-            name = shared.name.trim(),
+            name = name,
             enabled = false,
             triggers = shared.triggers,
             constraints = shared.constraints,
