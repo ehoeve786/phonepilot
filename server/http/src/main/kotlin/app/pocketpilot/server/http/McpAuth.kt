@@ -118,8 +118,7 @@ internal fun ApplicationCall.issuer(remotePort: Int): String =
  * cannot tell clients apart. All remote clients therefore share one key: a remote attacker can block remote
  * clients for an hour, but cannot block the local token or the apps on the phone.
  */
-internal fun ApplicationCall.clientAddress(remotePort: Int): String =
-    if (isRemote(remotePort)) REMOTE_KEY else request.local.remoteAddress
+internal fun ApplicationCall.clientAddress(remotePort: Int): String = if (isRemote(remotePort)) REMOTE_KEY else request.local.remoteAddress
 
 /** The host of an Origin header, lowercased; null for "null" or anything unparsable. */
 internal fun originHost(origin: String): String? =
