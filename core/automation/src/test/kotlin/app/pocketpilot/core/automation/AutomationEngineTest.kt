@@ -717,6 +717,29 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `an outside event cannot choose where an outbound action sends data`() =
+        runTest {
+            val host = FakeHost()
+            val sends = rule(listOf(ActionStep("http.request", mapOf("url" to "{trigger.url}"))))
+
+            val record = engine(this, host).run(sends, "intent", mapOf("url" to "https://attacker.example"), fromOutside = true)
+
+            assertEquals(RunOutcome.FAILED, record.outcome)
+            assertTrue(host.calls.none { it.first == "http.request" })
+        }
+
+    @Test
+    fun `an outside event can still run an outbound action to the owner's own address`() =
+        runTest {
+            val host = FakeHost()
+            val fixed = rule(listOf(ActionStep("http.request", mapOf("url" to "https://home.example/hook"))))
+
+            engine(this, host).run(fixed, "intent", fromOutside = true)
+
+            assertTrue(host.calls.any { it.first == "http.request" })
+        }
+
+    @Test
     fun `event variables reach the agent as untrusted data, with their tags neutralised`() =
         runTest {
             val host = FakeHost()

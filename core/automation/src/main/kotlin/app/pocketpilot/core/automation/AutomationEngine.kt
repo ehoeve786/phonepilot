@@ -162,7 +162,7 @@ class AutomationEngine(
         val vars = HashMap<String, String>()
         data.forEach { (key, value) -> vars["trigger.$key"] = value }
         val session = host.openSession(rule, toolsOf(rule), fromOutside)
-        val context = RunContext(rule, session, vars, lines)
+        val context = RunContext(rule, session, vars, lines, fromOutside = fromOutside)
         val outcome =
             try {
                 if (checkConstraints && !holds(context, rule.constraints)) {
@@ -280,6 +280,12 @@ class AutomationEngine(
         val def = AutomationCatalog.action(step.type) ?: throw AutomationFailure("This build has no action ${step.type}")
         if (def.sideloadOnly && !host.sideload) throw AutomationFailure("${def.title} is only in the sideload build")
         if (!def.conditional && !step.constraints.isEmpty && !holds(context, step.constraints)) return "skipped, conditions did not hold"
+        val steeredFromOutside = step.type in SENDS_OUT && step.params.values.any { TRIGGER_PLACEHOLDER in it }
+        if (context.fromOutside && def.kind == ActionKind.Native && steeredFromOutside) {
+            throw AutomationFailure(
+                "Not run: another app started this automation, so its event data cannot choose where ${def.title} sends things",
+            )
+        }
         val params =
             RuleValidator.withDefaults(def.fields, step.params).mapValues { (_, value) -> Placeholders.fill(value) { lookup(context, it) } }
         val into = params.p("into")
@@ -680,6 +686,8 @@ class AutomationEngine(
         val vars: MutableMap<String, String>,
         val lines: MutableList<String>,
         val depth: Int = 0,
+        /** True when another app started the run; its event data must not steer what leaves the phone. */
+        val fromOutside: Boolean = false,
     )
 
     private class StopRun : RuntimeException()
@@ -689,6 +697,10 @@ class AutomationEngine(
 
     companion object {
         const val RULE_FINISHED = "rule.finished"
+
+        /** Native actions that send data off the phone or change a calendar, which an outside event must not steer. */
+        private val SENDS_OUT = setOf("http.request", "http.download", "ha.call", "calendar.add")
+        private const val TRIGGER_PLACEHOLDER = "{trigger."
 
         /** The "Event received" trigger, which any app can send. */
         const val INTENT_RECEIVED = "intent.received"
