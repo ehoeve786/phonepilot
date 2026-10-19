@@ -13,7 +13,9 @@ object SafeRegex {
         message: String = "That pattern takes too long on this text",
     ) : RuntimeException(message)
 
-    private class Budgeted(private val text: String) : CharSequence {
+    private class Budgeted(
+        private val text: String,
+    ) : CharSequence {
         private var reads = 0
 
         override val length: Int get() = text.length
