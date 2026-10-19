@@ -25,7 +25,7 @@ fun Context.shareRule(rule: Rule) {
             .putExtra(Intent.EXTRA_STREAM, uri)
             .putExtra(Intent.EXTRA_SUBJECT, rule.name)
             .putExtra(Intent.EXTRA_TEXT, rule.shareText())
-            .setClipData(ClipData.newRawUri(rule.name, uri))
+            .apply { clipData = ClipData.newRawUri(rule.name, uri) }
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     val chooser =
         Intent
