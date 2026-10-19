@@ -707,7 +707,7 @@ class AutomationEngineTest {
     fun `a manual run is not marked as coming from outside`() =
         runTest {
             val host = FakeHost()
-            engine(this, host).run(rule(listOf(ActionStep("notify.post", mapOf("title" to "hi")))))
+            engine(this, host).run(rule(listOf(ActionStep("notify.post", mapOf("title" to "hi")))), "Run button")
 
             assertEquals(listOf(false), host.outside)
         }
