@@ -20,7 +20,12 @@ fun Context.shareRule(rule: Rule) {
     val dir = File(cacheDir, "shared").apply { mkdirs() }
     // Earlier shares are removed so rule files, which include agent prompts, do not pile up in the cache.
     dir.listFiles()?.forEach { it.delete() }
-    val baseName = rule.name.replace(Regex("[^A-Za-z0-9 _-]"), "_").trim().take(MAX_FILE_NAME_LENGTH).ifBlank { "rule" }
+    val baseName =
+        rule.name
+            .replace(Regex("[^A-Za-z0-9 _-]"), "_")
+            .trim()
+            .take(MAX_FILE_NAME_LENGTH)
+            .ifBlank { "rule" }
     val file = File(dir, "$baseName.pocketpilot")
     file.writeText(rule.shareFileJson())
     val uri = FileProvider.getUriForFile(this, "$packageName.shared", file)
