@@ -1,6 +1,7 @@
 package app.pocketpilot.security
 
 import android.security.keystore.KeyGenParameterSpec
+import android.util.Log
 import android.security.keystore.KeyProperties
 import app.pocketpilot.network.api.SecretStore
 import java.io.File
@@ -28,6 +29,9 @@ class KeystoreSecretStore(
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, blob, 0, IV_BYTES))
             cipher.doFinal(blob, IV_BYTES, blob.size - IV_BYTES).decodeToString()
+        }.onFailure {
+            // Usually the Keystore key was lost; the owner has to enter the secret again. Say so in logcat.
+            Log.w(TAG, "Secret $name could not be decrypted and is treated as missing", it)
         }.getOrNull()
     }
 
@@ -41,7 +45,7 @@ class KeystoreSecretStore(
         val sealed = cipher.doFinal(value.encodeToByteArray())
         val tmp = File(dir, "${file(name).name}.tmp")
         tmp.writeBytes(cipher.iv + sealed)
-        tmp.renameTo(file(name))
+        check(tmp.renameTo(file(name))) { "Could not save secret $name" }
     }
 
     @Synchronized
@@ -75,6 +79,7 @@ class KeystoreSecretStore(
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val IV_BYTES = 12
         const val TAG_BITS = 128
+        const val TAG = "KeystoreSecretStore"
         const val KEY_BITS = 256
         val NAME = Regex("[a-z0-9_]+")
     }

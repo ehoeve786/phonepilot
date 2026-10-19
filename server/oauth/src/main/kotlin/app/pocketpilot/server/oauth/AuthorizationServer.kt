@@ -203,6 +203,8 @@ class AuthorizationServer(
         requestId: String,
         scopes: Set<Scope>,
     ) {
+        // A prompt the owner has left too long is gone, even if nothing else has cleared it yet.
+        expireStale()
         val pendingAuth = waiting[requestId] ?: return
         if (pendingAuth.result != AuthorizationStatus.Waiting) return
         val now = clock.nowMillis()

@@ -29,6 +29,9 @@
     <string name="token_show">Show</string>
     <string name="token_hide">Hide</string>
     <string name="token_copy">Copy token</string>
+    <string name="event_key_title">Event key</string>
+    <string name="event_key_explainer">Send it as the key extra with each event from Tasker or MacroDroid. Events without it are ignored.</string>
+    <string name="event_key_copy">Copy event key</string>
     <string name="token_rotate">New token</string>
     <string name="connect_title">Connect Claude Code</string>
     <string name="connect_explainer">Run this in Termux on this phone:</string>

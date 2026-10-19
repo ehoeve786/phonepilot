@@ -60,6 +60,15 @@ object AdbQuery {
             "-batch",
             "-force",
         )
+    /** Options that only ask a dump service for more output. */
+    private val READ_DUMP_OPTIONS = setOf("-a", "-h", "-c", "--charged", "--checkin", "--history", "--proto", "--unfiltered")
+
+    /** Words that make a dump service change state, such as `dumpsys deviceidle force-idle`. */
+    private val MUTATING_DUMP_WORDS =
+        setOf(
+            "force-idle", "unforce", "enable", "disable", "step", "reset", "set", "clear", "kill", "stop", "start",
+            "add", "remove", "delete", "update", "write", "reload", "trim", "reboot", "quit", "exit", "save",
+        )
     private val PING_FLAGS = setOf("-c", "-W", "-w", "-i", "-s", "-q", "-n", "-4", "-6")
     private val READABLE_PATHS =
         listOf(
@@ -116,6 +125,11 @@ object AdbQuery {
             "dumpsys" -> {
                 val service = args.firstOrNull() ?: refuse("Name a service, for example dumpsys battery; dumpsys -l lists them")
                 if (service != "-l") checkService(service)
+                // Services take their own words after the name; only read-only options and plain words pass.
+                args.drop(1).forEach { option ->
+                    val plainWord = !option.startsWith("-") && NAME.matches(option) && option !in MUTATING_DUMP_WORDS
+                    require(option in READ_DUMP_OPTIONS || plainWord) { "dumpsys $service takes only read-only options, not $option" }
+                }
             }
 
             "getprop" -> {

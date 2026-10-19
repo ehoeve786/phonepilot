@@ -36,6 +36,7 @@ import app.pocketpilot.approvals.ApprovalActivity
 import app.pocketpilot.approvals.ApprovalCenter
 import app.pocketpilot.approvals.ApprovalItem
 import app.pocketpilot.automation.AutomationRuntime
+import app.pocketpilot.automation.EventKey
 import app.pocketpilot.automation.HomeAssistant
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.accessibility.PocketPilotA11yService
@@ -71,6 +72,7 @@ import app.pocketpilot.feature.network.OwnNetworkActions
 import app.pocketpilot.feature.network.OwnNetworkCard
 import app.pocketpilot.feature.onboarding.OnboardingScreen
 import app.pocketpilot.network.api.NetworkState
+import app.pocketpilot.network.api.SecretStore
 import app.pocketpilot.network.certificates.CertificateManager
 import app.pocketpilot.network.tailscale.TailscaleProvider
 import app.pocketpilot.network.wireguard.WireGuardProvider
@@ -113,6 +115,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var server: McpHttpServer
 
     @Inject lateinit var tokens: LocalTokenStore
+
+    @Inject lateinit var secrets: SecretStore
 
     @Inject lateinit var capabilityGraph: CapabilityGraph
 
@@ -385,6 +389,7 @@ class MainActivity : ComponentActivity() {
                 }
             val serverState = server.serverState.collectAsStateWithLifecycle().value
             val token = tokens.token.collectAsStateWithLifecycle().value
+            val eventKey = remember { EventKey.get(secrets) }
             val shizukuState = shizuku.state.collectAsStateWithLifecycle().value
             val accessibilityOn = A11yBridge.connected.collectAsStateWithLifecycle().value
             val tailscaleState = tailscale.state.collectAsStateWithLifecycle().value
@@ -482,6 +487,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             },
                         token = token,
+                        eventKey = eventKey,
                         onStart = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)

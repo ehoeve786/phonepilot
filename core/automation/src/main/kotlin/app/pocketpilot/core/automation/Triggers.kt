@@ -593,7 +593,8 @@ internal object Triggers {
                 title = "Intent from another app",
                 description =
                     "Another app (Tasker, MacroDroid, Termux) sends the broadcast app.pocketpilot.action.EVENT " +
-                        "with the extra \"event\" set to this name; other string extras become variables.",
+                        "with the extra \"event\" set to this name and the extra \"key\" set to the event key in Settings. " +
+                        "Other string extras become variables.",
                 fields = listOf(textField("event", "Event name", hint = "For example arrived_home")),
                 source = Source.POCKETPILOT,
                 variables = listOf("event"),
