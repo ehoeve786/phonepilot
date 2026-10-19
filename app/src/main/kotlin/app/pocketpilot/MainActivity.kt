@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -45,6 +46,9 @@ import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.control.ControlOverlay
 import app.pocketpilot.core.audit.AuditSink
+import app.pocketpilot.core.automation.RuleStore
+import app.pocketpilot.core.automation.RuleValidator
+import app.pocketpilot.core.automation.parseSharedRule
 import app.pocketpilot.core.capabilities.CapabilityGraph
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.core.model.ToolSpec
@@ -100,6 +104,8 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var policyProfile: PolicyProfile
+
+    @Inject lateinit var ruleStore: RuleStore
 
     @Inject lateinit var server: McpHttpServer
 
@@ -173,7 +179,26 @@ class MainActivity : ComponentActivity() {
         handleOpen(intent)
     }
 
+    /** A rule shared from another phone, as a link in a message or a text: it becomes a proposal to accept. */
+    private fun receiveSharedRule(intent: Intent) {
+        val text =
+            when (intent.action) {
+                Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
+                Intent.ACTION_VIEW -> intent.dataString
+                else -> null
+            } ?: return
+        val rule = parseSharedRule(text) { ruleStore.newId() } ?: return
+        if (RuleValidator.problems(rule, policyProfile.shellExecAvailable).isNotEmpty()) {
+            Toast.makeText(this, R.string.app_shared_rule_invalid, Toast.LENGTH_LONG).show()
+            return
+        }
+        ruleStore.upsert(rule)
+        openProposals = true
+        openAutomations.intValue++
+    }
+
     private fun handleOpen(intent: Intent?) {
+        intent?.let(::receiveSharedRule)
         when (intent?.getStringExtra(EXTRA_OPEN)) {
             OPEN_PROPOSALS -> {
                 openProposals = true
