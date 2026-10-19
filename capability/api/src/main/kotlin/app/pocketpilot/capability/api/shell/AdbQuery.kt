@@ -60,6 +60,7 @@ object AdbQuery {
             "-batch",
             "-force",
         )
+
     /** Options that only ask a dump service for more output. */
     private val READ_DUMP_OPTIONS =
         setOf(
