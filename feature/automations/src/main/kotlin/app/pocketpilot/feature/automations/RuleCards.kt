@@ -25,6 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -84,6 +85,7 @@ fun AutomationRuleCard(
     onPinnedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     LiquidGlassBentoCard(
         modifier = modifier.fillMaxWidth(),
         onClick = onOpen,
@@ -92,6 +94,13 @@ fun AutomationRuleCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(rule.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                IconButton(onClick = { context.shareRule(rule) }) {
+                    Icon(
+                        painterResource(R.drawable.feature_automations_ic_share),
+                        contentDescription = stringResource(R.string.feature_automations_share),
+                        tint = MaterialTheme.colorScheme.outline,
+                    )
+                }
                 IconButton(onClick = { onPinnedChange(!rule.pinned) }) {
                     Icon(
                         painterResource(R.drawable.feature_automations_ic_pin),
