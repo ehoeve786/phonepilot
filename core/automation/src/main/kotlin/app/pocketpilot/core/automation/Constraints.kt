@@ -428,7 +428,7 @@ internal object Constraints {
             "contains" -> actual?.contains(expected, ignoreCase = true) == true
             "greater" -> numbers(actual, expected)?.let { (a, b) -> a > b } ?: false
             "less" -> numbers(actual, expected)?.let { (a, b) -> a < b } ?: false
-            "matches" -> actual != null && runCatching { Regex(expected).containsMatchIn(actual) }.getOrDefault(false)
+            "matches" -> actual != null && runCatching { SafeRegex.matches(expected, actual) }.getOrDefault(false)
             else -> actual == expected
         }
 

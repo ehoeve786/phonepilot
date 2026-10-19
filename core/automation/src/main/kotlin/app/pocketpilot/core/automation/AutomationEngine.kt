@@ -497,7 +497,13 @@ class AutomationEngine(
 
                         "extract" -> {
                             val match =
-                                runCatching { Regex(find).find(current) }.getOrElse { throw AutomationFailure("Not a valid regex: $find") }
+                                try {
+                                    SafeRegex.find(find, current)
+                                } catch (e: SafeRegex.TooSlow) {
+                                    throw AutomationFailure(e.message.orEmpty())
+                                } catch (e: IllegalArgumentException) {
+                                    throw AutomationFailure("Not a valid regex: $find")
+                                }
                             match?.groupValues?.getOrNull(1) ?: match?.value.orEmpty()
                         }
 
