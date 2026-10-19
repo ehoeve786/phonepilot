@@ -753,6 +753,20 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `an outside event cannot turn another rule on or off`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(rule(listOf(ActionStep("notify.post", mapOf("title" to "x")))).copy(id = "other", enabled = false))
+            val switches = rule(listOf(ActionStep("flow.set_rule", mapOf("rule" to "other", "state" to "on"))))
+
+            val record = engine(this, host, store).run(switches, "intent", fromOutside = true)
+
+            assertEquals(RunOutcome.FAILED, record.outcome)
+            assertEquals(false, store.rule("other")?.enabled)
+        }
+
+    @Test
     fun `an outside event cannot choose where an outbound action sends data`() =
         runTest {
             val host = FakeHost()
