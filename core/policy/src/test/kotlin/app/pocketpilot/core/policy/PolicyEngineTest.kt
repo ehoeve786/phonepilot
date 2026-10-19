@@ -21,6 +21,9 @@ class PolicyEngineTest {
     private var front: String? = "com.android.settings"
     private val asked = mutableListOf<ConfirmationRequest>()
     private var answer = ConfirmationAnswer.APPROVED
+
+    /** Runs while the confirmation is shown, as if the owner was deciding for a while. */
+    private var whileAsking: () -> Unit = {}
     private val acting = mutableListOf<String>()
     private var stopped = false
 
@@ -33,6 +36,7 @@ class PolicyEngineTest {
         foreground = { front },
         confirmer = { request ->
             asked += request
+            whileAsking()
             answer
         },
         rateLimiter = limiter,
@@ -58,6 +62,7 @@ class PolicyEngineTest {
     private val snapshot = spec("screen.snapshot", RiskTier.READ, Scope.SCREEN_READ)
     private val tap = spec("ui.tap", RiskTier.INTERACT, Scope.UI_INTERACT)
     private val home = spec("ui.global_action", RiskTier.INTERACT, Scope.UI_INTERACT)
+    private val sensitiveTap = spec("ui.sensitive_tap", RiskTier.SENSITIVE, Scope.UI_INTERACT)
 
     @Test
     fun `ordinary apps are allowed`() =
@@ -221,5 +226,24 @@ class PolicyEngineTest {
             assertIs<Decision.Deny>(engine.before(session, snapshot))
             val agent = session.copy(id = SessionId("01JA0000000000000000000001"), kind = SessionKind.AGENT_RUN)
             assertEquals(Decision.Allow, engine.before(agent, tap))
+        }
+
+    @Test
+    fun `an approved screen action does not run when another app came to the front while the owner decided`() =
+        runTest {
+            whileAsking = { front = "com.example.bank" }
+
+            val decision = engine().before(session, sensitiveTap)
+
+            assertIs<Decision.Deny>(decision)
+            assertEquals(ToolErrorCode.DENIED_BY_POLICY, decision.code)
+        }
+
+    @Test
+    fun `PocketPilot's own confirmation screen does not count as the app changing`() =
+        runTest {
+            whileAsking = { front = "app.pocketpilot" }
+
+            assertEquals(Decision.Allow, engine().before(session, sensitiveTap))
         }
 }

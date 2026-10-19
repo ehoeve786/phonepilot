@@ -39,11 +39,27 @@ class RuleShareTest {
     fun `run history and the rule id are not shared`() {
         val withHistory = rule.copy(lastRun = RunSummary(atMillis = 1, outcome = RunOutcome.OK, actions = 1))
 
-        val received = parseSharedRule(withHistory.shareFileJson()) { "new-id" }!!
+        val json = withHistory.shareFileJson()
+        val received = parseSharedRule(json) { "new-id" }!!
 
+        assertFalse(json.contains("lastRun"))
+        assertFalse(json.contains("\"OK\""))
         assertFalse(withHistory.shareText().contains("OK"))
         assertEquals("new-id", received.id)
         assertNull(received.lastRun)
+    }
+
+    @Test
+    fun `an agent rule shares its prompt as its only step`() {
+        val agent = rule.copy(runAs = RunMode.AGENT, agentPrompt = "Check the mail", actions = emptyList())
+
+        assertTrue(agent.shareText().endsWith("Then:\n- Agent task: Check the mail"))
+        assertEquals("Check the mail", parseSharedRule(agent.shareFileJson()) { "x" }!!.agentPrompt)
+    }
+
+    @Test
+    fun `a shared rule with a blank name is not a rule`() {
+        assertNull(parseSharedRule(rule.copy(name = "  ").shareFileJson()) { "x" })
     }
 
     @Test

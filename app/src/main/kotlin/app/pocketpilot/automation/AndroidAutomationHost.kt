@@ -84,11 +84,13 @@ class AndroidAutomationHost(
 
     /**
      * The owner made the rule (or accepted it), so its sensitive tools are confirmed for the run; the raw
-     * shell still asks for each new command and destructive tools ask every time.
+     * shell still asks for each new command and destructive tools ask every time. A run that another app
+     * started through the "Event received" trigger gets none of that: every sensitive call asks the owner.
      */
     override fun openSession(
         rule: Rule,
         tools: Set<String>,
+        fromOutside: Boolean,
     ): Session {
         val session =
             Session(
@@ -98,15 +100,16 @@ class AndroidAutomationHost(
                 grantedScopes = Scope.KNOWN - setOf(Scope.TERMUX_RUN) - if (shellOn()) emptySet() else setOf(Scope.SHELL_EXEC),
                 createdAtMillis = System.currentTimeMillis(),
             )
-        policy.preConfirm(session.id, tools - SHELL_EXEC)
-        policy.preConfirmDetails(session.id, SHELL_EXEC, rule.fixedShellCommands())
-        if (rule.startedByOwner()) policy.markOwnerStarted(session.id)
+        if (!fromOutside) {
+            policy.preConfirm(session.id, tools - SHELL_EXEC)
+            policy.preConfirmDetails(session.id, SHELL_EXEC, rule.fixedShellCommands())
+            if (rule.startedByOwner()) policy.markOwnerStarted(session.id)
+        }
         return session
     }
 
-    /** A rule only the owner starts, from its Run button or a MacroDroid event, rather than a schedule or a phone event. */
-    private fun Rule.startedByOwner(): Boolean =
-        triggers.isNotEmpty() && triggers.all { it.type == "manual" || it.type == "intent.received" }
+    /** A rule only the owner starts, from its Run button, rather than a schedule, a phone event or another app. */
+    private fun Rule.startedByOwner(): Boolean = triggers.isNotEmpty() && triggers.all { it.type == "manual" }
 
     override fun closeSession(session: Session) = policy.endSession(session.id)
 

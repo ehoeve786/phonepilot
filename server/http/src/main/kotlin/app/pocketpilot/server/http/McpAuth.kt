@@ -66,10 +66,6 @@ val McpAuth =
             if (!call.request.path().startsWith(PROTECTED_RESOURCE_PATH)) return@onCall
 
             val address = call.clientAddress(config.remotePort)
-            if (config.lockout.isBlocked(address)) {
-                call.respondText("Too many failed attempts; try again in an hour", status = HttpStatusCode.TooManyRequests)
-                return@onCall
-            }
             val presented =
                 call.request
                     .header(HttpHeaders.Authorization)
@@ -77,8 +73,13 @@ val McpAuth =
                     ?.substring(BEARER_PREFIX_LENGTH)
                     ?.trim()
 
+            // Checked before the lockout, so failures counted against an address never block the local token.
             if (presented != null && !remote && constantTimeEquals(presented, config.localToken())) {
                 call.attributes.put(SessionStarter) { config.sessions.localTokenSession() }
+                return@onCall
+            }
+            if (config.lockout.isBlocked(address)) {
+                call.respondText("Too many failed attempts; try again in an hour", status = HttpStatusCode.TooManyRequests)
                 return@onCall
             }
             val grant = presented?.let { config.oauth?.authenticate(it) }
@@ -111,13 +112,13 @@ internal fun ApplicationCall.issuer(remotePort: Int): String =
         "http://" + request.host() + ":" + request.local.localPort
     }
 
-/** The caller's address; on the remote port that is the first X-Forwarded-For hop from the forwarder. */
-internal fun ApplicationCall.clientAddress(remotePort: Int): String =
-    if (isRemote(remotePort)) {
-        request.header("X-Forwarded-For")?.substringBefore(',')?.trim() ?: request.local.remoteAddress
-    } else {
-        request.local.remoteAddress
-    }
+/**
+ * The key failed attempts and rate limits are counted under. Remote clients arrive through a forwarder, so
+ * their connection address is always the forwarder's, and X-Forwarded-For is written by the client, so it
+ * cannot tell clients apart. All remote clients therefore share one key: a remote attacker can block remote
+ * clients for an hour, but cannot block the local token or the apps on the phone.
+ */
+internal fun ApplicationCall.clientAddress(remotePort: Int): String = if (isRemote(remotePort)) REMOTE_KEY else request.local.remoteAddress
 
 /** The host of an Origin header, lowercased; null for "null" or anything unparsable. */
 internal fun originHost(origin: String): String? =
@@ -129,6 +130,7 @@ internal fun originHost(origin: String): String? =
     }.getOrNull()
 
 private val LOCAL_HOSTS = setOf("127.0.0.1", "localhost", "[::1]", "::1")
+private const val REMOTE_KEY = "remote"
 private const val BEARER_PREFIX_LENGTH = 7
 
 private fun constantTimeEquals(

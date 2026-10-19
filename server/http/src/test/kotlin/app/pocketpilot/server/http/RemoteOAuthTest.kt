@@ -17,7 +17,11 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.net.Socket
+import java.net.URI
 import java.net.URLEncoder
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.security.MessageDigest
 import java.util.Base64
 import kotlin.test.AfterTest
@@ -169,6 +173,29 @@ class RemoteOAuthTest {
     fun `the local token does not work from outside`() {
         val response = request("POST", "/mcp", body = INITIALIZE, contentType = "application/json", bearer = "local-token")
         assertEquals(401, response.status)
+    }
+
+    @Test
+    fun `failed remote attempts lock out remote clients but never the local token`() {
+        repeat(5) { attempt ->
+            val response = request("POST", "/mcp", body = INITIALIZE, contentType = "application/json", bearer = "wrong-$attempt")
+            assertEquals(401, response.status)
+        }
+        assertEquals(429, request("POST", "/mcp", body = INITIALIZE, contentType = "application/json", bearer = "wrong-6").status)
+
+        val localPort = assertIs<ServerState.Running>(server.serverState.value).port
+        val local =
+            HttpClient.newHttpClient().send(
+                HttpRequest
+                    .newBuilder(URI.create("http://127.0.0.1:$localPort/mcp"))
+                    .header("Authorization", "Bearer local-token")
+                    .header("Accept", "application/json, text/event-stream")
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(INITIALIZE))
+                    .build(),
+                HttpResponse.BodyHandlers.ofString(),
+            )
+        assertEquals(200, local.statusCode())
     }
 
     @Test

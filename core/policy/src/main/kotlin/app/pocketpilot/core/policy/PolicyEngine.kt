@@ -173,6 +173,15 @@ class PolicyEngine(
                 ) ?: ConfirmationAnswer.DECLINED
             when (answer) {
                 ConfirmationAnswer.APPROVED -> {
+                    // The owner may take minutes to answer. An approved tap must not land in an app that was
+                    // not checked, so if another app is in front now, the action does not run.
+                    if (spec.touchesScreen() && appChangedWhileWaiting(front)) {
+                        return Decision.Deny(
+                            ToolErrorCode.DENIED_BY_POLICY,
+                            "The app in front changed while the owner was deciding, so ${spec.name} did not run",
+                            "Read the screen again, then retry.",
+                        )
+                    }
                     if (asksOnce) rememberConfirmed(session.id, confirmationKey(spec.name, detail))
                 }
 
@@ -197,6 +206,13 @@ class PolicyEngine(
             indicator?.acting(session)
         }
         return Decision.Allow
+    }
+
+    /** True when another app than [before] is in front now; PocketPilot's own screens do not count as a change. */
+    private suspend fun appChangedWhileWaiting(before: String?): Boolean {
+        val now = foreground()
+        if (now != null && appPolicy.isOwn(now)) return false
+        return now != before
     }
 
     /**

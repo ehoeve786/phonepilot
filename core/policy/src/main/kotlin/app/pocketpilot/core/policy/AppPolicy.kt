@@ -22,6 +22,9 @@ class AppPolicy(
     private val overrides: () -> Map<String, AppMode> = { emptyMap() },
     private val ownPackages: Set<String> = emptySet(),
 ) {
+    /** True for PocketPilot's own packages, whose screens (such as the confirmation) are not the owner's apps. */
+    fun isOwn(packageName: String): Boolean = packageName in ownPackages
+
     fun modeFor(packageName: String): AppMode =
         overrides()[packageName]
             ?: when {

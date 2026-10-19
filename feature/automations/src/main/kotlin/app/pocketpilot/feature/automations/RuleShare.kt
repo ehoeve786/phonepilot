@@ -10,13 +10,23 @@ import app.pocketpilot.core.automation.shareFileJson
 import app.pocketpilot.core.automation.shareText
 import java.io.File
 
+private const val MAX_FILE_NAME_LENGTH = 64
+
 /**
  * Opens the system share sheet with [rule] as a `.pocketpilot` file that PocketPilot opens as a proposal,
  * and its readable text as the message body.
  */
 fun Context.shareRule(rule: Rule) {
     val dir = File(cacheDir, "shared").apply { mkdirs() }
-    val file = File(dir, "${rule.name.replace(Regex("[^A-Za-z0-9 _-]"), "_").trim()}.pocketpilot")
+    // Earlier shares are removed so rule files, which include agent prompts, do not pile up in the cache.
+    dir.listFiles()?.forEach { it.delete() }
+    val baseName =
+        rule.name
+            .replace(Regex("[^A-Za-z0-9 _-]"), "_")
+            .trim()
+            .take(MAX_FILE_NAME_LENGTH)
+            .ifBlank { "rule" }
+    val file = File(dir, "$baseName.pocketpilot")
     file.writeText(rule.shareFileJson())
     val uri = FileProvider.getUriForFile(this, "$packageName.shared", file)
     val send =

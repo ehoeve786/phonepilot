@@ -1,5 +1,6 @@
 package app.pocketpilot.core.orchestrator
 
+import app.pocketpilot.core.audit.AuditDecision
 import app.pocketpilot.core.audit.AuditOutcome
 import app.pocketpilot.core.audit.InMemoryAuditSink
 import app.pocketpilot.core.model.Availability
@@ -14,6 +15,9 @@ import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.model.ToolSpec
+import app.pocketpilot.core.policy.AppMode
+import app.pocketpilot.core.policy.AppPolicy
+import app.pocketpilot.core.policy.PolicyEngine
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -152,4 +156,27 @@ class CallDispatcherTest {
         assertTrue(Scope.DEVICE_READ in session.grantedScopes)
         assertFalse(Scope.SHELL_EXEC in session.grantedScopes)
     }
+
+    @Test
+    fun `a result withheld because the app in front turned out denied is audited as withheld`() =
+        runTest {
+            var front = "com.example.settings"
+            val policy =
+                PolicyEngine(
+                    appPolicy = AppPolicy({ mapOf("com.example.bank" to AppMode.DENY) }),
+                    foreground = { front },
+                )
+            val snapshot =
+                FakeTool(spec("test.snapshot", setOf(Scope.SCREEN_READ))) {
+                    front = "com.example.bank"
+                    ToolResult.success("account balance")
+                }
+            val dispatcher = CallDispatcher(ToolRegistry(setOf(snapshot), PolicyProfile.OSS), audit, policy)
+            val result = dispatcher.dispatch(session, "test.snapshot", args())
+
+            assertEquals(ToolErrorCode.DENIED_BY_POLICY, result.errorCode)
+            val event = audit.recent.value.single()
+            assertEquals(AuditOutcome.WITHHELD, event.outcome)
+            assertEquals(AuditDecision.ALLOW, event.decision)
+        }
 }

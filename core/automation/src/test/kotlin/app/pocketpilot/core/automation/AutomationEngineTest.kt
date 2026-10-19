@@ -43,6 +43,7 @@ class AutomationEngineTest {
         var schedule = "done"
         var found = "snapshot s7\ne4 button \"Start\" [0,0][10,10]"
         val opened = mutableListOf<Set<String>>()
+        val outside = mutableListOf<Boolean>()
         var closed = 0
 
         override suspend fun callTool(
@@ -83,8 +84,10 @@ class AutomationEngineTest {
         override fun openSession(
             rule: Rule,
             tools: Set<String>,
+            fromOutside: Boolean,
         ): Session {
             opened += tools
+            outside += fromOutside
             return Session(SessionId(ULID), SessionKind.AUTOMATION, "Automation: ${rule.name}", Scope.KNOWN, 0)
         }
 
@@ -680,4 +683,32 @@ class AutomationEngineTest {
         assertTrue(RuleValidator.problems(badPlace).any { "latitude, longitude" in it })
         assertEquals(1600.0, Place.distanceMeters(49.0, -123.0, 49.0144, -123.0), 10.0)
     }
+
+    @Test
+    fun `a run started by an event from another app is marked as coming from outside`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(
+                    listOf(ActionStep("notify.post", mapOf("title" to "hi"))),
+                    triggers = listOf(TriggerSpec("intent.received", mapOf("event" to "arrived"))),
+                ),
+            )
+            val engine = engine(this, host, store)
+
+            engine.onEvent(TriggerEvent("intent.received", mapOf("event" to "arrived")))
+            advanceUntilIdle()
+
+            assertEquals(listOf(true), host.outside)
+        }
+
+    @Test
+    fun `a manual run is not marked as coming from outside`() =
+        runTest {
+            val host = FakeHost()
+            engine(this, host).run(rule(listOf(ActionStep("notify.post", mapOf("title" to "hi")))), "Run button")
+
+            assertEquals(listOf(false), host.outside)
+        }
 }

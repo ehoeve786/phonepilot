@@ -69,6 +69,7 @@ class AutomationDispatchTest {
         override fun openSession(
             rule: Rule,
             tools: Set<String>,
+            fromOutside: Boolean,
         ) = Session(
             id = SessionId(ULID),
             kind = SessionKind.AUTOMATION,
