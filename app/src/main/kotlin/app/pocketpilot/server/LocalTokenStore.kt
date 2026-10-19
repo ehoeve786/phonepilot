@@ -34,7 +34,13 @@ class LocalTokenStore(
 
     private fun migrateLegacy(): String? {
         val file = File(legacyDirectory, LEGACY_FILE_NAME)
-        val token = file.takeIf { it.exists() }?.readText()?.trim()?.takeIf { it.length >= MIN_LENGTH } ?: return null
+        val token =
+            file
+                .takeIf { it.exists() }
+                ?.readText()
+                ?.trim()
+                ?.takeIf { it.length >= MIN_LENGTH }
+                ?: return null
         secrets.put(SECRET_NAME, token)
         file.delete()
         return token

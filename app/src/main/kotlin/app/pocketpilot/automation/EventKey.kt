@@ -16,8 +16,7 @@ object EventKey {
     private val random = SecureRandom()
 
     @Synchronized
-    fun get(secrets: SecretStore): String =
-        secrets.get(SECRET_NAME) ?: generate().also { secrets.put(SECRET_NAME, it) }
+    fun get(secrets: SecretStore): String = secrets.get(SECRET_NAME) ?: generate().also { secrets.put(SECRET_NAME, it) }
 
     private fun generate(): String {
         val bytes = ByteArray(BYTES).also(random::nextBytes)
