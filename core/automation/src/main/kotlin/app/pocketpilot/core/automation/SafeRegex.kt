@@ -9,7 +9,9 @@ object SafeRegex {
     /** Reads of the text allowed for one match; ordinary patterns on screen text use a few thousand. */
     private const val READ_BUDGET = 2_000_000
 
-    class TooSlow : RuntimeException("That pattern takes too long on this text")
+    class TooSlow(
+        message: String = "That pattern takes too long on this text",
+    ) : RuntimeException(message)
 
     private class Budgeted(private val text: String) : CharSequence {
         private var reads = 0
