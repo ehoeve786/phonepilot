@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
@@ -308,6 +309,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // The screens show the local token and keys: keep them out of screenshots and the recents preview.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         // The launching intent is redelivered when the activity is recreated, so handle it only on a fresh start.
         if (savedInstanceState == null) handleOpen(intent)
         val crashReports = (application as PocketPilotApplication).crashReports

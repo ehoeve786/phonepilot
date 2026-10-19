@@ -1,6 +1,7 @@
 package app.pocketpilot.approvals
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -29,6 +30,8 @@ class ApprovalActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // An approval must not be captured by a screenshot, the recents preview or a screen recording.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         setContent {
             val items = center.items.collectAsStateWithLifecycle().value
             val first = items.firstOrNull()
