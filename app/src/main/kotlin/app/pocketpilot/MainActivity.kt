@@ -516,7 +516,10 @@ class MainActivity : ComponentActivity() {
                                     PocketPilotService.start(this)
                                 },
                                 turnOff = tailscale::stop,
-                                signIn = { url -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+                                // Only the https sign-in page is opened, never another scheme the library reports.
+                                signIn = { url ->
+                                    if (url.startsWith("https://")) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                },
                                 signOut = tailscale::logout,
                                 setPublic = tailscale::setPublic,
                                 logs = tailscale::logs,
