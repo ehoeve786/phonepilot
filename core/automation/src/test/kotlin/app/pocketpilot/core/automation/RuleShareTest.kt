@@ -3,19 +3,21 @@ package app.pocketpilot.core.automation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class RuleShareTest {
+    private val rule =
+        Rule(
+            id = "r1",
+            name = "Morning",
+            triggers = listOf(TriggerSpec("no.such.trigger")),
+            constraints = ConstraintGroup.of(ConstraintSpec("no.such.condition")),
+            actions = listOf(ActionStep("no.such.action")),
+        )
+
     @Test
     fun `a shared rule lists its name, when, only if and then in plain words`() {
-        val rule =
-            Rule(
-                id = "r1",
-                name = "Morning",
-                triggers = listOf(TriggerSpec("no.such.trigger")),
-                constraints = ConstraintGroup.of(ConstraintSpec("no.such.condition")),
-                actions = listOf(ActionStep("no.such.action")),
-            )
-
         assertEquals(
             """
             Morning
@@ -35,17 +37,34 @@ class RuleShareTest {
 
     @Test
     fun `run history and the rule id are not shared`() {
-        val rule =
-            Rule(
-                id = "r1",
-                name = "Morning",
-                actions = listOf(ActionStep("no.such.action")),
-                lastRun = RunSummary(atMillis = 1, outcome = RunOutcome.OK, actions = 1),
-            )
+        val withHistory = rule.copy(lastRun = RunSummary(atMillis = 1, outcome = RunOutcome.OK, actions = 1))
 
-        val text = rule.shareText()
+        val received = parseSharedRule(withHistory.shareMessage()) { "new-id" }!!
 
-        assertFalse(text.contains("r1"))
-        assertFalse(text.contains("OK"))
+        assertFalse(withHistory.shareText().contains("OK"))
+        assertEquals("new-id", received.id)
+        assertNull(received.lastRun)
+    }
+
+    @Test
+    fun `a share link opens as a disabled proposal with the same steps`() {
+        val message = rule.shareMessage()
+
+        val received = parseSharedRule(message) { "new-id" }!!
+
+        assertEquals("new-id", received.id)
+        assertEquals("Morning", received.name)
+        assertEquals(rule.triggers, received.triggers)
+        assertEquals(rule.constraints, received.constraints)
+        assertEquals(rule.actions, received.actions)
+        assertEquals(SHARED_RULE_PROPOSER, received.proposedBy)
+        assertFalse(received.enabled)
+        assertTrue(received.pending)
+    }
+
+    @Test
+    fun `text without a damaged or missing link is not a rule`() {
+        assertNull(parseSharedRule("hello there") { "x" })
+        assertNull(parseSharedRule("pocketpilot://rule/not-base64!") { "x" })
     }
 }
