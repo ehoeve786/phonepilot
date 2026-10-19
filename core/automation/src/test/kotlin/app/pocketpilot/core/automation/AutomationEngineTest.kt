@@ -726,6 +726,24 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a run started by a text from a stranger is marked as coming from outside`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(
+                    listOf(ActionStep("notify.post", mapOf("title" to "hi"))),
+                    triggers = listOf(TriggerSpec("sms.received")),
+                ),
+            )
+
+            engine(this, host, store).onEvent(TriggerEvent("sms.received", mapOf("from" to "+1555", "text" to "hi")))
+            advanceUntilIdle()
+
+            assertEquals(listOf(true), host.outside)
+        }
+
+    @Test
     fun `a manual run is not marked as coming from outside`() =
         runTest {
             val host = FakeHost()

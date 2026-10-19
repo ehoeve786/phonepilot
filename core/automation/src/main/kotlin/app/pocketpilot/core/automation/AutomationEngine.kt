@@ -714,8 +714,26 @@ class AutomationEngine(
         /** The "Any broadcast" trigger; any app can send a broadcast with an action the owner watches. */
         const val INTENT_ACTION = "intent.action"
 
-        /** Events another app can cause, so their runs get none of the owner's pre-approvals. */
-        private val OUTSIDE_EVENTS = setOf(INTENT_RECEIVED, INTENT_ACTION)
+        /**
+         * Events another party can cause (a sender, another app, a nearby device, a rogue access point), so
+         * their runs get none of the owner's pre-approvals.
+         */
+        private val OUTSIDE_EVENTS =
+            setOf(
+                INTENT_RECEIVED,
+                INTENT_ACTION,
+                "sms.received",
+                "notification.posted",
+                "notification.removed",
+                "call.changed",
+                "bluetooth.device",
+                "screen.text",
+                "log.line",
+                "media.changed",
+                "app.crash",
+                "calendar.event",
+                "wifi.connected",
+            )
 
         private val UNTRUSTED_TAG = Regex("untrusted_data", RegexOption.IGNORE_CASE)
 
