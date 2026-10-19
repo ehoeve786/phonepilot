@@ -61,13 +61,43 @@ object AdbQuery {
             "-force",
         )
     /** Options that only ask a dump service for more output. */
-    private val READ_DUMP_OPTIONS = setOf("-a", "-h", "-c", "--charged", "--checkin", "--history", "--proto", "--unfiltered")
+    private val READ_DUMP_OPTIONS =
+        setOf(
+            "-a",
+            "-h",
+            "-c",
+            "--charged",
+            "--checkin",
+            "--history",
+            "--proto",
+            "--unfiltered",
+        )
 
     /** Words that make a dump service change state, such as `dumpsys deviceidle force-idle`. */
     private val MUTATING_DUMP_WORDS =
         setOf(
-            "force-idle", "unforce", "enable", "disable", "step", "reset", "set", "clear", "kill", "stop", "start",
-            "add", "remove", "delete", "update", "write", "reload", "trim", "reboot", "quit", "exit", "save",
+            "force-idle",
+            "unforce",
+            "enable",
+            "disable",
+            "step",
+            "reset",
+            "set",
+            "clear",
+            "kill",
+            "stop",
+            "start",
+            "add",
+            "remove",
+            "delete",
+            "update",
+            "write",
+            "reload",
+            "trim",
+            "reboot",
+            "quit",
+            "exit",
+            "save",
         )
     private val PING_FLAGS = setOf("-c", "-W", "-w", "-i", "-s", "-q", "-n", "-4", "-6")
     private val READABLE_PATHS =
