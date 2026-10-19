@@ -1,7 +1,11 @@
 package app.pocketpilot.core.automation
 
 import kotlinx.serialization.Serializable
+import java.io.ByteArrayOutputStream
 import java.util.Base64
+import java.util.zip.Deflater
+import java.util.zip.DeflaterOutputStream
+import java.util.zip.InflaterInputStream
 
 /**
  * A rule as plain text for sharing by message or email: its name, then what starts it, what must hold
@@ -27,8 +31,8 @@ fun Rule.shareText(): String =
         }
     }.trimEnd()
 
-/** The text sent with a share: the readable rule, then a link that adds it to the recipient's PocketPilot. */
-fun Rule.shareMessage(): String = shareText() + "\n\nAdd it to PocketPilot: " + shareLink()
+/** The text sent with a share: the readable rule, then a tap-to-add line with the link on its own line. */
+fun Rule.shareMessage(): String = shareText() + "\n\nTap to add it to PocketPilot:\n" + shareLink()
 
 /** Who a shared rule is proposed by, as the recipient's Proposals list shows it. */
 const val SHARED_RULE_PROPOSER = "a PocketPilot user"
@@ -46,12 +50,23 @@ private data class SharedRule(
     val agentPrompt: String = "",
 )
 
-/** A link that opens this rule in another PocketPilot, where it arrives as a proposal the owner can accept. */
+/**
+ * A link that opens this rule in another PocketPilot, where it arrives as a proposal the owner can accept.
+ * The JSON is deflated first, which cuts a typical rule's link to about a third of its plain length.
+ */
 fun Rule.shareLink(): String {
     val shared = SharedRule(name, triggers, constraints, actions, runAs, agentPrompt)
     val json = AutomationJson.json.encodeToString(SharedRule.serializer(), shared)
-    return SHARE_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(json.toByteArray())
+    return SHARE_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(deflate(json.toByteArray()))
 }
+
+private fun deflate(bytes: ByteArray): ByteArray {
+    val out = ByteArrayOutputStream()
+    DeflaterOutputStream(out, Deflater(Deflater.BEST_COMPRESSION)).use { it.write(bytes) }
+    return out.toByteArray()
+}
+
+private fun inflate(bytes: ByteArray): ByteArray = InflaterInputStream(bytes.inputStream()).use { it.readBytes() }
 
 /**
  * The rule in a [shareLink] found in [text], as a disabled proposal from [SHARED_RULE_PROPOSER] with the id
@@ -65,7 +80,7 @@ fun parseSharedRule(
     if (start < 0) return null
     val payload = text.substring(start + SHARE_PREFIX.length).takeWhile { !it.isWhitespace() }
     return runCatching {
-        val json = String(Base64.getUrlDecoder().decode(payload))
+        val json = String(inflate(Base64.getUrlDecoder().decode(payload)))
         val shared = AutomationJson.json.decodeFromString(SharedRule.serializer(), json)
         Rule(
             id = newId(),
