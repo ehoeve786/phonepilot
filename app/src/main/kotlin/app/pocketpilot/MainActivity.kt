@@ -23,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.core.content.IntentCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -179,15 +180,16 @@ class MainActivity : ComponentActivity() {
         handleOpen(intent)
     }
 
-    /** A rule shared from another phone, as a link in a message or a text: it becomes a proposal to accept. */
+    /** A rule shared from another phone as a .pocketpilot file: it becomes a proposal to accept. */
     private fun receiveSharedRule(intent: Intent) {
-        val text =
+        val uri =
             when (intent.action) {
-                Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
-                Intent.ACTION_VIEW -> intent.dataString
+                Intent.ACTION_SEND -> IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+                Intent.ACTION_VIEW -> intent.data
                 else -> null
             } ?: return
-        val rule = parseSharedRule(text) { ruleStore.newId() } ?: return
+        val json = runCatching { contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }.getOrNull()
+        val rule = json?.let { parseSharedRule(it) { ruleStore.newId() } } ?: return
         if (RuleValidator.problems(rule, policyProfile.shellExecAvailable).isNotEmpty()) {
             Toast.makeText(this, R.string.app_shared_rule_invalid, Toast.LENGTH_LONG).show()
             return
