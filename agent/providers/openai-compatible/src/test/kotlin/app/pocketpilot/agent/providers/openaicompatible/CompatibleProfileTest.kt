@@ -2,6 +2,7 @@ package app.pocketpilot.agent.providers.openaicompatible
 
 import app.pocketpilot.agent.providers.api.Message
 import app.pocketpilot.agent.providers.api.ModelRequest
+import app.pocketpilot.agent.providers.api.keyMayBeSentTo
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -15,6 +16,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class CompatibleProfileTest {
     private val requests = mutableListOf<HttpRequestData>()
@@ -68,5 +70,13 @@ class CompatibleProfileTest {
     fun rejectsBadProfiles() {
         assertFailsWith<IllegalArgumentException> { CompatibleProfile(" ", "http://x/v1", null) }
         assertFailsWith<IllegalArgumentException> { CompatibleProfile("x", "ftp://x/v1", null) }
+    }
+
+    @Test
+    fun `a key is refused over plain http to another host, but not to this phone or over https`() {
+        assertFalse(keyMayBeSentTo("http://192.168.1.20:11434/v1", "k"))
+        assertTrue(keyMayBeSentTo("http://127.0.0.1:11434/v1", "k"))
+        assertTrue(keyMayBeSentTo("https://api.example.com/v1", "k"))
+        assertTrue(keyMayBeSentTo("http://192.168.1.20:11434/v1", null))
     }
 }

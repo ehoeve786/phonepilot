@@ -1,6 +1,7 @@
 package app.pocketpilot.agent.providers.openaicompatible
 
 import app.pocketpilot.agent.providers.api.ModelProvider
+import app.pocketpilot.agent.providers.api.keyMayBeSentTo
 import app.pocketpilot.agent.providers.openai.OpenAiProvider
 import io.ktor.client.HttpClient
 
@@ -19,6 +20,7 @@ data class CompatibleProfile(
     init {
         require(name.isNotBlank()) { "A profile needs a name" }
         require(baseUrl.startsWith("http://") || baseUrl.startsWith("https://")) { "Not an http(s) URL: $baseUrl" }
+        require(keyMayBeSentTo(baseUrl, apiKey)) { "Use an https address for a key, or leave the key empty for a server on this phone" }
     }
 
     override fun toString(): String = "CompatibleProfile($name, $baseUrl, key=${if (apiKey.isNullOrBlank()) "none" else "set"})"

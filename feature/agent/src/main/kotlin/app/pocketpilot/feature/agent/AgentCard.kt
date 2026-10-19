@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import app.pocketpilot.agent.providers.api.keyMayBeSentTo
 import app.pocketpilot.agent.runtime.AgentProfile
 import app.pocketpilot.agent.runtime.ProviderKind
 import app.pocketpilot.agent.runtime.RunState
@@ -187,7 +188,11 @@ private fun ProfileForm(
 
     val canList =
         when (kind) {
-            ProviderKind.OPENAI_COMPATIBLE -> baseUrl.trim().let { it.startsWith("http://") || it.startsWith("https://") }
+            ProviderKind.OPENAI_COMPATIBLE ->
+                baseUrl.trim().let { url ->
+                    (url.startsWith("http://") || url.startsWith("https://")) &&
+                        keyMayBeSentTo(url, if (key.isNotBlank() || keptKeys > 0) key.ifBlank { "saved" } else null)
+                }
 
             // A saved key belongs to the provider it was saved for.
             else -> key.isNotBlank() || (keptKeys > 0 && kind == existing?.kind)
