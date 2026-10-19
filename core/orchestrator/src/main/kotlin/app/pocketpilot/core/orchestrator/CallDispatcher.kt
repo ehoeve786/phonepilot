@@ -42,7 +42,8 @@ class CallDispatcher(
     ): ToolResult {
         val call = ToolCall(callId = ids.next(), sessionId = session.id, tool = tool, arguments = arguments)
         val started = clock.nowMillis()
-        val (result, decision) = run(call, session)
+        val settled = run(call, session)
+        val result = settled.result
         auditSink.record(
             AuditEvent(
                 id = call.callId,
@@ -51,12 +52,13 @@ class CallDispatcher(
                 principal = session.principal,
                 tool = tool,
                 argumentsRedacted = redactor.redact(arguments),
-                decision = decision,
+                decision = settled.decision,
                 backend = null,
                 durationMs = clock.nowMillis() - started,
                 outcome =
                     when {
-                        decision == AuditDecision.DENY -> AuditOutcome.DENIED
+                        settled.decision == AuditDecision.DENY -> AuditOutcome.DENIED
+                        settled.withheld -> AuditOutcome.WITHHELD
                         result.isError -> AuditOutcome.ERROR
                         else -> AuditOutcome.SUCCESS
                     },
@@ -66,32 +68,45 @@ class CallDispatcher(
         return result
     }
 
+    /** What a call ended with: the result returned to the client and whether the call was allowed to run. */
+    private class Settled(
+        val result: ToolResult,
+        val decision: AuditDecision,
+        /** Set when the call ran but its result was replaced by a policy refusal afterwards. */
+        val withheld: Boolean = false,
+    )
+
+    private fun refused(result: ToolResult) = Settled(result, AuditDecision.DENY)
+
     private suspend fun run(
         received: ToolCall,
         session: Session,
-    ): Pair<ToolResult, AuditDecision> {
+    ): Settled {
         val handler =
             registry.handler(received.tool)
-                ?: return ToolResult.error(
-                    ToolErrorCode.UNKNOWN_TOOL,
-                    "No tool named '${received.tool}'",
-                    "Call tools/list for the tools this phone offers.",
-                ) to AuditDecision.DENY
+                ?: return refused(
+                    ToolResult.error(
+                        ToolErrorCode.UNKNOWN_TOOL,
+                        "No tool named '${received.tool}'",
+                        "Call tools/list for the tools this phone offers.",
+                    ),
+                )
 
         val missing = handler.spec.requiredScopes - session.grantedScopes
         if (missing.isNotEmpty()) {
-            return ToolResult.error(
-                ToolErrorCode.DENIED_BY_POLICY,
-                "This client lacks the scope ${missing.joinToString()} needed for ${received.tool}",
-                "Ask the phone's owner to grant ${missing.joinToString()} to this client.",
-            ) to AuditDecision.DENY
+            return refused(
+                ToolResult.error(
+                    ToolErrorCode.DENIED_BY_POLICY,
+                    "This client lacks the scope ${missing.joinToString()} needed for ${received.tool}",
+                    "Ask the phone's owner to grant ${missing.joinToString()} to this client.",
+                ),
+            )
         }
 
         // Clients with an old copy of a tool's schema, and some models, send "true" or "5" as text.
         val call = received.copy(arguments = ArgumentValidator.coerce(handler.spec.inputSchema, received.arguments))
         ArgumentValidator.validate(handler.spec.inputSchema, call.arguments)?.let { problem ->
-            return ToolResult.error(ToolErrorCode.INVALID_ARGUMENTS, problem, "Check the tool's input schema.") to
-                AuditDecision.DENY
+            return refused(ToolResult.error(ToolErrorCode.INVALID_ARGUMENTS, problem, "Check the tool's input schema."))
         }
 
         // A target that cannot be resolved (an unknown label) fails in execute with a proper error instead.
@@ -103,7 +118,7 @@ class CallDispatcher(
             }
         policy?.before(session, handler.spec, handler.confirmationDetail(call), target)?.let { decision ->
             if (decision is Decision.Deny) {
-                return ToolResult.error(decision.code, decision.message, decision.hint) to AuditDecision.DENY
+                return refused(ToolResult.error(decision.code, decision.message, decision.hint))
             }
         }
 
@@ -123,10 +138,11 @@ class CallDispatcher(
             } catch (e: Exception) {
                 ToolResult.error(ToolErrorCode.INTERNAL_ERROR, "${call.tool} failed: ${e.message ?: e::class.simpleName}")
             }
+        // The call has run by now, so the audit records it as allowed and says its result was withheld.
         val after = policy?.after(handler.spec)
         if (after is Decision.Deny) {
-            return ToolResult.error(after.code, after.message, after.hint) to AuditDecision.DENY
+            return Settled(ToolResult.error(after.code, after.message, after.hint), AuditDecision.ALLOW, withheld = true)
         }
-        return result to AuditDecision.ALLOW
+        return Settled(result, AuditDecision.ALLOW)
     }
 }

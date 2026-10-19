@@ -178,6 +178,7 @@ private fun outcomeSummary(event: AuditEvent): String =
         AuditOutcome.SUCCESS -> stringResource(R.string.log_outcome_success, event.principal, event.durationMs)
         AuditOutcome.ERROR -> stringResource(R.string.log_outcome_error, event.principal, event.errorCode ?: "")
         AuditOutcome.DENIED -> stringResource(R.string.log_outcome_denied, event.principal, event.errorCode ?: "")
+        AuditOutcome.WITHHELD -> stringResource(R.string.log_outcome_withheld, event.principal, event.errorCode ?: "")
     }
 
 /** "12 s", "3 min", "2 h" or "4 d". */
@@ -241,6 +242,7 @@ internal fun AuditDetailSheet(
                         AuditOutcome.SUCCESS -> R.string.log_result_success
                         AuditOutcome.ERROR -> R.string.log_result_error
                         AuditOutcome.DENIED -> R.string.log_result_denied
+                        AuditOutcome.WITHHELD -> R.string.log_result_withheld
                     },
                 ),
             )

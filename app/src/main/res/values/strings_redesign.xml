@@ -42,6 +42,7 @@
     <string name="log_outcome_success">%1$s, done in %2$d ms</string>
     <string name="log_outcome_error">%1$s, failed: %2$s</string>
     <string name="log_outcome_denied">%1$s, refused: %2$s</string>
+    <string name="log_outcome_withheld">%1$s, ran but its result was withheld: %2$s</string>
     <string name="log_age_seconds">%1$d s</string>
     <string name="log_age_minutes">%1$d min</string>
     <string name="log_age_hours">%1$d h</string>
@@ -61,6 +62,7 @@
     <string name="log_result_success">Succeeded</string>
     <string name="log_result_error">Failed</string>
     <string name="log_result_denied">Refused</string>
+    <string name="log_result_withheld">Ran, result withheld</string>
 
     <!-- Tools -->
     <string name="tools_search">Search tools</string>

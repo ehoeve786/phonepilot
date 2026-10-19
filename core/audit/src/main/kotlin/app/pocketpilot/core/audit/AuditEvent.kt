@@ -11,6 +11,9 @@ enum class AuditOutcome {
     SUCCESS,
     ERROR,
     DENIED,
+
+    /** The call ran, but the app in front afterwards was denied, so its result was not returned. */
+    WITHHELD,
 }
 
 /** One record per tool call, written whatever the outcome (spec section 4). */

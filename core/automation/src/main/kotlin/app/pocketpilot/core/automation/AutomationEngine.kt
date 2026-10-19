@@ -43,10 +43,14 @@ interface AutomationHost {
         arguments: JsonObject,
     ): ToolResult
 
-    /** A session for one run of [rule]; [tools] are the tools its actions may call. */
+    /**
+     * A session for one run of [rule]; [tools] are the tools its actions may call. [fromOutside] is true
+     * when another app sent the event that started the run, so nothing about it was approved by the owner.
+     */
     fun openSession(
         rule: Rule,
         tools: Set<String>,
+        fromOutside: Boolean,
     ): Session
 
     fun closeSession(session: Session)
@@ -109,7 +113,7 @@ class AutomationEngine(
                             )
                         }.getOrDefault(false)
                 } ?: continue
-            start(rule, Describe.trigger(trigger), event.data)
+            start(rule, Describe.trigger(trigger), event.data, fromOutside = event.type == INTENT_RECEIVED)
         }
     }
 
@@ -119,12 +123,13 @@ class AutomationEngine(
         reason: String,
         data: Map<String, String> = emptyMap(),
         checkConstraints: Boolean = true,
+        fromOutside: Boolean = false,
     ): Boolean {
         if (jobs.containsKey(rule.id)) return false
         val job =
             scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
                 try {
-                    run(rule, reason, data, checkConstraints)
+                    run(rule, reason, data, checkConstraints, fromOutside)
                 } finally {
                     jobs.remove(rule.id)
                     runningIds.update { it - rule.id }
@@ -150,12 +155,13 @@ class AutomationEngine(
         reason: String,
         data: Map<String, String> = emptyMap(),
         checkConstraints: Boolean = true,
+        fromOutside: Boolean = false,
     ): RunRecord {
         val started = clock.nowMillis()
         val lines = mutableListOf<String>()
         val vars = HashMap<String, String>()
         data.forEach { (key, value) -> vars["trigger.$key"] = value }
-        val session = host.openSession(rule, toolsOf(rule))
+        val session = host.openSession(rule, toolsOf(rule), fromOutside)
         val context = RunContext(rule, session, vars, lines)
         val outcome =
             try {
@@ -674,6 +680,10 @@ class AutomationEngine(
 
     companion object {
         const val RULE_FINISHED = "rule.finished"
+
+        /** The "Event received" trigger, which any app can send. */
+        const val INTENT_RECEIVED = "intent.received"
+
         const val SETTING_PREFIX = "setting."
         const val MAX_RUN_MS = 30 * 60_000L
         const val MAX_LINES = 100
