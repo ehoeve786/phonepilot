@@ -128,6 +128,8 @@ class AndroidAutomationHost(
     private suspend fun screenShows(text: String): String {
         val shown =
             runCatching {
+                // Nothing is read from a hidden app, such as a bank, so a rule cannot probe its screen.
+                if (hidden(screen.foreground()?.packageName.orEmpty())) return@runCatching false
                 screen.snapshot().elements.any { element ->
                     listOfNotNull(element.text, element.description).any { it.contains(text, ignoreCase = true) }
                 }
