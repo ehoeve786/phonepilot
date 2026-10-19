@@ -708,6 +708,24 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a run started by a broadcast from another app is marked as coming from outside`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(
+                    listOf(ActionStep("notify.post", mapOf("title" to "hi"))),
+                    triggers = listOf(TriggerSpec("intent.action", mapOf("action" to "com.example.DONE"))),
+                ),
+            )
+
+            engine(this, host, store).onEvent(TriggerEvent("intent.action", mapOf("action" to "com.example.DONE")))
+            advanceUntilIdle()
+
+            assertEquals(listOf(true), host.outside)
+        }
+
+    @Test
     fun `a manual run is not marked as coming from outside`() =
         runTest {
             val host = FakeHost()

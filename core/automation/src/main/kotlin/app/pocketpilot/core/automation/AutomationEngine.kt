@@ -113,7 +113,7 @@ class AutomationEngine(
                             )
                         }.getOrDefault(false)
                 } ?: continue
-            start(rule, Describe.trigger(trigger), event.data, fromOutside = event.type == INTENT_RECEIVED)
+            start(rule, Describe.trigger(trigger), event.data, fromOutside = event.type in OUTSIDE_EVENTS)
         }
     }
 
@@ -710,6 +710,12 @@ class AutomationEngine(
 
         /** The "Event received" trigger, which any app can send. */
         const val INTENT_RECEIVED = "intent.received"
+
+        /** The "Any broadcast" trigger; any app can send a broadcast with an action the owner watches. */
+        const val INTENT_ACTION = "intent.action"
+
+        /** Events another app can cause, so their runs get none of the owner's pre-approvals. */
+        private val OUTSIDE_EVENTS = setOf(INTENT_RECEIVED, INTENT_ACTION)
 
         private val UNTRUSTED_TAG = Regex("untrusted_data", RegexOption.IGNORE_CASE)
 
