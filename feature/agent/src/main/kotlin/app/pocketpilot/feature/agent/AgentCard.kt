@@ -188,14 +188,17 @@ private fun ProfileForm(
 
     val canList =
         when (kind) {
-            ProviderKind.OPENAI_COMPATIBLE ->
+            ProviderKind.OPENAI_COMPATIBLE -> {
                 baseUrl.trim().let { url ->
                     (url.startsWith("http://") || url.startsWith("https://")) &&
                         keyMayBeSentTo(url, if (key.isNotBlank() || keptKeys > 0) key.ifBlank { "saved" } else null)
                 }
+            }
 
             // A saved key belongs to the provider it was saved for.
-            else -> key.isNotBlank() || (keptKeys > 0 && kind == existing?.kind)
+            else -> {
+                key.isNotBlank() || (keptKeys > 0 && kind == existing?.kind)
+            }
         }
 
     fun load() {
