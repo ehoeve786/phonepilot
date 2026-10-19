@@ -708,12 +708,62 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a run started by a broadcast from another app is marked as coming from outside`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(
+                    listOf(ActionStep("notify.post", mapOf("title" to "hi"))),
+                    triggers = listOf(TriggerSpec("intent.action", mapOf("action" to "com.example.DONE"))),
+                ),
+            )
+
+            engine(this, host, store).onEvent(TriggerEvent("intent.action", mapOf("action" to "com.example.DONE")))
+            advanceUntilIdle()
+
+            assertEquals(listOf(true), host.outside)
+        }
+
+    @Test
+    fun `a run started by a text from a stranger is marked as coming from outside`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(
+                    listOf(ActionStep("notify.post", mapOf("title" to "hi"))),
+                    triggers = listOf(TriggerSpec("sms.received")),
+                ),
+            )
+
+            engine(this, host, store).onEvent(TriggerEvent("sms.received", mapOf("from" to "+1555", "text" to "hi")))
+            advanceUntilIdle()
+
+            assertEquals(listOf(true), host.outside)
+        }
+
+    @Test
     fun `a manual run is not marked as coming from outside`() =
         runTest {
             val host = FakeHost()
             engine(this, host).run(rule(listOf(ActionStep("notify.post", mapOf("title" to "hi")))), "Run button")
 
             assertEquals(listOf(false), host.outside)
+        }
+
+    @Test
+    fun `an outside event cannot turn another rule on or off`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(rule(listOf(ActionStep("notify.post", mapOf("title" to "x")))).copy(id = "other", enabled = false))
+            val switches = rule(listOf(ActionStep("flow.set_rule", mapOf("rule" to "other", "state" to "on"))))
+
+            val record = engine(this, host, store).run(switches, "intent", fromOutside = true)
+
+            assertEquals(RunOutcome.FAILED, record.outcome)
+            assertEquals(false, store.rule("other")?.enabled)
         }
 
     @Test

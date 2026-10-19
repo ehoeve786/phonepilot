@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -308,6 +309,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // The screens show the local token and keys: keep them out of screenshots and the recents preview.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         // The launching intent is redelivered when the activity is recreated, so handle it only on a fresh start.
         if (savedInstanceState == null) handleOpen(intent)
         val crashReports = (application as PocketPilotApplication).crashReports
@@ -513,7 +516,10 @@ class MainActivity : ComponentActivity() {
                                     PocketPilotService.start(this)
                                 },
                                 turnOff = tailscale::stop,
-                                signIn = { url -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+                                // Only the https sign-in page is opened, never another scheme the library reports.
+                                signIn = { url ->
+                                    if (url.startsWith("https://")) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                },
                                 signOut = tailscale::logout,
                                 setPublic = tailscale::setPublic,
                                 logs = tailscale::logs,

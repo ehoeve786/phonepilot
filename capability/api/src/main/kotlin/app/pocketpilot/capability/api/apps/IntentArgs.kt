@@ -31,6 +31,13 @@ object IntentArgs {
     private val MIME = Regex("^[A-Za-z0-9*.+\\-]+/[A-Za-z0-9*.+\\-]+$")
     private const val MAX_VALUE = 2_000
 
+    /**
+     * Schemes that would hand the target a file, start another component or run script. Other schemes,
+     * such as an app's own links, stay allowed.
+     */
+    val DENIED_DATA_SCHEMES =
+        setOf("file", "content", "intent", "android-app", "javascript", "data", "blob", "jar", "about")
+
     val REFUSED_ACTIONS =
         setOf(
             "android.intent.action.CALL",
@@ -130,6 +137,8 @@ object IntentArgs {
                     require(
                         value.length <= MAX_VALUE && value.none { it == '\u0000' || it == '\n' },
                     ) { "data is too long or has line breaks" }
+                    val scheme = value.substringBefore(':').lowercase()
+                    require(scheme !in DENIED_DATA_SCHEMES) { "$scheme: links are not opened, since they reach files or start components" }
                 }
 
                 in EXTRA_FLAGS.values -> {

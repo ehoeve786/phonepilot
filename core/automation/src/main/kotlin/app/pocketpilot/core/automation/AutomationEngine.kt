@@ -113,7 +113,7 @@ class AutomationEngine(
                             )
                         }.getOrDefault(false)
                 } ?: continue
-            start(rule, Describe.trigger(trigger), event.data, fromOutside = event.type == INTENT_RECEIVED)
+            start(rule, Describe.trigger(trigger), event.data, fromOutside = event.type in OUTSIDE_EVENTS)
         }
     }
 
@@ -280,6 +280,9 @@ class AutomationEngine(
         val def = AutomationCatalog.action(step.type) ?: throw AutomationFailure("This build has no action ${step.type}")
         if (def.sideloadOnly && !host.sideload) throw AutomationFailure("${def.title} is only in the sideload build")
         if (!def.conditional && !step.constraints.isEmpty && !holds(context, step.constraints)) return "skipped, conditions did not hold"
+        if (context.fromOutside && step.type in OUTSIDE_REFUSED) {
+            throw AutomationFailure("Not run: another app started this automation, so it cannot ${def.title.lowercase()}")
+        }
         val steeredFromOutside = step.type in SENDS_OUT && step.params.values.any { TRIGGER_PLACEHOLDER in it }
         if (context.fromOutside && def.kind == ActionKind.Native && steeredFromOutside) {
             throw AutomationFailure(
@@ -708,8 +711,35 @@ class AutomationEngine(
         private val SENDS_OUT = setOf("http.request", "http.download", "ha.call", "calendar.add")
         private const val TRIGGER_PLACEHOLDER = "{trigger."
 
+        /** Steps an outside event may never run: they change which rules are on, which only the owner decides. */
+        private val OUTSIDE_REFUSED = setOf("flow.set_rule")
+
         /** The "Event received" trigger, which any app can send. */
         const val INTENT_RECEIVED = "intent.received"
+
+        /** The "Any broadcast" trigger; any app can send a broadcast with an action the owner watches. */
+        const val INTENT_ACTION = "intent.action"
+
+        /**
+         * Events another party can cause (a sender, another app, a nearby device, a rogue access point), so
+         * their runs get none of the owner's pre-approvals.
+         */
+        private val OUTSIDE_EVENTS =
+            setOf(
+                INTENT_RECEIVED,
+                INTENT_ACTION,
+                "sms.received",
+                "notification.posted",
+                "notification.removed",
+                "call.changed",
+                "bluetooth.device",
+                "screen.text",
+                "log.line",
+                "media.changed",
+                "app.crash",
+                "calendar.event",
+                "wifi.connected",
+            )
 
         private val UNTRUSTED_TAG = Regex("untrusted_data", RegexOption.IGNORE_CASE)
 

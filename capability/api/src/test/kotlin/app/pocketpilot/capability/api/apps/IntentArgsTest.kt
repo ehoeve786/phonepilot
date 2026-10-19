@@ -55,4 +55,16 @@ class IntentArgsTest {
         assertFailsWith<IllegalArgumentException> { IntentArgs.check(listOf("-p", "com.example.app", "--user", "10")) }
         assertFailsWith<IllegalArgumentException> { IntentArgs.check(listOf("-p", "com.example.app", "-t", "not a type")) }
     }
+
+    @Test
+    fun `data that reaches files or starts components is refused, app links are not`() {
+        listOf("file:///data/data/x", "content://com.example/file", "intent://scan#Intent;end", "android-app://x")
+            .forEach { data ->
+                assertFailsWith<IllegalArgumentException>(data) {
+                    IntentArgs.check(listOf("-p", "com.example.app", "-d", data))
+                }
+            }
+        IntentArgs.check(listOf("-p", "com.example.app", "-d", "spotify:track:1"))
+        IntentArgs.check(listOf("-p", "com.example.app", "-d", "https://example.com"))
+    }
 }

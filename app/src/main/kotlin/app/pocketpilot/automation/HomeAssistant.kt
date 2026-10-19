@@ -1,5 +1,6 @@
 package app.pocketpilot.automation
 
+import app.pocketpilot.agent.providers.api.keyMayBeSentTo
 import app.pocketpilot.core.automation.AutomationFailure
 import app.pocketpilot.core.automation.AutomationJson
 import app.pocketpilot.core.automation.RuleStore
@@ -229,11 +230,13 @@ class HomeAssistant(
         }
     }
 
+    /** The address, if it is http(s), and if the token may go to it: a token over plain http to another host is never sent. */
     private fun baseUrl(): String? =
         store.data.value.settings.homeAssistantUrl
             ?.trim()
             ?.trimEnd('/')
             ?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+            ?.takeIf { keyMayBeSentTo(it, token()) }
 
     private fun token(): String? = secrets.get(TOKEN)?.takeIf { it.isNotBlank() }
 
