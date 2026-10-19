@@ -103,4 +103,13 @@ class AdbQueryTest {
         assertEquals(listOf("dumpsys", "battery"), AdbQuery.split("adb shell  dumpsys battery "))
         assertEquals(listOf("getprop"), AdbQuery.split("shell getprop"))
     }
+
+    @Test
+    fun `dump services refuse words that change state`() {
+        refused("dumpsys deviceidle force-idle")
+        refused("dumpsys deviceidle whitelist +com.example.app")
+        refused("dumpsys battery reboot")
+        ok("dumpsys deviceidle whitelist")
+        ok("dumpsys batterystats --charged")
+    }
 }

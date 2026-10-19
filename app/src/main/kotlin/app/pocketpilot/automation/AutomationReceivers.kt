@@ -9,6 +9,7 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import app.pocketpilot.R
 import app.pocketpilot.core.automation.TriggerEvent
+import app.pocketpilot.network.api.SecretStore
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -20,10 +21,15 @@ import app.pocketpilot.core.designsystem.R as DsR
 @InstallIn(SingletonComponent::class)
 interface AutomationEntryPoint {
     fun automationRuntime(): AutomationRuntime
+
+    fun secretStore(): SecretStore
 }
 
 internal fun Context.automations(): AutomationRuntime =
     EntryPointAccessors.fromApplication(applicationContext, AutomationEntryPoint::class.java).automationRuntime()
+
+internal fun Context.secretStore(): SecretStore =
+    EntryPointAccessors.fromApplication(applicationContext, AutomationEntryPoint::class.java).secretStore()
 
 /** A timed rule's alarm. */
 class AutomationAlarmReceiver : BroadcastReceiver() {
@@ -66,9 +72,10 @@ class CalendarAlarmReceiver : BroadcastReceiver() {
 }
 
 /**
- * The "Event received" trigger: any app, Tasker or `am broadcast` can send `app.pocketpilot.action.EVENT`
- * with the extra `event`; other string extras become the trigger's variables. It only starts rules the
- * owner made for that event name.
+ * The "Event received" trigger: a sender (Tasker, MacroDroid, `am broadcast`) sends `app.pocketpilot.action.EVENT`
+ * with the extras `key` (the event key from Settings) and `event`; other string extras become the trigger's
+ * variables. Without the right key the broadcast is ignored, since any app can send one. It only starts rules
+ * the owner made for that event name.
  */
 class AutomationEventReceiver : BroadcastReceiver() {
     override fun onReceive(
@@ -77,10 +84,12 @@ class AutomationEventReceiver : BroadcastReceiver() {
     ) {
         if (intent.action != ACTION_EVENT) return
         val extras = intent.extras ?: return
+        if (!EventKey.matches(EventKey.get(context.secretStore()), extras.getString(KEY_EXTRA))) return
         val event = extras.getString("event")?.takeIf { it.isNotBlank() } ?: return
         val data =
             extras
                 .keySet()
+                .filterNot { it == KEY_EXTRA }
                 .take(MAX_EXTRAS)
                 .mapNotNull { key -> extras.getString(key)?.let { key to it.take(MAX_VALUE) } }
                 .toMap()
@@ -89,6 +98,7 @@ class AutomationEventReceiver : BroadcastReceiver() {
 
     private companion object {
         const val ACTION_EVENT = "app.pocketpilot.action.EVENT"
+        const val KEY_EXTRA = "key"
         const val MAX_EXTRAS = 20
         const val MAX_VALUE = 2_000
     }

@@ -15,6 +15,8 @@ import app.pocketpilot.core.model.ToolException
 import app.pocketpilot.core.model.ToolResult
 import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.orchestrator.ToolHandler
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -179,20 +181,23 @@ class FilesWriteTool(
         val append = call.arguments.boolean("append") == true
         if (append && call.arguments.boolean("replace") == true) invalid("Give append or replace, not both")
         if (append) {
-            // A missing file is created, as a plain write would.
-            val (old, size) =
-                try {
-                    files.read(path, MAX_BYTES)
-                } catch (e: ToolException) {
-                    if (e.code != ToolErrorCode.ELEMENT_NOT_FOUND) throw e
-                    ByteArray(0) to 0L
-                }
-            if (size > old.size) invalid("$path is over $MAX_BYTES bytes, too big to add to")
-            val separator = if (old.isEmpty() || old.last() == '\n'.code.toByte()) "" else "\n"
-            val added = (separator + text).toByteArray()
-            if (old.size + added.size > MAX_BYTES) invalid("The file would be over $MAX_BYTES bytes")
-            files.write(path, old + added, replace = true)
-            return ToolResult.success("Added ${added.size} bytes to the end of $path")
+            // Read and rewrite as one step, so two appends to the same file cannot lose each other's text.
+            appendLock.withLock {
+                // A missing file is created, as a plain write would.
+                val (old, size) =
+                    try {
+                        files.read(path, MAX_BYTES)
+                    } catch (e: ToolException) {
+                        if (e.code != ToolErrorCode.ELEMENT_NOT_FOUND) throw e
+                        ByteArray(0) to 0L
+                    }
+                if (size > old.size) invalid("$path is over $MAX_BYTES bytes, too big to add to")
+                val separator = if (old.isEmpty() || old.last() == '\n'.code.toByte()) "" else "\n"
+                val added = (separator + text).toByteArray()
+                if (old.size + added.size > MAX_BYTES) invalid("The file would be over $MAX_BYTES bytes")
+                files.write(path, old + added, replace = true)
+                return ToolResult.success("Added ${added.size} bytes to the end of $path")
+            }
         }
         val bytes = text.toByteArray()
         if (bytes.size > MAX_BYTES) invalid("text is over $MAX_BYTES bytes")
@@ -202,6 +207,7 @@ class FilesWriteTool(
 
     private companion object {
         const val MAX_BYTES = 1024 * 1024
+        val appendLock = Mutex()
     }
 }
 

@@ -55,6 +55,7 @@ internal class SettingsState(
     val publicState: PublicAccessState,
     val clients: List<ClientRow>,
     val token: String,
+    val eventKey: String,
     val sharedFolders: List<SharedFolder>,
     val biometricApprovals: Boolean,
     val capabilities: List<CapabilityStatus>,
@@ -129,7 +130,7 @@ internal fun SettingsScreen(
             )
             ownNetworkCard()
             ClientsCard(state.clients, actions.onRevokeClient, actions.onKillSwitch)
-            TokenCard(state.token, actions.onRotateToken)
+            TokenCard(state.token, state.eventKey, actions.onRotateToken)
             FoldersCard(state.sharedFolders, actions.onAddFolder, actions.onRemoveFolder)
             BiometricCard(state.biometricApprovals, actions.onBiometricChange)
             OutlinedButton(onClick = actions.onOpenSetup, modifier = Modifier.fillMaxWidth()) {
@@ -222,6 +223,7 @@ private fun BiometricCard(
 @Composable
 private fun TokenCard(
     token: String,
+    eventKey: String,
     onRotateToken: () -> Unit,
 ) {
     var visible by rememberSaveable { mutableStateOf(false) }
@@ -241,6 +243,9 @@ private fun TokenCard(
                 TextButton(onClick = { copySecret(context, token) }) { Text(stringResource(R.string.token_copy)) }
                 TextButton(onClick = onRotateToken) { Text(stringResource(R.string.token_rotate)) }
             }
+            Text(stringResource(R.string.event_key_title), style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.event_key_explainer), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { copySecret(context, eventKey) }) { Text(stringResource(R.string.event_key_copy)) }
         }
     }
 }

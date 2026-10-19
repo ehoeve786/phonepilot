@@ -532,7 +532,8 @@ object AppModule {
     @Singleton
     fun localTokenStore(
         @ApplicationContext context: Context,
-    ): LocalTokenStore = LocalTokenStore(context.noBackupFilesDir)
+        secrets: SecretStore,
+    ): LocalTokenStore = LocalTokenStore(secrets, context.noBackupFilesDir)
 
     @Provides
     @Singleton

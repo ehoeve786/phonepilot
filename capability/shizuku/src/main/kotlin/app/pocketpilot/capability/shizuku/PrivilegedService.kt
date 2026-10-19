@@ -7,6 +7,8 @@ import app.pocketpilot.capability.api.apps.IntentArgs
 import app.pocketpilot.capability.api.settings.SettingKey
 import app.pocketpilot.capability.api.shell.AdbQuery
 import java.io.File
+import java.nio.file.Files
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import kotlin.system.exitProcess
@@ -57,13 +59,16 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
     override fun captureScreen(): ParcelFileDescriptor = pipe(ProcessBuilder("screencap").start())
 
     override fun dumpUiHierarchy(): ParcelFileDescriptor {
-        val file = File(UI_DUMP_PATH)
-        file.delete()
-        val output = run("uiautomator", "dump", UI_DUMP_PATH)
-        check(file.exists()) { "uiautomator could not read the screen: ${output.trim()}" }
-        val bytes = file.readBytes()
-        file.delete()
-        return pipe(bytes)
+        // A random name, since /data/local/tmp is shared: nothing else can predict the file to plant a link at.
+        val file = File("/data/local/tmp/pocketpilot-ui-${UUID.randomUUID()}.xml")
+        try {
+            val output = run("uiautomator", "dump", file.path)
+            check(file.exists()) { "uiautomator could not read the screen: ${output.trim()}" }
+            check(!Files.isSymbolicLink(file.toPath())) { "The screen dump was replaced by a link; not reading it" }
+            return pipe(file.readBytes())
+        } finally {
+            file.delete()
+        }
     }
 
     override fun foregroundActivity(): String {
@@ -286,7 +291,6 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         /** The AIDL contract version; bump with every change to IPocketPilotPrivileged. */
         const val VERSION = 7
 
-        private const val UI_DUMP_PATH = "/data/local/tmp/pocketpilot-ui.xml"
         private const val COMMAND_TIMEOUT_S = 15L
         private const val MAX_GESTURE_MS = 10_000L
         private const val MAX_KEYS = 256
