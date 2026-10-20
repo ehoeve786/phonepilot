@@ -172,6 +172,54 @@ internal object Actions {
                     sentence = { p -> if (p.p("filter").isEmpty()) "List installed apps" else "List apps matching ${p.p("filter")}" },
                 ),
                 ActionDef(
+                    type = "sensor.read",
+                    category = Category.SENSORS,
+                    title = "Read a sensor",
+                    description = "Reads the light, air pressure, temperature or humidity sensor into a variable.",
+                    fields =
+                        listOf(
+                            choiceField(
+                                "sensor",
+                                "Sensor",
+                                listOf(
+                                    Choice("light", "Light"),
+                                    Choice("pressure", "Air pressure"),
+                                    Choice("temperature", "Ambient temperature"),
+                                    Choice("humidity", "Humidity"),
+                                ),
+                            ),
+                            INTO,
+                        ),
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Tool("sensor.read") { p -> args("sensor" to p.p("sensor")) },
+                    sentence = { p -> "Read the ${p.p("sensor")} sensor" },
+                ),
+                ActionDef(
+                    type = "audio.control",
+                    category = Category.SOUND,
+                    title = "Microphone, speaker or volume",
+                    description =
+                        "Mutes or unmutes the microphone, turns the speakerphone on or off, or changes the media volume one step.",
+                    fields =
+                        listOf(
+                            choiceField(
+                                "action",
+                                "Do",
+                                listOf(
+                                    Choice("mic_mute", "Mute microphone"),
+                                    Choice("mic_unmute", "Unmute microphone"),
+                                    Choice("speaker_on", "Speakerphone on"),
+                                    Choice("speaker_off", "Speakerphone off"),
+                                    Choice("volume_up", "Volume up"),
+                                    Choice("volume_down", "Volume down"),
+                                ),
+                            ),
+                        ),
+                    tier = RiskTier.INTERACT,
+                    kind = ActionKind.Tool("audio.control") { p -> args("action" to p.p("action")) },
+                    sentence = { p -> "Audio: ${p.p("action")}" },
+                ),
+                ActionDef(
                     type = "app.stop",
                     category = Category.APPS,
                     title = "Force stop an app",

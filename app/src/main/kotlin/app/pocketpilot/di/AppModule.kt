@@ -8,7 +8,9 @@ import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.accessibility.A11yInputController
 import app.pocketpilot.capability.accessibility.A11yScreenCapturer
 import app.pocketpilot.capability.accessibility.A11yScreenReader
+import app.pocketpilot.capability.api.AudioControl
 import app.pocketpilot.capability.api.DeviceInfoSource
+import app.pocketpilot.capability.api.SensorReader
 import app.pocketpilot.capability.api.apps.AppController
 import app.pocketpilot.capability.api.screen.GlobalAction
 import app.pocketpilot.capability.api.screen.InputController
@@ -17,7 +19,9 @@ import app.pocketpilot.capability.api.screen.ScreenPrivacy
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.api.screen.ScreenSize
 import app.pocketpilot.capability.apps.PackageAppController
+import app.pocketpilot.capability.device.AndroidAudioControl
 import app.pocketpilot.capability.device.AndroidDeviceInfoSource
+import app.pocketpilot.capability.device.AndroidSensorReader
 import app.pocketpilot.capability.files.SafFileStore
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.screencapture.BitmapImageEncoder
@@ -68,6 +72,7 @@ import app.pocketpilot.core.tools.AppSetPermissionTool
 import app.pocketpilot.core.tools.AppSetStandbyBucketTool
 import app.pocketpilot.core.tools.AppStartActivityTool
 import app.pocketpilot.core.tools.AppStopTool
+import app.pocketpilot.core.tools.AudioControlTool
 import app.pocketpilot.core.tools.BatteryUsageTool
 import app.pocketpilot.core.tools.DeviceInfoTool
 import app.pocketpilot.core.tools.FilesCopyTool
@@ -82,6 +87,7 @@ import app.pocketpilot.core.tools.ScreenFindTool
 import app.pocketpilot.core.tools.ScreenSnapshotTool
 import app.pocketpilot.core.tools.ScreenWaitForChangeTool
 import app.pocketpilot.core.tools.ScreenWaitForTool
+import app.pocketpilot.core.tools.SensorReadTool
 import app.pocketpilot.core.tools.SettingsGetTool
 import app.pocketpilot.core.tools.SettingsSetTool
 import app.pocketpilot.core.tools.ShellExecTool
@@ -135,6 +141,26 @@ object AppModule {
     @Provides
     @IntoSet
     fun deviceInfoTool(source: DeviceInfoSource): ToolHandler = DeviceInfoTool(source)
+
+    @Provides
+    @Singleton
+    fun sensorReader(
+        @ApplicationContext context: Context,
+    ): SensorReader = AndroidSensorReader(context)
+
+    @Provides
+    @IntoSet
+    fun sensorReadTool(reader: SensorReader): ToolHandler = SensorReadTool(reader)
+
+    @Provides
+    @Singleton
+    fun audioControl(
+        @ApplicationContext context: Context,
+    ): AudioControl = AndroidAudioControl(context)
+
+    @Provides
+    @IntoSet
+    fun audioControlTool(audio: AudioControl): ToolHandler = AudioControlTool(audio)
 
     /** Lives as long as the process; backs the availability flows of every backend. */
     @Provides
