@@ -103,16 +103,12 @@ class AndroidAutomationHost(
             )
         if (!fromOutside) {
             policy.preConfirm(session.id, tools - SHELL_EXEC)
-            if (rule.startedByOwner()) policy.markOwnerStarted(session.id)
         }
         // The fixed commands are the owner's own saved text, so they run without asking even when another app
         // starts the rule. A command built from event data is not fixed and still asks each time.
         policy.preConfirmDetails(session.id, SHELL_EXEC, rule.fixedShellCommands())
         return session
     }
-
-    /** A rule only the owner starts, from its Run button, rather than a schedule, a phone event or another app. */
-    private fun Rule.startedByOwner(): Boolean = triggers.isNotEmpty() && triggers.all { it.type == "manual" }
 
     override fun closeSession(session: Session) = policy.endSession(session.id)
 
