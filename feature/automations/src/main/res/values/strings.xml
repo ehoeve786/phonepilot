@@ -59,6 +59,7 @@
     <string name="feature_automations_all">All</string>
     <string name="feature_automations_cancel">Cancel</string>
     <string name="feature_automations_done">Done</string>
+    <string name="feature_automations_choose_time">Choose a time</string>
     <string name="feature_automations_optional">(optional)</string>
     <string name="feature_automations_no_other_rules">There are no other rules yet.</string>
     <string name="feature_automations_choose_apps">Choose apps</string>

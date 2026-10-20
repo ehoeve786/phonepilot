@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -21,11 +22,14 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -223,6 +227,10 @@ private fun FieldEditor(
             AppField(label, value, context, onChange)
         }
 
+        FieldKind.TIME -> {
+            TimeField(label, value, onChange)
+        }
+
         FieldKind.RULE -> {
             val others = context.rules.filter { it.id != context.currentRuleId && !it.pending }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -265,7 +273,7 @@ private fun FieldEditor(
                 value = value,
                 onValueChange = onChange,
                 label = { Text(label) },
-                placeholder = (field.hint ?: if (field.kind == FieldKind.TIME) "HH:mm" else null)?.let { hint -> { Text(hint) } },
+                placeholder = field.hint?.let { hint -> { Text(hint) } },
                 singleLine = field.kind != FieldKind.MULTILINE && field.kind != FieldKind.JSON,
                 minLines = if (field.kind == FieldKind.MULTILINE || field.kind == FieldKind.JSON) 3 else 1,
                 textStyle =
@@ -279,7 +287,6 @@ private fun FieldEditor(
                         keyboardType =
                             when (field.kind) {
                                 FieldKind.NUMBER -> KeyboardType.Decimal
-                                FieldKind.TIME -> KeyboardType.Number
                                 else -> KeyboardType.Text
                             },
                     ),
@@ -290,6 +297,48 @@ private fun FieldEditor(
 }
 
 private const val TOOL_SUGGESTIONS = 8
+
+/** A time of day as "HH:mm", chosen on a clock face instead of typed. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeField(
+    label: String,
+    value: String,
+    onChange: (String) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    val (hour, minute) = parseTime(value) ?: (8 to 0)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(value.ifEmpty { stringResource(R.string.feature_automations_choose_time) })
+        }
+    }
+    if (open) {
+        // The state is created when the dialog opens, so each opening starts from the saved time.
+        val state = rememberTimePickerState(initialHour = hour, initialMinute = minute, is24Hour = true)
+        AlertDialog(
+            onDismissRequest = { open = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    onChange("%02d:%02d".format(state.hour, state.minute))
+                    open = false
+                }) { Text(stringResource(R.string.feature_automations_done)) }
+            },
+            dismissButton = { TextButton(onClick = { open = false }) { Text(stringResource(R.string.feature_automations_cancel)) } },
+            text = { TimePicker(state = state) },
+        )
+    }
+}
+
+/** The hour and minute in "HH:mm", or null when [value] is not a time of day. */
+internal fun parseTime(value: String): Pair<Int, Int>? {
+    val parts = value.trim().split(':')
+    if (parts.size != 2) return null
+    val hour = parts[0].toIntOrNull()?.takeIf { it in 0..23 } ?: return null
+    val minute = parts[1].toIntOrNull()?.takeIf { it in 0..59 } ?: return null
+    return hour to minute
+}
 
 /** Package names as text, with a searchable list of installed apps to tick. */
 @OptIn(ExperimentalMaterial3Api::class)
