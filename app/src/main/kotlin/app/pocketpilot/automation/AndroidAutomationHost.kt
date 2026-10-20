@@ -3,6 +3,7 @@ package app.pocketpilot.automation
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
+import android.media.AudioAttributes
 import android.media.AudioManager
 import android.os.Build
 import android.os.PowerManager
@@ -177,7 +178,7 @@ class AndroidAutomationHost(
 
             "media.control" -> media(params["command"].orEmpty())
 
-            "speak" -> speak(params["text"].orEmpty())
+            "speak" -> speak(params["text"].orEmpty(), params["stream"].orEmpty())
 
             "vibrate" -> vibrate(params["ms"]?.toLongOrNull() ?: DEFAULT_VIBRATE_MS)
 
@@ -235,9 +236,20 @@ class AndroidAutomationHost(
         audio.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0))
     }
 
-    private suspend fun speak(text: String) {
+    private suspend fun speak(
+        text: String,
+        stream: String,
+    ) {
         if (text.isBlank()) return
         val engine = tts ?: startTts().also { tts = it }
+        // The engine keeps its audio attributes, so each utterance sets the stream it should play through.
+        engine.setAudioAttributes(
+            AudioAttributes
+                .Builder()
+                .setUsage(speechUsage(stream))
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build(),
+        )
         val id = ids.next()
         withTimeoutOrNull(SPEAK_TIMEOUT_MS) {
             suspendCancellableCoroutine { done ->
@@ -260,6 +272,17 @@ class AndroidAutomationHost(
             }
         }
     }
+
+    /** The audio usage that plays speech through the stream the rule's Play through setting names. */
+    private fun speechUsage(stream: String): Int =
+        when (stream) {
+            "alarm" -> AudioAttributes.USAGE_ALARM
+            "ringer" -> AudioAttributes.USAGE_NOTIFICATION_RINGTONE
+            "notification" -> AudioAttributes.USAGE_NOTIFICATION
+            "system" -> AudioAttributes.USAGE_ASSISTANCE_SONIFICATION
+            "call" -> AudioAttributes.USAGE_VOICE_COMMUNICATION
+            else -> AudioAttributes.USAGE_MEDIA
+        }
 
     private suspend fun startTts(): TextToSpeech =
         withContext(Dispatchers.Main) {

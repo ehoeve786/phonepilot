@@ -362,7 +362,9 @@ internal object Actions {
                     type = "ui.tap_run",
                     category = ui,
                     title = "Take the first open run in a time window",
-                    description = "On a schedule list, taps the first run that starts between the two times on the days you pick.",
+                    description =
+                        "On a schedule list, taps the first run that starts between the two times on the days you pick. " +
+                            "When it takes a run, it also saves the day as <into>_day and the time range as <into>_time.",
                     fields =
                         listOf(
                             FieldDef("days", "Days", FieldKind.DAYS, default = "mon,tue,wed,thu,fri"),
@@ -549,7 +551,22 @@ internal object Actions {
                     category = Category.SOUND,
                     title = "Speak text",
                     description = "Reads text aloud with the phone's text-to-speech.",
-                    fields = listOf(FieldDef("text", "Text", FieldKind.MULTILINE)),
+                    fields =
+                        listOf(
+                            FieldDef("text", "Text", FieldKind.MULTILINE),
+                            choiceField(
+                                "stream",
+                                "Play through",
+                                listOf(
+                                    Choice("media", "Media / music"),
+                                    Choice("alarm", "Alarm"),
+                                    Choice("ringer", "Ringer"),
+                                    Choice("notification", "Notification"),
+                                    Choice("system", "System"),
+                                    Choice("call", "Voice call"),
+                                ),
+                            ),
+                        ),
                     tier = RiskTier.READ,
                     kind = ActionKind.Native,
                     sentence = { p -> "Say \"${p.p("text").take(30)}\"" },
