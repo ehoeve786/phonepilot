@@ -85,11 +85,11 @@ class RuleStore(
 
     fun setSettings(settings: AutomationSettings) = update { it.copy(settings = settings) }
 
-    /** Saves a finished run, keeping the newest [MAX_RUNS]. */
+    /** Saves a finished run, keeping the newest [MAX_RUNS] and at most [MAX_HISTORY_CHARS] of their log lines. */
     fun addRun(record: RunRecord) =
         update { data ->
             data.copy(
-                runs = (listOf(record) + data.runs).take(MAX_RUNS),
+                runs = keptRuns(listOf(record) + data.runs),
                 rules =
                     data.rules.map {
                         if (it.id != record.ruleId || record.outcome == RunOutcome.SKIPPED) {
@@ -119,7 +119,16 @@ class RuleStore(
             ?.let { runCatching { AutomationJson.json.decodeFromString(AutomationData.serializer(), it) }.getOrNull() }
             ?: AutomationData()
 
+    private fun keptRuns(runs: List<RunRecord>): List<RunRecord> {
+        var total = 0
+        return runs.take(MAX_RUNS).takeWhile { run ->
+            total += run.lines.sumOf { it.length }
+            total <= MAX_HISTORY_CHARS
+        }
+    }
+
     companion object {
         const val MAX_RUNS = 200
+        const val MAX_HISTORY_CHARS = 256 * 1024
     }
 }

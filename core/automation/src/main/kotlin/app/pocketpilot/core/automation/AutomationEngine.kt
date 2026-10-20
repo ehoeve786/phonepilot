@@ -303,10 +303,12 @@ class AutomationEngine(
         if (context.fromOutside && step.type in OUTSIDE_REFUSED) {
             throw AutomationFailure("Not run: another app started this automation, so it cannot ${def.title.lowercase()}")
         }
-        val steeredFromOutside = step.type in SENDS_OUT && step.params.values.any { TRIGGER_PLACEHOLDER in it }
+        // Any placeholder can carry outside data (event fields, variables set from them), so an outside run may
+        // only send with fixed parameters.
+        val steeredFromOutside = step.type in SENDS_OUT && step.params.values.any { PLACEHOLDER.containsMatchIn(it) }
         if (context.fromOutside && def.kind == ActionKind.Native && steeredFromOutside) {
             throw AutomationFailure(
-                "Not run: another app started this automation, so its event data cannot choose where ${def.title} sends things",
+                "Not run: another app started this automation, so its data cannot choose where ${def.title} sends things",
             )
         }
         val params =
@@ -746,7 +748,7 @@ class AutomationEngine(
 
         /** Native actions that send data off the phone or change a calendar, which an outside event must not steer. */
         private val SENDS_OUT = setOf("http.request", "http.download", "ha.call", "calendar.add")
-        private const val TRIGGER_PLACEHOLDER = "{trigger."
+        private val PLACEHOLDER = Regex("\\{[^{}]+}")
 
         /**
          * Steps an outside event may never run: they change which rules are on, which only the owner decides, or

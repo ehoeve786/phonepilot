@@ -120,12 +120,13 @@ fun Route.oauthRoutes(
     }
 
     post("/token") {
-        val address = clientAddress(call)
+        val params = call.receiveParameters().entries().associate { it.key to it.value.first() }
+        // Remote callers share one address, so a failing client is locked by its own client_id instead.
+        val address = params["client_id"]?.let { "client:$it" } ?: clientAddress(call)
         if (lockout.isBlocked(address)) {
             call.respondOAuthError(OAuthException("invalid_client", "Too many failed attempts; try again in an hour", 429))
             return@post
         }
-        val params = call.receiveParameters().entries().associate { it.key to it.value.first() }
         try {
             val tokens = server.token(params)
             call.response.header(HttpHeaders.CacheControl, "no-store")

@@ -41,7 +41,6 @@ object AdbQuery {
 
     private val READ_VERB_PREFIXES = listOf("get", "list", "status", "query", "is-", "has-", "print", "help")
     private val SETTINGS_NAMESPACES = setOf("system", "secure", "global")
-    private val IP_READ_VERBS = setOf("show", "list", "ls", "help")
     private val IP_WRITES =
         setOf(
             "add",
@@ -232,10 +231,12 @@ object AdbQuery {
             }
 
             "ip" -> {
-                // iproute2 takes any prefix of a verb, so `ip link s wlan0 down` is `set`. The verb is the word after the
-                // object; it is refused when it could be a write verb, unless it is exactly a read verb.
-                val verb = args.filterNot { it.startsWith("-") }.getOrNull(1)
-                require(verb == null || verb in IP_READ_VERBS || IP_WRITES.none { it.startsWith(verb) }) {
+                // iproute2 takes any prefix of a verb, a flag such as `-n ns` moves the object along, and a
+                // nested object such as `xfrm state` puts the verb further in. So every word after the first
+                // is checked. `-batch` runs commands from a file, so it is refused outright.
+                require(args.none { it == "-b" || it.startsWith("-batch") }) { "ip -batch runs commands from a file; it is not allowed" }
+                val words = args.filterNot { it.startsWith("-") }.drop(1)
+                require(words.none { word -> IP_WRITES.any { it.startsWith(word) } }) {
                     "Only ip commands that show state are allowed"
                 }
             }

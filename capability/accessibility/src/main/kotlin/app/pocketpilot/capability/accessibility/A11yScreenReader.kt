@@ -31,8 +31,12 @@ class A11yScreenReader(
 
     private val counter = AtomicLong()
 
-    /** Recent snapshots with their live nodes, so element IDs from the last few calls still resolve. */
-    private val recent = SnapshotCache<Taken>(onEvict = { taken -> recycle(taken.nodes) })
+    /**
+     * Recent snapshots with their live nodes, so element IDs from the last few calls still resolve. Evicted nodes
+     * are not recycled: a caller may still hold one from [resolve], and a recycled node would be read or acted on
+     * after its memory was handed out again. The garbage collector takes them instead.
+     */
+    private val recent = SnapshotCache<Taken>()
 
     private class Taken(
         val nodes: List<AccessibilityNodeInfo>,
@@ -64,12 +68,6 @@ class A11yScreenReader(
             recent.put(built.snapshot, Taken(nodes, built.sources))
             built.snapshot
         }
-
-    /** Before Android 13 a node is only reused once it is recycled; from 13 the call does nothing. */
-    @Suppress("DEPRECATION")
-    private fun recycle(nodes: List<AccessibilityNodeInfo>) {
-        nodes.forEach { it.recycle() }
-    }
 
     override suspend fun foreground(): ForegroundApp? {
         val service = A11yBridge.require()
