@@ -1,11 +1,14 @@
 package app.pocketpilot.automation
 
+import android.content.ContentResolver
 import android.content.Context
 import android.database.ContentObserver
 import android.hardware.camera2.CameraManager
 import android.net.Uri
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import app.pocketpilot.core.automation.TriggerEvent
@@ -28,15 +31,22 @@ class HardwareWatch(
     private var settings: ContentObserver? = null
     private var rotation: Boolean? = null
     private var accessibility: Set<String>? = null
+    private var photos: ContentObserver? = null
+    private var lastPhotoId = 0L
 
-    /** Listens to the torch and camera when [torchOrCamera], and to the settings when [settingsWatch]. */
+    /**
+     * Listens to the torch and camera when [torchOrCamera], to the settings when [settingsWatch], and to new
+     * photos when [photosWatch].
+     */
     @Synchronized
     fun watch(
         torchOrCamera: Boolean,
         settingsWatch: Boolean,
+        photosWatch: Boolean = false,
     ) {
         if (torchOrCamera) startCameras() else stopCameras()
         if (settingsWatch) startSettings() else stopSettings()
+        if (photosWatch) startPhotos() else stopPhotos()
     }
 
     @Synchronized
@@ -134,6 +144,67 @@ class HardwareWatch(
             .map { it.substringBefore('/').trim() }
             .filter { it.isNotEmpty() }
             .toSet()
+
+    private fun startPhotos() {
+        if (photos != null) return
+        lastPhotoId = newestPhoto()?.id ?: 0L
+        val observer =
+            object : ContentObserver(Handler(Looper.getMainLooper())) {
+                override fun onChange(
+                    selfChange: Boolean,
+                    uri: Uri?,
+                ) {
+                    photoAdded()
+                }
+            }
+        resolver.registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, observer)
+        photos = observer
+    }
+
+    private fun stopPhotos() {
+        photos?.let { resolver.unregisterContentObserver(it) }
+        photos = null
+        lastPhotoId = 0L
+    }
+
+    /** Reports the newest photo when it is in the camera folder. Without photo access nothing is readable, so nothing is reported. */
+    private fun photoAdded() {
+        val newest = newestPhoto() ?: return
+        if (newest.id <= lastPhotoId) return
+        lastPhotoId = newest.id
+        if (newest.path.contains("DCIM")) {
+            emit(TriggerEvent("photo.taken", mapOf("name" to newest.name, "path" to newest.path)))
+        }
+    }
+
+    private fun newestPhoto(): Photo? =
+        runCatching {
+            val args =
+                Bundle().apply {
+                    putStringArray(ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(MediaStore.Images.Media._ID))
+                    putInt(ContentResolver.QUERY_ARG_SORT_DIRECTION, ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
+                    putInt(ContentResolver.QUERY_ARG_LIMIT, 1)
+                }
+            resolver
+                .query(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.RELATIVE_PATH),
+                    args,
+                    null,
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        Photo(cursor.getLong(0), cursor.getString(1).orEmpty(), cursor.getString(2).orEmpty())
+                    } else {
+                        null
+                    }
+                }
+        }.getOrNull()
+
+    private class Photo(
+        val id: Long,
+        val name: String,
+        val path: String,
+    )
 
     private fun accessibilityEvent(
         pkg: String,

@@ -312,6 +312,7 @@ class AutomationRuntime(
                 "calendar.now" to listOf(Manifest.permission.READ_CALENDAR),
                 "calendar.read" to listOf(Manifest.permission.READ_CALENDAR),
                 "calendar.add" to listOf(Manifest.permission.WRITE_CALENDAR),
+                "photo.taken" to listOf(Manifest.permission.READ_MEDIA_IMAGES),
             )
         val SIDELOAD_PERMISSIONS = setOf(Manifest.permission.READ_CALL_LOG, Manifest.permission.RECEIVE_SMS)
         const val SHELL_TIMEOUT_MS = 5_000L

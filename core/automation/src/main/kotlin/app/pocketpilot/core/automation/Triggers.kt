@@ -251,6 +251,54 @@ internal object Triggers {
                 title = "Shizuku stopped",
                 description = "Shizuku stops running, so shell and settings actions fail until it starts again.",
             ),
+            TriggerDef(
+                type = "volume.button",
+                category = Category.DEVICE,
+                title = "Volume button",
+                description = "A volume button is pressed. Needs the PocketPilot accessibility service.",
+                fields =
+                    listOf(
+                        choiceField("button", "Button", listOf(Choice("any", "Either"), Choice("up", "Up"), Choice("down", "Down"))),
+                    ),
+                variables = listOf("button"),
+                sentence = { p ->
+                    when (p.p("button")) {
+                        "up" -> "Volume up pressed"
+                        "down" -> "Volume down pressed"
+                        else -> "Volume button pressed"
+                    }
+                },
+                match = { p, e, _ -> either(p.p("button"), e["button"]) },
+            ),
+            TriggerDef(
+                type = "media.button",
+                category = Category.MEDIA,
+                title = "Media button",
+                description = "Play or pause, next or previous is pressed on a headset or the phone. Needs the accessibility service.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "button",
+                            "Button",
+                            listOf(
+                                Choice("any", "Any"),
+                                Choice("play_pause", "Play or pause"),
+                                Choice("next", "Next"),
+                                Choice("previous", "Previous"),
+                            ),
+                        ),
+                    ),
+                variables = listOf("button"),
+                sentence = { p -> if (either(p.p("button"), null)) "Media button pressed" else "Media ${p.p("button")} pressed" },
+                match = { p, e, _ -> either(p.p("button"), e["button"]) },
+            ),
+            TriggerDef(
+                type = "photo.taken",
+                category = Category.DEVICE,
+                title = "Photo taken",
+                description = "A photo is saved to the camera folder. Needs photo access.",
+                variables = listOf("name", "path"),
+            ),
             // Battery and power
             TriggerDef(
                 type = "battery.temperature",

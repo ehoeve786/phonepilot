@@ -32,6 +32,7 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.provider.Telephony
 import android.telephony.TelephonyManager
+import android.view.KeyEvent
 import androidx.core.content.ContextCompat
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.api.shell.SystemReader
@@ -164,7 +165,9 @@ class TriggerSources(
         hardware.watch(
             torchOrCamera = "torch.changed" in types || "camera.inuse" in types,
             settingsWatch = "autorotate.changed" in types || "accessibility.changed" in types,
+            photosWatch = "photo.taken" in types,
         )
+        watchKeys("volume.button" in types || "media.button" in types)
         watchAddresses("ip.changed" in types)
         // An app's state is judged against the state seen when the rule started, so the first change is not missed.
         params("app.enabled").mapNotNull { it["package"]?.trim()?.takeIf(String::isNotEmpty) }.forEach { pkg ->
@@ -194,6 +197,7 @@ class TriggerSources(
         places.watch(emptyList())
         sensors.stop()
         hardware.stop()
+        watchKeys(false)
         watchAddresses(false)
         logWatcher.stop()
         calendars.watch(null)
@@ -637,6 +641,23 @@ class TriggerSources(
                 emit(TriggerEvent("app.package", mapOf("event" to event, "package" to pkg)))
             }
         }
+
+    private fun watchKeys(on: Boolean) {
+        A11yBridge.listenToKeys(if (on) ::keyPressed else null)
+    }
+
+    /** Volume and media keys: the key-down of each press, not the repeats while it is held. */
+    private fun keyPressed(event: KeyEvent) {
+        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return
+        when (event.keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> emit(TriggerEvent("volume.button", mapOf("button" to "up")))
+            KeyEvent.KEYCODE_VOLUME_DOWN -> emit(TriggerEvent("volume.button", mapOf("button" to "down")))
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> emit(TriggerEvent("media.button", mapOf("button" to "play_pause")))
+            KeyEvent.KEYCODE_MEDIA_NEXT -> emit(TriggerEvent("media.button", mapOf("button" to "next")))
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> emit(TriggerEvent("media.button", mapOf("button" to "previous")))
+            else -> Unit
+        }
+    }
 
     private fun appEnabled(pkg: String): Boolean {
         val setting = context.packageManager.getApplicationEnabledSetting(pkg)
