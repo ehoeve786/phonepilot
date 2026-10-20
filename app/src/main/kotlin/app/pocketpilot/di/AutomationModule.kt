@@ -95,6 +95,7 @@ object AutomationModule {
         agent: Lazy<AgentCoordinator>,
         profile: PolicyProfile,
         notifier: AutomationNotifier,
+        shizuku: ShizukuConnection,
         scope: CoroutineScope,
         files: SafFileStore,
         homeAssistant: HomeAssistant,
@@ -131,7 +132,19 @@ object AutomationModule {
             calendars,
             profile.shellExecAvailable,
         ) { emit ->
-            TriggerSources(context, phone, scope, hidden, places, calendars, homeAssistant, logs, profile.shellExecAvailable, emit)
+            TriggerSources(
+                context,
+                phone,
+                scope,
+                hidden,
+                places,
+                calendars,
+                homeAssistant,
+                logs,
+                profile.shellExecAvailable,
+                shizuku.state,
+                emit,
+            )
         }
     }
 

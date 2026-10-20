@@ -73,6 +73,35 @@ internal object Triggers {
             TriggerDef("screen.unlocked", Category.DEVICE, "Phone unlocked", "You unlocked the phone."),
             stateTrigger("airplane.changed", Category.DEVICE, "Airplane mode", "Airplane mode turned on or off.", "Airplane mode"),
             stateTrigger("dnd.changed", Category.SOUND, "Do Not Disturb", "Do Not Disturb turned on or off.", "Do Not Disturb"),
+            stateTrigger("dock.changed", Category.DEVICE, "Dock", "The phone is put in or taken out of a dock.", "Dock"),
+            stateTrigger("gps.changed", Category.DEVICE, "GPS", "GPS turned on or off.", "GPS"),
+            stateTrigger("nfc.changed", Category.DEVICE, "NFC", "NFC turned on or off.", "NFC"),
+            stateTrigger("torch.changed", Category.DEVICE, "Torch", "The flashlight turned on or off.", "Torch"),
+            stateTrigger(
+                "camera.inuse",
+                Category.DEVICE,
+                "Camera in use",
+                "Another app starts or stops using the camera.",
+                "Camera in use",
+            ),
+            stateTrigger("dark.changed", Category.SCREEN, "Dark theme", "Dark theme turned on or off.", "Dark theme"),
+            TriggerDef(
+                type = "orientation.changed",
+                category = Category.SCREEN,
+                title = "Screen orientation",
+                description = "The phone turns between portrait and landscape.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "to",
+                            "To",
+                            listOf(Choice("any", "Either"), Choice("portrait", "Portrait"), Choice("landscape", "Landscape")),
+                        ),
+                    ),
+                variables = listOf("orientation"),
+                sentence = { p -> if (either(p.p("to"), null)) "Screen turns" else "Screen turns to ${p.p("to")}" },
+                match = { p, e, _ -> either(p.p("to"), e["orientation"]) },
+            ),
             TriggerDef(
                 type = "ringer.changed",
                 category = Category.SOUND,
@@ -118,7 +147,166 @@ internal object Triggers {
                 },
                 match = { p, e, _ -> either(p.p("state"), e["state"]) },
             ),
+            TriggerDef(
+                type = "usb.device",
+                category = Category.CONNECTIVITY,
+                title = "USB device",
+                description = "A USB device is plugged in or removed.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "state",
+                            "When it is",
+                            listOf(Choice("any", "Either"), Choice("connected", "Plugged in"), Choice("disconnected", "Removed")),
+                        ),
+                    ),
+                variables = listOf("state", "name"),
+                sentence = { p ->
+                    when (p.p("state")) {
+                        "connected" -> "USB device plugged in"
+                        "disconnected" -> "USB device removed"
+                        else -> "USB device plugged in or removed"
+                    }
+                },
+                match = { p, e, _ -> either(p.p("state"), e["state"]) },
+            ),
+            stateTrigger("autorotate.changed", Category.SCREEN, "Auto-rotate", "Screen rotation turned on or off.", "Auto-rotate"),
+            TriggerDef(
+                type = "accessibility.changed",
+                category = Category.SETTINGS,
+                title = "Accessibility service",
+                description = "An accessibility service is turned on or off. Leave the app blank to match any service.",
+                fields =
+                    listOf(
+                        textField("package", "App package", required = false, hint = "For example com.example.app"),
+                        choiceField("state", "When it", STATE),
+                    ),
+                variables = listOf("package", "state"),
+                sentence = { p ->
+                    val who = p.p("package").ifBlank { "An accessibility service" }
+                    when (p.p("state")) {
+                        "on" -> "$who turns on"
+                        "off" -> "$who turns off"
+                        else -> "$who turns on or off"
+                    }
+                },
+                match = { p, e, _ -> (p.p("package").isEmpty() || p.p("package") == e["package"]) && either(p.p("state"), e["state"]) },
+            ),
+            TriggerDef(
+                type = "ip.changed",
+                category = Category.CONNECTIVITY,
+                title = "IP address changed",
+                description = "The phone's IP address changes, for example after switching networks.",
+                variables = listOf("address"),
+            ),
+            TriggerDef(
+                type = "app.enabled",
+                category = Category.APPS,
+                title = "App turned on or off",
+                description = "An app is turned on or off in Settings. Only apps named in a rule are watched.",
+                fields =
+                    listOf(
+                        textField("package", "App package", hint = "For example com.example.app"),
+                        choiceField("state", "When it", STATE),
+                    ),
+                variables = listOf("package", "state"),
+                sentence = { p ->
+                    when (p.p("state")) {
+                        "on" -> "${p.p("package")} turns on"
+                        "off" -> "${p.p("package")} turns off"
+                        else -> "${p.p("package")} turns on or off"
+                    }
+                },
+                match = { p, e, _ -> p.p("package") == e["package"] && either(p.p("state"), e["state"]) },
+            ),
+            TriggerDef(
+                type = "sensor.reading",
+                category = Category.SENSORS,
+                title = "Sensor reading",
+                description = "A sensor's reading crosses a value you set, such as the light level.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "sensor",
+                            "Sensor",
+                            listOf(
+                                Choice("light", "Light"),
+                                Choice("pressure", "Air pressure"),
+                                Choice("temperature", "Ambient temperature"),
+                                Choice("humidity", "Humidity"),
+                            ),
+                        ),
+                        choiceField("direction", "When it goes", listOf(Choice("above", "Above"), Choice("below", "Below"))),
+                        numberField("value", "Value"),
+                    ),
+                variables = listOf("sensor", "direction", "reading"),
+                sentence = { p -> "${p.p("sensor")} goes ${p.p("direction")} ${p.p("value")}" },
+                match = { p, e, _ ->
+                    p.p("sensor") == e["sensor"] && p.p("direction") == e["direction"] && p.p("value") == e["threshold"]
+                },
+            ),
+            TriggerDef(
+                type = "shizuku.stopped",
+                category = Category.DEVICE,
+                title = "Shizuku stopped",
+                description = "Shizuku stops running, so shell and settings actions fail until it starts again.",
+            ),
+            TriggerDef(
+                type = "volume.button",
+                category = Category.DEVICE,
+                title = "Volume button",
+                description = "A volume button is pressed. Needs the PocketPilot accessibility service.",
+                fields =
+                    listOf(
+                        choiceField("button", "Button", listOf(Choice("any", "Either"), Choice("up", "Up"), Choice("down", "Down"))),
+                    ),
+                variables = listOf("button"),
+                sentence = { p ->
+                    when (p.p("button")) {
+                        "up" -> "Volume up pressed"
+                        "down" -> "Volume down pressed"
+                        else -> "Volume button pressed"
+                    }
+                },
+                match = { p, e, _ -> either(p.p("button"), e["button"]) },
+            ),
+            TriggerDef(
+                type = "media.button",
+                category = Category.MEDIA,
+                title = "Media button",
+                description = "Play or pause, next or previous is pressed on a headset or the phone. Needs the accessibility service.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "button",
+                            "Button",
+                            listOf(
+                                Choice("any", "Any"),
+                                Choice("play_pause", "Play or pause"),
+                                Choice("next", "Next"),
+                                Choice("previous", "Previous"),
+                            ),
+                        ),
+                    ),
+                variables = listOf("button"),
+                sentence = { p -> if (either(p.p("button"), null)) "Media button pressed" else "Media ${p.p("button")} pressed" },
+                match = { p, e, _ -> either(p.p("button"), e["button"]) },
+            ),
+            TriggerDef(
+                type = "photo.taken",
+                category = Category.DEVICE,
+                title = "Photo taken",
+                description = "A photo is saved to the camera folder. Needs photo access.",
+                variables = listOf("name", "path"),
+            ),
             // Battery and power
+            TriggerDef(
+                type = "battery.temperature",
+                category = Category.BATTERY,
+                title = "Battery temperature",
+                description = "The battery's temperature changes by a whole degree.",
+                variables = listOf("celsius"),
+            ),
             TriggerDef(
                 type = "power.connected",
                 category = Category.BATTERY,

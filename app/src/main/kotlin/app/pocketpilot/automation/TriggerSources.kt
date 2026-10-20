@@ -9,14 +9,20 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
+import android.location.LocationManager
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.net.ConnectivityManager
+import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.wifi.WifiManager
+import android.nfc.NfcAdapter
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
@@ -26,16 +32,19 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.provider.Telephony
 import android.telephony.TelephonyManager
+import android.view.KeyEvent
 import androidx.core.content.ContextCompat
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.api.shell.SystemReader
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
+import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.automation.Place
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.TriggerEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import java.util.TimeZone
@@ -58,9 +67,13 @@ class TriggerSources(
     logs: SystemReader,
     /** Text messages are read in the sideload build only. */
     private val sideload: Boolean,
+    private val shizukuState: StateFlow<ShizukuState>,
     private val emit: (TriggerEvent) -> Unit,
 ) {
     private val sensors = SensorWatcher(context, emit)
+    private var addressCallback: ConnectivityManager.NetworkCallback? = null
+    private var lastAddresses: Set<String>? = null
+    private val enabledApps = HashMap<String, Boolean>()
     private val logWatcher = LogWatcher(logs, scope, hidden, emit)
     private var callReceiver: BroadcastReceiver? = null
     private var smsReceiver: BroadcastReceiver? = null
@@ -75,11 +88,22 @@ class TriggerSources(
     private val jobs = mutableListOf<Job>()
     private var lastLevel: Int? = null
     private var internetOn: Boolean? = null
+    private val hardware = HardwareWatch(context, emit)
+    private var lastOrientation: String? = null
+    private var lastDark: Boolean? = null
+    private var lastGps: Boolean? = null
+    private var lastCelsius: Int? = null
 
     @Synchronized
     fun start() {
         if (receiver != null) return
         lastLevel = phone.batteryLevel()
+        lastCelsius = null
+        context.resources.configuration.let {
+            lastOrientation = orientationOf(it)
+            lastDark = darkOf(it)
+        }
+        lastGps = gpsOn()
         receiver = systemReceiver().also { register(it, systemFilter()) }
         packageReceiver =
             packageReceiver().also {
@@ -89,6 +113,7 @@ class TriggerSources(
                         addAction(Intent.ACTION_PACKAGE_ADDED)
                         addAction(Intent.ACTION_PACKAGE_REPLACED)
                         addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)
+                        addAction(Intent.ACTION_PACKAGE_CHANGED)
                         addDataScheme("package")
                     },
                 )
@@ -96,6 +121,14 @@ class TriggerSources(
         watchNetworks()
         watchHeadsets()
         jobs += scope.launch { watchFrontApp() }
+        jobs +=
+            scope.launch {
+                var previous = shizukuState.value
+                shizukuState.collect { now ->
+                    if (previous == ShizukuState.CONNECTED && now == ShizukuState.NOT_RUNNING) emit(TriggerEvent("shizuku.stopped"))
+                    previous = now
+                }
+            }
         jobs +=
             scope.launch {
                 ListenerNotificationSource.events.collect { change ->
@@ -123,7 +156,23 @@ class TriggerSources(
         fun params(type: String) = triggers.filter { it.type == type }.map { it.params }
 
         places.watch(params("location.place").mapNotNull(Place::from))
-        sensors.watch(shake = "sensor.shake" in types, flip = "sensor.flip" in types, proximity = "sensor.proximity" in types)
+        sensors.watch(
+            shake = "sensor.shake" in types,
+            flip = "sensor.flip" in types,
+            proximity = "sensor.proximity" in types,
+            thresholds = params("sensor.reading").mapNotNull(::sensorThresholdOf),
+        )
+        hardware.watch(
+            torchOrCamera = "torch.changed" in types || "camera.inuse" in types,
+            settingsWatch = "autorotate.changed" in types || "accessibility.changed" in types,
+            photosWatch = "photo.taken" in types,
+        )
+        watchKeys("volume.button" in types || "media.button" in types)
+        watchAddresses("ip.changed" in types)
+        // An app's state is judged against the state seen when the rule started, so the first change is not missed.
+        params("app.enabled").mapNotNull { it["package"]?.trim()?.takeIf(String::isNotEmpty) }.forEach { pkg ->
+            enabledApps.getOrPut(pkg) { appEnabled(pkg) }
+        }
         logWatcher.watch(params("log.line").mapNotNull { it["text"]?.trim()?.takeIf(String::isNotEmpty) }.toSet(), "app.crash" in types)
         calendars.watch(if ("calendar.event" in types) emit else null)
         homeAssistant.watch(
@@ -147,6 +196,9 @@ class TriggerSources(
     fun stop() {
         places.watch(emptyList())
         sensors.stop()
+        hardware.stop()
+        watchKeys(false)
+        watchAddresses(false)
         logWatcher.stop()
         calendars.watch(null)
         homeAssistant.stop()
@@ -363,6 +415,12 @@ class TriggerSources(
                 Intent.ACTION_BATTERY_CHANGED,
                 Intent.ACTION_AIRPLANE_MODE_CHANGED,
                 Intent.ACTION_TIMEZONE_CHANGED,
+                Intent.ACTION_DOCK_EVENT,
+                Intent.ACTION_CONFIGURATION_CHANGED,
+                LocationManager.PROVIDERS_CHANGED_ACTION,
+                NfcAdapter.ACTION_ADAPTER_STATE_CHANGED,
+                UsbManager.ACTION_USB_DEVICE_ATTACHED,
+                UsbManager.ACTION_USB_DEVICE_DETACHED,
                 PowerManager.ACTION_POWER_SAVE_MODE_CHANGED,
                 NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED,
                 AudioManager.RINGER_MODE_CHANGED_ACTION,
@@ -409,6 +467,16 @@ class TriggerSources(
                             if (level != lastLevel) {
                                 lastLevel = level
                                 emit(TriggerEvent("battery.level", mapOf("level" to level.toString())))
+                            }
+                        }
+                        // The temperature is in tenths of a degree; the first reading only sets the baseline.
+                        val tenths = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+                        if (tenths != Int.MIN_VALUE) {
+                            val celsius = tenths / 10
+                            val previous = lastCelsius
+                            lastCelsius = celsius
+                            if (previous != null && celsius != previous) {
+                                emit(TriggerEvent("battery.temperature", mapOf("celsius" to celsius.toString())))
                             }
                         }
                     }
@@ -458,9 +526,68 @@ class TriggerSources(
                     BluetoothDevice.ACTION_ACL_CONNECTED, BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
                         bluetoothDevice(intent)
                     }
+
+                    Intent.ACTION_DOCK_EVENT -> {
+                        val docked = intent.getIntExtra(Intent.EXTRA_DOCK_STATE, Intent.EXTRA_DOCK_STATE_UNDOCKED)
+                        emit(state("dock.changed", docked != Intent.EXTRA_DOCK_STATE_UNDOCKED))
+                    }
+
+                    Intent.ACTION_CONFIGURATION_CHANGED -> {
+                        configurationChanged(context.resources.configuration)
+                    }
+
+                    LocationManager.PROVIDERS_CHANGED_ACTION -> {
+                        // Fires for every provider; the GPS state is reported only when it changes.
+                        val on = gpsOn()
+                        if (on != lastGps) {
+                            lastGps = on
+                            emit(state("gps.changed", on))
+                        }
+                    }
+
+                    NfcAdapter.ACTION_ADAPTER_STATE_CHANGED -> {
+                        when (intent.getIntExtra(NfcAdapter.EXTRA_ADAPTER_STATE, NfcAdapter.STATE_OFF)) {
+                            NfcAdapter.STATE_ON -> emit(state("nfc.changed", true))
+                            NfcAdapter.STATE_OFF -> emit(state("nfc.changed", false))
+                        }
+                    }
+
+                    UsbManager.ACTION_USB_DEVICE_ATTACHED, UsbManager.ACTION_USB_DEVICE_DETACHED -> {
+                        usbDevice(intent)
+                    }
                 }
             }
         }
+
+    private fun configurationChanged(config: Configuration) {
+        val orientation = orientationOf(config)
+        if (orientation != lastOrientation) {
+            lastOrientation = orientation
+            emit(TriggerEvent("orientation.changed", mapOf("orientation" to orientation)))
+        }
+        val dark = darkOf(config)
+        if (dark != lastDark) {
+            lastDark = dark
+            emit(state("dark.changed", dark))
+        }
+    }
+
+    private fun gpsOn(): Boolean = context.getSystemService(LocationManager::class.java).isProviderEnabled(LocationManager.GPS_PROVIDER)
+
+    private fun usbDevice(intent: Intent) {
+        val device: UsbDevice =
+            (
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+                }
+            ) ?: return
+        val attached = intent.action == UsbManager.ACTION_USB_DEVICE_ATTACHED
+        val name = device.productName ?: device.deviceName
+        emit(TriggerEvent("usb.device", mapOf("state" to if (attached) "connected" else "disconnected", "name" to name)))
+    }
 
     private fun bluetoothDevice(intent: Intent) {
         val device: BluetoothDevice =
@@ -499,6 +626,10 @@ class TriggerSources(
                 intent: Intent,
             ) {
                 val pkg = intent.data?.schemeSpecificPart ?: return
+                if (intent.action == Intent.ACTION_PACKAGE_CHANGED) {
+                    appEnabledChanged(pkg)
+                    return
+                }
                 val replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
                 val event =
                     when (intent.action) {
@@ -510,6 +641,62 @@ class TriggerSources(
                 emit(TriggerEvent("app.package", mapOf("event" to event, "package" to pkg)))
             }
         }
+
+    private fun watchKeys(on: Boolean) {
+        A11yBridge.listenToKeys(if (on) ::keyPressed else null)
+    }
+
+    /** Volume and media keys: the key-down of each press, not the repeats while it is held. */
+    private fun keyPressed(event: KeyEvent) {
+        if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return
+        when (event.keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> emit(TriggerEvent("volume.button", mapOf("button" to "up")))
+            KeyEvent.KEYCODE_VOLUME_DOWN -> emit(TriggerEvent("volume.button", mapOf("button" to "down")))
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> emit(TriggerEvent("media.button", mapOf("button" to "play_pause")))
+            KeyEvent.KEYCODE_MEDIA_NEXT -> emit(TriggerEvent("media.button", mapOf("button" to "next")))
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> emit(TriggerEvent("media.button", mapOf("button" to "previous")))
+            else -> Unit
+        }
+    }
+
+    private fun appEnabled(pkg: String): Boolean {
+        val setting = context.packageManager.getApplicationEnabledSetting(pkg)
+        return setting == PackageManager.COMPONENT_ENABLED_STATE_ENABLED || setting == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+    }
+
+    /** Reports an app turned on or off, for the apps a rule watches; other apps are not reported. */
+    private fun appEnabledChanged(pkg: String) {
+        val on = appEnabled(pkg)
+        val before = enabledApps.put(pkg, on) ?: return
+        if (before != on) emit(TriggerEvent("app.enabled", mapOf("package" to pkg, "state" to PhoneState.onOff(on))))
+    }
+
+    /** Reports the phone's address when the default network's addresses change; the first report is not a change. */
+    private fun watchAddresses(on: Boolean) {
+        val cm = context.getSystemService(ConnectivityManager::class.java)
+        if (!on) {
+            addressCallback?.let { runCatching { cm.unregisterNetworkCallback(it) } }
+            addressCallback = null
+            lastAddresses = null
+            return
+        }
+        if (addressCallback != null) return
+        addressCallback =
+            object : ConnectivityManager.NetworkCallback() {
+                override fun onLinkPropertiesChanged(
+                    network: Network,
+                    linkProperties: LinkProperties,
+                ) {
+                    val addresses = linkProperties.linkAddresses.mapNotNull { it.address?.hostAddress }.toSet()
+                    val before = lastAddresses
+                    lastAddresses = addresses
+                    if (before != null && addresses != before) {
+                        val shown = addresses.firstOrNull { !it.contains(':') } ?: addresses.firstOrNull().orEmpty()
+                        emit(TriggerEvent("ip.changed", mapOf("address" to shown)))
+                    }
+                }
+            }.also { cm.registerDefaultNetworkCallback(it) }
+    }
 
     private fun watchNetworks() {
         val cm = context.getSystemService(ConnectivityManager::class.java)
@@ -627,6 +814,11 @@ class TriggerSources(
     ) = TriggerEvent(type, mapOf("state" to PhoneState.onOff(on)))
 
     private companion object {
+        fun orientationOf(config: Configuration): String =
+            if (config.orientation == Configuration.ORIENTATION_LANDSCAPE) "landscape" else "portrait"
+
+        fun darkOf(config: Configuration): Boolean = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
         /** How long a withheld call's ring waits for the number before it is reported without one. */
         const val WITHHELD_RING_WAIT_MS = 1_500L
 

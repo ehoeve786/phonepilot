@@ -1,6 +1,7 @@
 package app.pocketpilot.capability.accessibility
 
 import android.os.SystemClock
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import app.pocketpilot.core.model.ToolErrorCode
@@ -35,6 +36,18 @@ object A11yBridge {
 
     /** The package of the last window that came to the front, for "app opened" automations. */
     val frontPackage: StateFlow<String?> = windowPackage.asStateFlow()
+
+    @Volatile
+    private var keyListener: ((KeyEvent) -> Unit)? = null
+
+    /** Receives the key presses the service sees, for the hardware-button triggers. Null stops listening. */
+    fun listenToKeys(listener: ((KeyEvent) -> Unit)?) {
+        keyListener = listener
+    }
+
+    internal fun onKey(event: KeyEvent) {
+        keyListener?.invoke(event)
+    }
 
     /** Counts screen events, so watchers can react when the screen changes. */
     val changeCount: StateFlow<Long> = changes.asStateFlow()

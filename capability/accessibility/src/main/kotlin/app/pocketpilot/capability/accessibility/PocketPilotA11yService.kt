@@ -2,6 +2,7 @@ package app.pocketpilot.capability.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 
 /**
@@ -16,6 +17,12 @@ class PocketPilotA11yService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         A11yBridge.onEvent(event)
+    }
+
+    /** Key presses are only observed, never consumed, so they reach the phone as usual. */
+    override fun onKeyEvent(event: KeyEvent): Boolean {
+        A11yBridge.onKey(event)
+        return false
     }
 
     override fun onInterrupt() = Unit

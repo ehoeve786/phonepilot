@@ -119,6 +119,8 @@ class SensorWatcher(
 ) : SensorEventListener {
     private val sensors = context.getSystemService(SensorManager::class.java)
     private var listening = emptySet<Int>()
+    private var thresholds = emptyList<SensorThreshold>()
+    private val side = HashMap<SensorThreshold, Boolean>()
     private var lastShake = 0L
     private var faceDown: Boolean? = null
     private var flipSince = 0L
@@ -132,13 +134,17 @@ class SensorWatcher(
         shake: Boolean,
         flip: Boolean,
         proximity: Boolean,
+        thresholds: List<SensorThreshold> = emptyList(),
     ) {
         watchShake = shake
         watchFlip = flip
+        this.thresholds = thresholds
+        side.keys.retainAll(thresholds.toSet())
         val wanted =
             buildSet {
                 if (shake || flip) add(Sensor.TYPE_ACCELEROMETER)
                 if (proximity) add(Sensor.TYPE_PROXIMITY)
+                thresholds.forEach { add(it.sensorType) }
             }
         if (wanted == listening) return
         sensors.unregisterListener(this)
@@ -156,6 +162,32 @@ class SensorWatcher(
         when (event.sensor.type) {
             Sensor.TYPE_ACCELEROMETER -> motion(event.values[0], event.values[1], event.values[2])
             Sensor.TYPE_PROXIMITY -> proximity(event.values[0] < event.sensor.maximumRange.coerceAtMost(NEAR_CM))
+            else -> reading(event.sensor.type, event.values[0])
+        }
+    }
+
+    /** Reports a reading crossing a threshold; the first reading only sets the side it is on. */
+    private fun reading(
+        type: Int,
+        value: Float,
+    ) {
+        for (threshold in thresholds) {
+            if (threshold.sensorType != type) continue
+            val above = value > threshold.value
+            val previous = side.put(threshold, above)
+            if (previous != null && previous != above) {
+                emit(
+                    TriggerEvent(
+                        "sensor.reading",
+                        mapOf(
+                            "sensor" to threshold.name,
+                            "direction" to if (above) "above" else "below",
+                            "threshold" to threshold.text,
+                            "reading" to "%.1f".format(value),
+                        ),
+                    ),
+                )
+            }
         }
     }
 
@@ -221,6 +253,32 @@ class SensorWatcher(
         const val FLIP_HOLD_MS = 800L
         const val NEAR_CM = 5f
     }
+}
+
+/** A "Sensor reading" trigger's threshold: [name] is the sensor, reported when the reading goes [above] [value]. */
+data class SensorThreshold(
+    val sensorType: Int,
+    val name: String,
+    val above: Boolean,
+    val value: Float,
+    val text: String,
+)
+
+private val SENSOR_TYPES =
+    mapOf(
+        "light" to Sensor.TYPE_LIGHT,
+        "pressure" to Sensor.TYPE_PRESSURE,
+        "temperature" to Sensor.TYPE_AMBIENT_TEMPERATURE,
+        "humidity" to Sensor.TYPE_RELATIVE_HUMIDITY,
+    )
+
+/** The threshold a rule's "Sensor reading" trigger sets, or null when it is incomplete or names no known sensor. */
+fun sensorThresholdOf(params: Map<String, String>): SensorThreshold? {
+    val name = params["sensor"]?.trim().orEmpty()
+    val type = SENSOR_TYPES[name] ?: return null
+    val text = params["value"]?.trim().orEmpty()
+    val value = text.toFloatOrNull() ?: return null
+    return SensorThreshold(type, name, above = params["direction"]?.trim() != "below", value = value, text = text)
 }
 
 /**
