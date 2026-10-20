@@ -473,9 +473,7 @@ class ShizukuShellRunner(
     override suspend fun run(
         command: String,
         timeoutMs: Long,
-    ): ShellResult {
-        return ShellReply.decode(shizuku.call { it.runShell(command, timeoutMs) })
-    }
+    ): ShellResult = ShellReply.decode(shizuku.call { it.runShell(command, timeoutMs) })
 }
 
 /** Read-only adb commands for `adb.query` and `adb.logs`; the privileged service checks them again. */
@@ -490,7 +488,5 @@ class ShizukuSystemReader(
         argv: List<String>,
         filter: String,
         timeoutMs: Long,
-    ): ShellResult {
-        return ShellReply.decode(shizuku.call { it.runReadOnly(argv.toTypedArray(), filter, timeoutMs) })
-    }
+    ): ShellResult = ShellReply.decode(shizuku.call { it.runReadOnly(argv.toTypedArray(), filter, timeoutMs) })
 }
