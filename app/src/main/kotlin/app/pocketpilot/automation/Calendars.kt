@@ -180,8 +180,8 @@ class Calendars(
     private fun event(
         kind: String,
         event: CalendarInstance,
-    ): TriggerEvent {
-        return TriggerEvent(
+    ): TriggerEvent =
+        TriggerEvent(
             "calendar.event",
             mapOf(
                 "event" to kind,
@@ -192,7 +192,6 @@ class Calendars(
                 "all_day" to if (event.allDay) "yes" else "no",
             ),
         )
-    }
 
     /** All-day events are stored at midnight UTC, so their date is read in UTC; timed events in the phone's zone. */
     private fun whenText(
