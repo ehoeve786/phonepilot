@@ -748,7 +748,7 @@ class AutomationEngine(
 
         /** Native actions that send data off the phone or change a calendar, which an outside event must not steer. */
         private val SENDS_OUT = setOf("http.request", "http.download", "ha.call", "calendar.add")
-        private val PLACEHOLDER = Regex("\\{[^{}]+}")
+        private val PLACEHOLDER = Regex("""\{[^{}]+\}""")
 
         /**
          * Steps an outside event may never run: they change which rules are on, which only the owner decides, or
