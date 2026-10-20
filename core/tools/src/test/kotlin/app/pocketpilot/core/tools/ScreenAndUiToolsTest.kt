@@ -147,6 +147,13 @@ class ScreenAndUiToolsTest {
         }
 
     @Test
+    fun `percent points scale to the screen`() =
+        runTest {
+            assertFalse(call("ui.swipe", """{"fromX":50,"fromY":21,"toX":50,"toY":75,"unit":"percent"}""").isError)
+            assertEquals("swipe 540,504 540,1800 300", input.calls.single())
+        }
+
+    @Test
     fun `a direction alone swipes across the middle of the screen`() =
         runTest {
             assertFalse(call("ui.swipe", """{"direction":"up"}""").isError)
