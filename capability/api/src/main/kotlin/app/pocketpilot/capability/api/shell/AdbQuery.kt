@@ -229,7 +229,10 @@ object AdbQuery {
             }
 
             "ip" -> {
-                require(args.none { it in IP_WRITES }) { "Only ip commands that show state are allowed" }
+                // iproute2 takes any prefix of a verb, so `ip link s wlan0 down` is `set`; a word that starts a write verb is refused.
+                require(args.none { word -> !word.startsWith("-") && IP_WRITES.any { it.startsWith(word) } }) {
+                    "Only ip commands that show state are allowed"
+                }
             }
 
             "ping", "ping6" -> {
@@ -251,14 +254,22 @@ object AdbQuery {
         }
     }
 
+    /** The single-letter flags in one argument, so `-dc` counts as `-d` and `-c`. */
+    private fun shortFlags(arg: String): Set<Char> =
+        if (arg.startsWith("-") && !arg.startsWith("--")) arg.drop(1).takeWhile { it.isLetter() }.toSet() else emptySet()
+
+    /** True for a logcat argument that changes the logs, whether it is written alone, bundled or with `=`. */
+    private fun refusedLogcat(arg: String): Boolean =
+        arg.substringBefore('=') in LOGCAT_REFUSED || shortFlags(arg).any { "-$it" in LOGCAT_REFUSED }
+
     /** Throws unless [argv] reads logs: `logcat -d ...`, `pidof <package>` or `dumpsys dropbox`. */
     fun checkLogs(argv: List<String>) {
         checkTokens(argv)
         val args = argv.drop(1)
         when (argv[0]) {
             "logcat" -> {
-                require("-d" in args) { "logcat needs -d so it ends" }
-                require(args.none { it.substringBefore('=') in LOGCAT_REFUSED }) { "That logcat option changes the logs" }
+                require(args.any { it == "--dump" || 'd' in shortFlags(it) }) { "logcat needs -d so it ends" }
+                require(args.none { refusedLogcat(it) }) { "That logcat option changes the logs" }
             }
 
             "pidof" -> {
