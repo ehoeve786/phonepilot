@@ -29,6 +29,7 @@ enum class SettingKey(
     SCREEN_TIMEOUT("screen_timeout", "15 to 1800 (seconds)"),
     FONT_SCALE("font_scale", "0.8 to 2.0 (1.0 is the default size)"),
     ANIMATIONS("animations", "on or off (system animations)"),
+    AMBIENT_DISPLAY("ambient_display", "on or off (show the screen while idle)"),
     ;
 
     /** [value] in canonical form, or null when this key does not accept it. */
@@ -39,7 +40,7 @@ enum class SettingKey(
                 v.takeIf { it in setOf(ON, OFF, AUTO) }
             }
 
-            WIFI, BLUETOOTH, DND, AIRPLANE_MODE, MOBILE_DATA, LOCATION, BATTERY_SAVER, STAY_AWAKE, ANIMATIONS -> {
+            WIFI, BLUETOOTH, DND, AIRPLANE_MODE, MOBILE_DATA, LOCATION, BATTERY_SAVER, STAY_AWAKE, ANIMATIONS, AMBIENT_DISPLAY -> {
                 v.takeIf { it in setOf(ON, OFF) }
             }
 

@@ -88,6 +88,10 @@ internal class SettingCommands(
             SettingKey.ANIMATIONS -> {
                 onOff(setting("global", "animator_duration_scale").toDoubleOrNull() != 0.0)
             }
+
+            SettingKey.AMBIENT_DISPLAY -> {
+                onOff(setting("secure", "doze_always_on") == "1")
+            }
         }
 
     /** [value] must already be normalized for [key]. */
@@ -179,6 +183,10 @@ internal class SettingCommands(
                 for (name in listOf("window_animation_scale", "transition_animation_scale", "animator_duration_scale")) {
                     put("global", name, scale)
                 }
+            }
+
+            SettingKey.AMBIENT_DISPLAY -> {
+                put("secure", "doze_always_on", if (value == ON) "1" else "0")
             }
         }
     }
