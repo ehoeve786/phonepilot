@@ -41,6 +41,7 @@ object AdbQuery {
 
     private val READ_VERB_PREFIXES = listOf("get", "list", "status", "query", "is-", "has-", "print", "help")
     private val SETTINGS_NAMESPACES = setOf("system", "secure", "global")
+    private val IP_READ_VERBS = setOf("show", "list", "ls", "help")
     private val IP_WRITES =
         setOf(
             "add",
@@ -231,8 +232,10 @@ object AdbQuery {
             }
 
             "ip" -> {
-                // iproute2 takes any prefix of a verb, so `ip link s wlan0 down` is `set`; a word that starts a write verb is refused.
-                require(args.none { word -> !word.startsWith("-") && IP_WRITES.any { it.startsWith(word) } }) {
+                // iproute2 takes any prefix of a verb, so `ip link s wlan0 down` is `set`. The verb is the word after the
+                // object; it is refused when it could be a write verb, unless it is exactly a read verb.
+                val verb = args.filterNot { it.startsWith("-") }.getOrNull(1)
+                require(verb == null || verb in IP_READ_VERBS || IP_WRITES.none { it.startsWith(verb) }) {
                     "Only ip commands that show state are allowed"
                 }
             }

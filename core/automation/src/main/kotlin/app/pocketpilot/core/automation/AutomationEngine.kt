@@ -100,6 +100,8 @@ class AutomationEngine(
             if (event.ruleId != null && event.ruleId != rule.id) continue
             // A rule never starts itself, or a rule that already ran in the chain that led here, by finishing.
             if (event.type == RULE_FINISHED && (event.data["ruleId"] == rule.id || rule.id in event.chain)) continue
+            // A rule that already ran in the chain of variable changes that led here does not run again.
+            if (event.type == VARIABLE_CHANGED && rule.id in event.chain) continue
             val trigger =
                 rule.triggers.firstOrNull { spec ->
                     val def = AutomationCatalog.trigger(spec.type) ?: return@firstOrNull false
@@ -170,7 +172,7 @@ class AutomationEngine(
         val vars = HashMap<String, String>()
         data.forEach { (key, value) -> vars["trigger.$key"] = value }
         val session = host.openSession(rule, toolsOf(rule), fromOutside)
-        val context = RunContext(rule, session, vars, lines, fromOutside = fromOutside)
+        val context = RunContext(rule, session, vars, lines, fromOutside = fromOutside, chain = chain)
         val outcome =
             try {
                 if (checkConstraints && !holds(context, rule.constraints)) {
@@ -488,7 +490,7 @@ class AutomationEngine(
             "var.set" -> {
                 val name = params.p("name").ifBlank { throw AutomationFailure("Give the variable a name") }
                 val value = params["value"].orEmpty()
-                if (params.p("scope") == "global") setGlobal(name, value, context.fromOutside) else context.vars[name] = value
+                if (params.p("scope") == "global") setGlobal(name, value, context) else context.vars[name] = value
             }
 
             "var.math" -> {
@@ -582,7 +584,7 @@ class AutomationEngine(
     ) {
         if (name.isBlank()) throw AutomationFailure("Give the variable a name")
         if (name !in context.vars && name in store.data.value.variables) {
-            setGlobal(name, value, context.fromOutside)
+            setGlobal(name, value, context)
         } else {
             context.vars[name] = value
         }
@@ -591,12 +593,19 @@ class AutomationEngine(
     private fun setGlobal(
         name: String,
         value: String,
-        fromOutside: Boolean,
+        context: RunContext,
     ) {
         val old = store.data.value.variables[name]
         store.setVariable(name, value)
         if (old != value) {
-            scope.launch { onEvent(TriggerEvent("variable.changed", mapOf("name" to name, "value" to value), fromOutside = fromOutside)) }
+            val event =
+                TriggerEvent(
+                    VARIABLE_CHANGED,
+                    mapOf("name" to name, "value" to value),
+                    fromOutside = context.fromOutside,
+                    chain = context.chain + context.rule.id,
+                )
+            scope.launch { onEvent(event) }
         }
     }
 
@@ -722,6 +731,8 @@ class AutomationEngine(
         val depth: Int = 0,
         /** True when another app started the run; its event data must not steer what leaves the phone. */
         val fromOutside: Boolean = false,
+        /** The rules whose runs led to this one, so a loop of variable changes stops. */
+        val chain: List<String> = emptyList(),
     )
 
     private class StopRun : RuntimeException()
@@ -731,6 +742,7 @@ class AutomationEngine(
 
     companion object {
         const val RULE_FINISHED = "rule.finished"
+        const val VARIABLE_CHANGED = "variable.changed"
 
         /** Native actions that send data off the phone or change a calendar, which an outside event must not steer. */
         private val SENDS_OUT = setOf("http.request", "http.download", "ha.call", "calendar.add")

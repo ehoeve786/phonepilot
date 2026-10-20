@@ -138,14 +138,28 @@ func (n *Node) serveWhenRunning(srv *tsnet.Server) {
 // internet as well as the tailnet on port 443; with it off, only tailnet devices can connect.
 func (n *Node) SetPublic(on bool) error {
 	n.mu.Lock()
-	defer n.mu.Unlock()
 	n.public = on
-	if n.srv == nil || n.httpSrv == nil {
+	srv := n.srv
+	if srv == nil || n.httpSrv == nil {
 		// Applied when the node comes up.
+		n.mu.Unlock()
 		return nil
 	}
 	n.closeListenerLocked()
-	err := n.listenLocked()
+	n.mu.Unlock()
+
+	// Opening the listener asks Tailscale for Funnel, so it runs without the lock; status and other calls stay responsive.
+	ln, fallback, err := openListener(srv, on)
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.srv != srv {
+		// The node stopped while the listener was opening.
+		closeIfOpen(ln)
+		closeIfOpen(fallback)
+		return nil
+	}
+	err = n.serveOpened(ln, fallback, err, on)
 	if err != nil {
 		n.lastError = err.Error()
 	}
@@ -240,23 +254,33 @@ func (n *Node) setError(msg string) {
 	n.mu.Unlock()
 }
 
+// openListener opens :443 on srv, through Funnel when public. When Funnel is refused, a tailnet listener is returned
+// as fallback so the node stays reachable on the tailnet. It does network I/O, so callers must not hold n.mu.
+func openListener(srv *tsnet.Server, public bool) (ln, fallback net.Listener, err error) {
+	if !public {
+		ln, err = srv.ListenTLS("tcp", ":443")
+		return ln, nil, err
+	}
+	ln, err = srv.ListenFunnel("tcp", ":443")
+	if err != nil {
+		fallback, _ = srv.ListenTLS("tcp", ":443")
+	}
+	return ln, fallback, err
+}
+
 // listenLocked opens :443 on the node, through Funnel when public, and serves the proxy on it.
 func (n *Node) listenLocked() error {
-	var (
-		ln  net.Listener
-		err error
-	)
-	if n.public {
-		ln, err = n.srv.ListenFunnel("tcp", ":443")
-	} else {
-		ln, err = n.srv.ListenTLS("tcp", ":443")
-	}
+	ln, fallback, err := openListener(n.srv, n.public)
+	return n.serveOpened(ln, fallback, err, n.public)
+}
+
+// serveOpened serves the listener openListener returned and records the outcome. Callers hold n.mu.
+func (n *Node) serveOpened(ln, fallback net.Listener, err error, public bool) error {
 	if err != nil {
-		if n.public {
+		if public {
 			// Funnel is not up, so the node is not public now; the owner turns it on again once Funnel works.
 			n.public = false
-			// Stay reachable on the tailnet while Funnel is blocked.
-			if fallback, ferr := n.srv.ListenTLS("tcp", ":443"); ferr == nil {
+			if fallback != nil {
 				n.serveLocked(fallback)
 			}
 		}
@@ -266,6 +290,12 @@ func (n *Node) listenLocked() error {
 	n.lastError = ""
 	go n.warmCert(n.srv)
 	return nil
+}
+
+func closeIfOpen(ln net.Listener) {
+	if ln != nil {
+		_ = ln.Close()
+	}
 }
 
 // warmCert fetches the node's HTTPS certificate now. Otherwise the first visitor waits while it is

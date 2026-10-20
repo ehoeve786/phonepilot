@@ -195,7 +195,7 @@ class TailscaleProvider(
             PublicAccessState(
                 enabled = public,
                 url = if (public && problem == null && status.optBoolean("serving")) "https://$dnsName/mcp" else null,
-                problem = if (public) problem else null,
+                problem = problem,
                 autoOffAfterMinutes = mutablePublic.value.autoOffAfterMinutes.takeUnless { public },
             )
     }

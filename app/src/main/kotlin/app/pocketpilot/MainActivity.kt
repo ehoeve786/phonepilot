@@ -581,6 +581,8 @@ class MainActivity : ComponentActivity() {
                         clientsStopped = controlOverlay.clientsStopped.collectAsStateWithLifecycle().value,
                         onAllowClients = controlOverlay::allowAgain,
                         biometricApprovals = biometricGate.enabled.collectAsStateWithLifecycle().value,
+                        screenLockMissing = !biometricGate.lockAvailable(),
+                        secretsLost = secrets.lost().isNotEmpty(),
                         onBiometricChange = { on -> if (on) biometricGate.set(true) else withOwner { biometricGate.set(false) } },
                         wireGuardState = wireGuardState,
                         auditEvents = auditEvents,

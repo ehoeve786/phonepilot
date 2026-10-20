@@ -12,8 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -33,8 +31,8 @@ const (
 // API. The WireGuard listener presents it. Keys are created on the phone and stay in its
 // app-private storage.
 type CertManager struct {
-	dir  string
-	logs *ring
+	blobs Blobs
+	logs  *ring
 
 	// Overridden by tests.
 	acmeDirectory string
@@ -52,10 +50,10 @@ type CertManager struct {
 	renewing  bool
 }
 
-// NewCertManager keeps the ACME account key and certificates in dir.
-func NewCertManager(dir string) *CertManager {
+// NewCertManager keeps the ACME account key and certificates in blobs.
+func NewCertManager(blobs Blobs) *CertManager {
 	return &CertManager{
-		dir:           dir,
+		blobs:         blobs,
 		logs:          newRing(300),
 		acmeDirectory: letsEncrypt,
 		cloudflareAPI: cloudflareAPI,
@@ -178,7 +176,11 @@ func (c *CertManager) Forget() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.cert, c.notAfter, c.lastError = nil, time.Time{}, ""
-	_ = os.RemoveAll(c.dir)
+	c.blobs.Remove(accountKeyName)
+	if c.domain != "" {
+		c.blobs.Remove(certName(c.domain))
+		c.blobs.Remove(keyName(c.domain))
+	}
 }
 
 type certStatus struct {
@@ -230,10 +232,7 @@ func (c *CertManager) getCertificate(*tls.ClientHelloInfo) (*tls.Certificate, er
 }
 
 func (c *CertManager) issue(ctx context.Context, domain, email, token string) (*tls.Certificate, time.Time, error) {
-	if err := os.MkdirAll(c.dir, 0o700); err != nil {
-		return nil, time.Time{}, err
-	}
-	accountKey, err := loadOrCreateKey(filepath.Join(c.dir, "account.key"))
+	accountKey, err := c.accountKey()
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -363,16 +362,20 @@ func (c *CertManager) save(domain string, chain [][]byte, key *ecdsa.PrivateKey)
 		return err
 	}
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-	if err := os.WriteFile(filepath.Join(c.dir, domain+".key"), keyPEM, 0o600); err != nil {
+	if err := c.blobs.Put(keyName(domain), keyPEM); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(c.dir, domain+".crt"), certPEM, 0o600)
+	return c.blobs.Put(certName(domain), certPEM)
 }
 
 func (c *CertManager) loadLocked() (*tls.Certificate, time.Time, error) { return c.loadFor(c.domain) }
 
 func (c *CertManager) loadFor(domain string) (*tls.Certificate, time.Time, error) {
-	cert, err := tls.LoadX509KeyPair(filepath.Join(c.dir, domain+".crt"), filepath.Join(c.dir, domain+".key"))
+	certPEM, keyPEM := c.blobs.Get(certName(domain)), c.blobs.Get(keyName(domain))
+	if certPEM == nil || keyPEM == nil {
+		return nil, time.Time{}, errors.New("no saved certificate for " + domain)
+	}
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -387,8 +390,9 @@ func (c *CertManager) loadFor(domain string) (*tls.Certificate, time.Time, error
 	return &cert, leaf.NotAfter, nil
 }
 
-func loadOrCreateKey(path string) (*ecdsa.PrivateKey, error) {
-	if b, err := os.ReadFile(path); err == nil {
+// accountKey returns the ACME account key, creating and saving one the first time.
+func (c *CertManager) accountKey() (*ecdsa.PrivateKey, error) {
+	if b := c.blobs.Get(accountKeyName); b != nil {
 		if block, _ := pem.Decode(b); block != nil {
 			return x509.ParseECPrivateKey(block.Bytes)
 		}
@@ -401,5 +405,5 @@ func loadOrCreateKey(path string) (*ecdsa.PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return key, os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}), 0o600)
+	return key, c.blobs.Put(accountKeyName, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}))
 }

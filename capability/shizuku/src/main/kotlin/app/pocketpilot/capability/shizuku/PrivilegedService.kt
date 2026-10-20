@@ -6,6 +6,7 @@ import app.pocketpilot.capability.api.apps.AppAdminArgs
 import app.pocketpilot.capability.api.apps.IntentArgs
 import app.pocketpilot.capability.api.settings.SettingKey
 import app.pocketpilot.capability.api.shell.AdbQuery
+import app.pocketpilot.capability.api.shell.ShellReply
 import java.io.BufferedReader
 import java.io.File
 import java.nio.file.Files
@@ -251,7 +252,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
             synchronized(
                 stdout,
             ) { stdout.toString() }.let { if (keepEnd) it.takeLast(MAX_SHELL_OUTPUT) else it.take(MAX_SHELL_OUTPUT) }
-        return "$exit\u0000$text\u0000${stderr.take(MAX_SHELL_OUTPUT)}"
+        return ShellReply.encode(exit, text, stderr.take(MAX_SHELL_OUTPUT))
     }
 
     private fun mutable(packageName: String) {

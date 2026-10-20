@@ -245,9 +245,10 @@ class ScreenCaptureTool(
                     .also { if (it.isEmpty) invalid("region must have right > left and bottom > top") }
             }
         val format = args.string("format")?.let { ImageFormat.valueOf(it.uppercase()) } ?: ImageFormat.WEBP
+        // The frame comes first and the snapshot after it, so a password field that showed in the frame is in the snapshot too.
+        val frame = capturer.capture()
         // Password fields and whatever ScreenPrivacy hid from the snapshot, such as a banking app in split screen.
         val passwords = if (reader.available.value) reader.snapshot().let { passwordBounds(it) + it.hidden } else emptyList()
-        val frame = capturer.capture()
         val image =
             pipeline.process(
                 frame,

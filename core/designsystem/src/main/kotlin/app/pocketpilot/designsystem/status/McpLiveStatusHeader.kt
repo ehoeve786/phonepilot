@@ -187,7 +187,13 @@ private fun StatusDot(
         animationSpec = infiniteRepeatable(tween(PULSE_MS), RepeatMode.Reverse),
         label = "pulse",
     )
-    val description = if (pulsing) stringResource(R.string.core_designsystem_status_acting) else phase.name
+    val description =
+        when {
+            pulsing -> stringResource(R.string.core_designsystem_status_acting)
+            phase == ServerPhase.Stopped -> stringResource(R.string.core_designsystem_status_stopped)
+            phase == ServerPhase.Idle -> stringResource(R.string.core_designsystem_status_idle)
+            else -> stringResource(R.string.core_designsystem_status_server_on)
+        }
     Box(
         Modifier
             .size(12.dp)

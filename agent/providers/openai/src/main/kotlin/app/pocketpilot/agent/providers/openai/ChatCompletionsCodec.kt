@@ -87,7 +87,8 @@ object ChatCompletionsCodec {
         val message = choice["message"] as? JsonObject ?: return listOf(malformed(body))
         val events = mutableListOf<ModelEvent>()
         decodeContent(message["content"]).takeIf { it.isNotEmpty() }?.let { events += ModelEvent.TextDelta(it) }
-        val toolCalls = (message["tool_calls"] as? JsonArray).orEmpty().mapNotNull { decodeToolCall(it, newToolCallId) }
+        // A call without a name cannot run; it is reported rather than dropped, so the run does not end as if nothing was asked.
+        val toolCalls = (message["tool_calls"] as? JsonArray).orEmpty().map { decodeToolCall(it, newToolCallId) }
         events += toolCalls
         (root["usage"] as? JsonObject)?.let { usage ->
             events +=
@@ -96,7 +97,7 @@ object ChatCompletionsCodec {
                     outputTokens = usage.int("completion_tokens"),
                 )
         }
-        events += ModelEvent.Stop(stopReason(choice.string("finish_reason"), toolCalls.isNotEmpty()))
+        events += ModelEvent.Stop(stopReason(choice.string("finish_reason"), toolCalls.any { it is ModelEvent.ToolCall }))
         return events
     }
 
@@ -243,10 +244,13 @@ object ChatCompletionsCodec {
     private fun decodeToolCall(
         element: JsonElement,
         newToolCallId: () -> String,
-    ): ModelEvent.ToolCall? {
-        val call = element as? JsonObject ?: return null
-        val function = call["function"] as? JsonObject ?: return null
-        val name = function.string("name") ?: return null
+    ): ModelEvent {
+        val call = element as? JsonObject
+        val function = call?.get("function") as? JsonObject
+        val name = function?.string("name")
+        if (call == null || function == null || name == null) {
+            return ModelEvent.Error(ModelErrorCode.SERVER, "The model asked for a tool without a name")
+        }
         // Arguments are a JSON string; a few servers send the object itself.
         val args =
             when (val arguments = function["arguments"]) {

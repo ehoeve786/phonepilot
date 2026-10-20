@@ -2,6 +2,7 @@ package app.pocketpilot.network.certificates
 
 import android.content.Context
 import app.pocketpilot.network.api.SecretStore
+import app.pocketpilot.network.gonet.gen.ppnet.Blobs
 import app.pocketpilot.network.gonet.gen.ppnet.CertManager
 import app.pocketpilot.network.gonet.gen.ppnet.Ppnet
 import kotlinx.coroutines.CoroutineScope
@@ -15,6 +16,7 @@ import org.json.JSONObject
 import java.io.File
 import java.net.Inet4Address
 import java.net.InetAddress
+import java.util.Base64
 
 /** The owner's own domain and where its certificate stands. */
 data class CertificateState(
@@ -59,11 +61,23 @@ class CertificateManager(
     /** The Go certificate store the listeners present; loading it loads the Go library. */
     val native: CertManager by lazy {
         go.Seq.setContext(appContext)
-        Ppnet.newCertManager(dir.absolutePath).also { certs ->
+        migrateFiles()
+        Ppnet.newCertManager(SecretBlobs(secrets)).also { certs ->
             val s = mutableState.value
             certs.configure(s.domain, s.email, secrets.get(SECRET_TOKEN).orEmpty())
             certs.startRenewals()
         }
+    }
+
+    /** Key and certificate files from earlier versions move into the secret store, then are deleted. */
+    private fun migrateFiles() {
+        val blobs = SecretBlobs(secrets)
+        dir.listFiles().orEmpty()
+            .filter { it.isFile && (it.name.endsWith(".key") || it.name.endsWith(".crt")) }
+            .forEach { file ->
+                blobs.put(file.name, file.readBytes())
+                file.delete()
+            }
     }
 
     /** Domain names a remote client may use to reach this phone through a relay. */
@@ -166,4 +180,28 @@ class CertificateManager(
         const val KEY_FOLLOW_RELAY = "follow_relay"
         const val SECRET_TOKEN = "cloudflare_token"
     }
+}
+
+/**
+ * Keeps the certificate material in the Keystore-backed secret store. The Go side asks for it by name, so no key is
+ * written to a plain file.
+ */
+private class SecretBlobs(
+    private val secrets: SecretStore,
+) : Blobs {
+    override fun get(name: String): ByteArray? = secrets.get(secretName(name))?.let { Base64.getDecoder().decode(it) }
+
+    override fun put(
+        name: String,
+        value: ByteArray,
+    ) {
+        secrets.put(secretName(name), Base64.getEncoder().encodeToString(value))
+    }
+
+    override fun remove(name: String) {
+        secrets.remove(secretName(name))
+    }
+
+    /** Secret names allow lowercase letters, digits and underscores only, so the file name is written in hex. */
+    private fun secretName(name: String): String = "tls_" + name.encodeToByteArray().joinToString("") { "%02x".format(it) }
 }

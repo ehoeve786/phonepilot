@@ -29,37 +29,40 @@ class ToolModeStore(
     ) {
         require(!tool.contains('=') && !tool.contains('\n')) { "Bad tool name: $tool" }
         _modes.update { if (mode == null) it - tool else it + (tool to mode) }
-        secrets.put(NAME, encode(_modes.value))
+        secrets.put(NAME, encodeToolModes(_modes.value))
     }
 
     /** Kept in the Keystore-backed store, so editing a shared-preferences file cannot unblock a tool. */
     private fun readOrMigrate(context: Context): Map<String, ToolMode> {
         val legacy = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
         if (legacy.all.isNotEmpty()) {
-            val old =
-                legacy.all
-                    .mapNotNull { (tool, value) ->
-                        ToolMode.entries.firstOrNull { it.name == value }?.let { tool to it }
-                    }.toMap()
-            if (secrets.get(NAME) == null) secrets.put(NAME, encode(old))
+            if (secrets.get(NAME) == null) secrets.put(NAME, encodeToolModes(modesFromLegacy(legacy.all)))
             legacy.edit().clear().apply()
         }
-        return decode(secrets.get(NAME).orEmpty())
+        return decodeToolModes(secrets.get(NAME).orEmpty())
     }
-
-    private fun encode(modes: Map<String, ToolMode>): String = modes.entries.joinToString("\n") { "${it.key}=${it.value.name}" }
-
-    private fun decode(text: String): Map<String, ToolMode> =
-        text
-            .lines()
-            .mapNotNull { line ->
-                val mode = ToolMode.entries.firstOrNull { it.name == line.substringAfter('=', "") }
-                val tool = line.substringBefore('=')
-                if (tool.isNotEmpty() && mode != null) tool to mode else null
-            }.toMap()
 
     private companion object {
         const val NAME = "tool_modes"
         const val LEGACY_PREFS = "tool_modes"
     }
 }
+
+/** The saved form of the modes: one `tool=MODE` line per tool. */
+internal fun encodeToolModes(modes: Map<String, ToolMode>): String = modes.entries.joinToString("\n") { "${it.key}=${it.value.name}" }
+
+/** Reads [encodeToolModes]' output; a line that is not a tool and a known mode is skipped. */
+internal fun decodeToolModes(text: String): Map<String, ToolMode> =
+    text
+        .lines()
+        .mapNotNull { line ->
+            val mode = ToolMode.entries.firstOrNull { it.name == line.substringAfter('=', "") }
+            val tool = line.substringBefore('=')
+            if (tool.isNotEmpty() && mode != null) tool to mode else null
+        }.toMap()
+
+/** The modes shared preferences held before they moved to the secret store; unknown mode names are dropped. */
+internal fun modesFromLegacy(entries: Map<String, *>): Map<String, ToolMode> =
+    entries
+        .mapNotNull { (tool, value) -> ToolMode.entries.firstOrNull { it.name == value }?.let { tool to it } }
+        .toMap()

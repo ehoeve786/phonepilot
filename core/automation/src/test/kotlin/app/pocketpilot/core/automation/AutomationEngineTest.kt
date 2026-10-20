@@ -793,6 +793,33 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a loop of variable changes runs each rule once`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(listOf(ActionStep("var.set", mapOf("name" to "x", "value" to "1", "scope" to "global"))))
+                    .copy(
+                        id = "a",
+                        triggers =
+                            listOf(
+                                TriggerSpec("intent.action", mapOf("action" to "com.example.GO")),
+                                TriggerSpec("variable.changed", mapOf("name" to "x")),
+                            ),
+                    ),
+            )
+            store.upsert(
+                rule(listOf(ActionStep("var.set", mapOf("name" to "x", "value" to "2", "scope" to "global"))))
+                    .copy(id = "b", triggers = listOf(TriggerSpec("variable.changed", mapOf("name" to "x")))),
+            )
+
+            engine(this, host, store).onEvent(TriggerEvent("intent.action", mapOf("action" to "com.example.GO")))
+            advanceUntilIdle()
+
+            assertEquals(listOf(true, true), host.outside)
+        }
+
+    @Test
     fun `an outside event cannot turn another rule on or off`() =
         runTest {
             val host = FakeHost()
