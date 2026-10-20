@@ -65,6 +65,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/vnd.pocketpilot.rule+json" />
             </intent-filter>
+            <!-- A file manager may not know the type of a .pocketpilot file, so it is matched by its name. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.pocketpilot" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.pocketpilot" />
+            </intent-filter>
         </activity>
 
         <activity
