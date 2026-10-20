@@ -85,7 +85,8 @@ class AndroidAutomationHost(
     /**
      * The owner made the rule (or accepted it), so its sensitive tools are confirmed for the run; the raw
      * shell still asks for each new command and destructive tools ask every time. A run that another app
-     * started through the "Event received" trigger gets none of that: every sensitive call asks the owner.
+     * started through the "Event received" trigger gets none of that: every sensitive call asks the owner,
+     * except the rule's fixed shell commands, which the owner saved.
      */
     override fun openSession(
         rule: Rule,
@@ -102,9 +103,11 @@ class AndroidAutomationHost(
             )
         if (!fromOutside) {
             policy.preConfirm(session.id, tools - SHELL_EXEC)
-            policy.preConfirmDetails(session.id, SHELL_EXEC, rule.fixedShellCommands())
             if (rule.startedByOwner()) policy.markOwnerStarted(session.id)
         }
+        // The fixed commands are the owner's own saved text, so they run without asking even when another app
+        // starts the rule. A command built from event data is not fixed and still asks each time.
+        policy.preConfirmDetails(session.id, SHELL_EXEC, rule.fixedShellCommands())
         return session
     }
 
