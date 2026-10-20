@@ -783,7 +783,7 @@ class AutomationEngineTest {
             )
             store.upsert(
                 rule(listOf(ActionStep("notify.post", mapOf("title" to "next"))))
-                    .copy(id = "second", triggers = listOf(TriggerSpec("rule.finished"))),
+                    .copy(id = "second", triggers = listOf(TriggerSpec("rule.finished", mapOf("rule" to "first", "outcome" to "ok")))),
             )
 
             engine(this, host, store).onEvent(TriggerEvent("sms.received", mapOf("from" to "+1555", "text" to "hi")))
