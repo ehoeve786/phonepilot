@@ -37,7 +37,8 @@ class GeminiProviderTest {
     private fun provider(
         memory: GeminiCallMemory = GeminiCallMemory(),
         reply: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
-    ) = GeminiProvider(
+    ) =
+        GeminiProvider(
             HttpClient(
                 MockEngine { request ->
                     requests += request
@@ -170,7 +171,12 @@ class GeminiProviderTest {
             val followUp = hi.copy(messages = hi.messages + Message(Role.ASSISTANT, listOf(Part.ToolCall("call_0", "tap", """{"x":1}"""))))
             provider(memory) { json(toolReply) }.stream(followUp).toList()
 
-            val echoed = bodies.last()["contents"]!!.jsonArray[1].jsonObject["parts"]!!.jsonArray[0]
+            val echoed =
+                bodies
+                    .last()["contents"]!!
+                    .jsonArray[1]
+                    .jsonObject["parts"]!!
+                    .jsonArray[0]
             assertEquals(parse("""{"functionCall":{"name":"tap","args":{"x":1}},"thoughtSignature":"sig-1"}"""), echoed)
         }
 
