@@ -185,6 +185,7 @@ class TriggerSources(
         var answered = false
         val main = Handler(Looper.getMainLooper())
         var pendingRing: Runnable? = null
+
         fun flushRing() {
             pendingRing?.let {
                 main.removeCallbacks(it)

@@ -239,8 +239,11 @@ class AutomationRuntime(
                 commands += "pm grant ${context.packageName} ${Manifest.permission.BLUETOOTH_CONNECT}"
             }
         }
-        (PERMISSIONS.filter { (prefix, _) -> types.any { it.startsWith(prefix) } }.flatMap { it.second } +
-            types.flatMap { EXACT_PERMISSIONS[it].orEmpty() })
+        val wanted =
+            PERMISSIONS
+                .filter { (prefix, _) -> types.any { it.startsWith(prefix) } }
+                .flatMap { it.second }
+        (wanted + types.flatMap { EXACT_PERMISSIONS[it].orEmpty() })
             .filter { sideload || it !in SIDELOAD_PERMISSIONS }
             .distinct()
             .filterNot(::granted)
