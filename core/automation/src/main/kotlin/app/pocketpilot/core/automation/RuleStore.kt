@@ -76,7 +76,29 @@ class RuleStore(
     ) = edit(id) { it.copy(pinned = pinned) }
 
     /** The owner accepted a proposal: it becomes an ordinary rule and loses its "Proposed by" label. */
-    fun accept(id: String) = edit(id) { it.copy(proposedBy = null, enabled = true) }
+    fun accept(id: String) {
+        rule(id)?.let { saveAccepted(it) }
+    }
+
+    /**
+     * Saves an accepted proposal, perhaps edited by the owner first. One that changes an existing rule
+     * updates that rule in place and goes away; any other becomes an ordinary rule.
+     */
+    fun saveAccepted(proposal: Rule) {
+        val accepted = proposal.copy(proposedBy = null, enabled = true, replaces = null)
+        val target = proposal.replaces?.let(::rule)
+        if (target == null) return upsert(accepted)
+        update { data ->
+            val updated = target.changedTo(accepted).copy(enabled = true)
+            data.copy(rules = data.rules.filterNot { it.id == proposal.id }.map { if (it.id == target.id) updated else it })
+        }
+    }
+
+    /** Changes rule [id] in place to [changed], keeping its id, switch, pin, creation time and last run. */
+    fun change(
+        id: String,
+        changed: Rule,
+    ) = edit(id) { it.changedTo(changed) }
 
     fun setVariable(
         name: String,
@@ -107,6 +129,17 @@ class RuleStore(
         month: String,
         usd: Double,
     ) = update { data -> data.copy(agentSpendUsd = data.agentSpendUsd + (month to (data.agentSpendUsd[month] ?: 0.0) + usd)) }
+
+    private fun Rule.changedTo(changed: Rule) =
+        changed.copy(
+            id = id,
+            enabled = enabled,
+            pinned = pinned,
+            proposedBy = proposedBy,
+            replaces = replaces,
+            createdAtMillis = createdAtMillis,
+            lastRun = lastRun,
+        )
 
     private fun edit(
         id: String,

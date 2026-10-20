@@ -375,7 +375,7 @@ class MainActivity : ComponentActivity() {
                 save = { rule ->
                     // Saving a proposal accepts it, so it gets the same check as accepting it.
                     if (automations.store.rule(rule.id)?.pending == true) {
-                        acceptGated(rule) { automations.store.upsert(rule) }
+                        acceptGated(rule) { automations.store.saveAccepted(rule) }
                     } else {
                         automations.store.upsert(rule)
                     }

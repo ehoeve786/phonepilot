@@ -20,6 +20,7 @@ import app.pocketpilot.core.automation.AutomationCatalogTool
 import app.pocketpilot.core.automation.AutomationListTool
 import app.pocketpilot.core.automation.AutomationProposeTool
 import app.pocketpilot.core.automation.AutomationRunTool
+import app.pocketpilot.core.automation.AutomationUpdateTool
 import app.pocketpilot.core.automation.FilePersistence
 import app.pocketpilot.core.automation.RuleStore
 import app.pocketpilot.core.model.PolicyProfile
@@ -165,6 +166,7 @@ object AutomationModule {
             AutomationCatalogTool(profile.shellExecAvailable),
             AutomationListTool(store),
             AutomationProposeTool(store, profile.shellExecAvailable) { notifier.proposed(it) },
+            AutomationUpdateTool(store, profile.shellExecAvailable, notifier::changed) { notifier.proposed(it) },
             AutomationRunTool(store) { runtime.get().engine },
         )
 }

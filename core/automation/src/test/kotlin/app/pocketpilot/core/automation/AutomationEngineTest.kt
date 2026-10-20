@@ -538,6 +538,57 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `an update changes the rule in place and keeps its switch, pin and id`() =
+        runTest {
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(Rule("r1", "Old", enabled = false, pinned = true, triggers = listOf(TriggerSpec("wifi.connected"))))
+            var changed: Rule? = null
+            val tool = AutomationUpdateTool(store, sideload = true, onChanged = { rule, _ -> changed = rule }, onProposed = {})
+            val session = Session(SessionId(ULID), SessionKind.MCP_CLIENT, "Claude", Scope.KNOWN, 0)
+            val result = tool.execute(ToolCall("1", SessionId(ULID), "automation.update", updateArgs("r1", "New", "setting.dnd")), session)
+            assertFalse(result.isError)
+            val saved = store.rules.single()
+            assertEquals("r1", saved.id)
+            assertEquals("New", saved.name)
+            assertFalse(saved.enabled)
+            assertTrue(saved.pinned)
+            assertEquals(null, saved.proposedBy)
+            assertEquals(saved, changed)
+        }
+
+    @Test
+    fun `an update that adds a shell command waits as a proposal that replaces the rule`() =
+        runTest {
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(Rule("r1", "Old", enabled = true, triggers = listOf(TriggerSpec("wifi.connected"))))
+            val tool = AutomationUpdateTool(store, sideload = true, onChanged = { _, _ -> error("not in place") }, onProposed = {})
+            val session = Session(SessionId(ULID), SessionKind.MCP_CLIENT, "Claude", Scope.KNOWN, 0)
+            tool.execute(ToolCall("1", SessionId(ULID), "automation.update", updateArgs("r1", "New", "shell.exec")), session)
+            val proposal = store.rules.single { it.pending }
+            assertEquals("r1", proposal.replaces)
+            assertEquals("Old", store.rule("r1")?.name)
+
+            store.accept(proposal.id)
+            val accepted = store.rules.single()
+            assertEquals("r1", accepted.id)
+            assertEquals("New", accepted.name)
+            assertFalse(accepted.pending)
+            assertEquals(null, accepted.replaces)
+        }
+
+    private fun updateArgs(
+        id: String,
+        name: String,
+        action: String,
+    ) = buildJsonObject {
+        put("id", id)
+        put("name", name)
+        put("triggers", AutomationJson.json.parseToJsonElement("""[{"type":"wifi.connected","params":{"ssid":"Office"}}]"""))
+        val params = if (action == "shell.exec") """{"command":"echo hi"}""" else """{"value":"on"}"""
+        put("actions", AutomationJson.json.parseToJsonElement("""[{"type":"$action","params":$params}]"""))
+    }
+
+    @Test
     fun `every catalog entry has a unique type and valid defaults`() {
         val types =
             AutomationCatalog.triggers.map { it.type } + AutomationCatalog.constraints.map { "c:" + it.type } +

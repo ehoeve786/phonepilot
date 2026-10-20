@@ -23,6 +23,8 @@ data class Rule(
     val pinned: Boolean = false,
     /** Set while the rule is an AI proposal waiting for the owner; cleared when it is accepted. */
     val proposedBy: String? = null,
+    /** For a proposal that changes an existing rule: that rule's id. Accepting it updates that rule in place. */
+    val replaces: String? = null,
     val createdAtMillis: Long = 0,
     val lastRun: RunSummary? = null,
 ) {
@@ -200,6 +202,9 @@ fun Rule.fixedShellCommands(): Set<String> =
         .map { it.params["command"].orEmpty().trim() }
         .filter { it.isNotEmpty() && !Placeholders.contains(it) }
         .toSet()
+
+/** Every shell command a rule runs, as written, fixed or with placeholders. */
+fun Rule.shellCommands(): List<String> = shellSteps().map { it.params["command"].orEmpty().trim() }
 
 /** True when any step runs a shell command, fixed or built from a placeholder. */
 fun Rule.usesShell(): Boolean = shellSteps().isNotEmpty()
