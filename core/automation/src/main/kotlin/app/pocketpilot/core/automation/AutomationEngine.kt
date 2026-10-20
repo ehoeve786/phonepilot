@@ -396,6 +396,9 @@ class AutomationEngine(
                 val run = RunRows.pick(snapshot, params.p("from"), params.p("to"), RunRows.dayNames(params.p("days")))
                 context.vars[params.p("into")] = if (run == null) "no" else "yes"
                 if (run != null) {
+                    // Saved for a later step, such as an announcement: "<into>_day" and "<into>_time".
+                    context.vars["${params.p("into")}_day"] = run.day
+                    context.vars["${params.p("into")}_time"] = run.time
                     callTool(context, "ui.tap", args("element" to run.element, "snapshotId" to run.snapshotId, "returnSnapshot" to false))
                 }
             }

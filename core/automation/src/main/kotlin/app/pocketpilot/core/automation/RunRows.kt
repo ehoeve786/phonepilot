@@ -1,9 +1,11 @@
 package app.pocketpilot.core.automation
 
-/** The element to tap, and the snapshot it belongs to, for [ui.tap]. */
+/** The element to tap, the snapshot it belongs to, and the day and time range it covers, such as "6:00 AM to 10:00 AM". */
 data class RunRow(
     val snapshotId: String,
     val element: String,
+    val day: String,
+    val time: String,
 )
 
 /**
@@ -14,7 +16,7 @@ data class RunRow(
 object RunRows {
     private val SNAPSHOT = Regex("""^snapshot (\S+)""")
     private val DAY = Regex("""text "(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) *"""")
-    private val ROW = Regex("""^\s*(e\d+) button desc="(\d{1,2}):(\d{2}) ([AP]M) - [^"]*".*\bclick\b""")
+    private val ROW = Regex("""^\s*(e\d+) button desc="((\d{1,2}):(\d{2}) ([AP]M) - \d{1,2}:\d{2} [AP]M)[^"]*".*\bclick\b""")
     private val DAY_CODES =
         mapOf(
             "mon" to "Monday",
@@ -51,13 +53,20 @@ object RunRows {
             if (heading != null) {
                 day = heading.groupValues[1]
             } else if (row != null && day in days) {
-                val (element, hour, minute, half) = row.destructured
-                val start = startMinutes(hour.toInt(), minute.toInt(), half)
-                if (start in earliest..latest) return RunRow(snapshotId, element)
+                val (element, range, hour, minute, half) = row.destructured
+                val startsAt = startMinutes(hour.toInt(), minute.toInt(), half)
+                if (startsAt in earliest..latest) return RunRow(snapshotId, element, day, spoken(range))
             }
         }
         return null
     }
+
+    /** "6:00 AM - 10:00 AM" as read aloud: "6:00am to 10:00am". */
+    private fun spoken(range: String): String =
+        range
+            .replace(" AM", "am")
+            .replace(" PM", "pm")
+            .replace(" - ", " to ")
 
     /** Minutes after midnight for "HH:mm", or null when it is not a time. */
     private fun minutesOf(time: String): Int? {

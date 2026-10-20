@@ -362,7 +362,9 @@ internal object Actions {
                     type = "ui.tap_run",
                     category = ui,
                     title = "Take the first open run in a time window",
-                    description = "On a schedule list, taps the first run that starts between the two times on the days you pick.",
+                    description =
+                        "On a schedule list, taps the first run that starts between the two times on the days you pick. " +
+                            "When it takes a run, it also saves the day as <into>_day and the time range as <into>_time.",
                     fields =
                         listOf(
                             FieldDef("days", "Days", FieldKind.DAYS, default = "mon,tue,wed,thu,fri"),

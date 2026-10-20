@@ -30,7 +30,7 @@ class RunRowsTest {
 
     @Test
     fun `a weekday run starting inside the window is picked by its row`() {
-        assertEquals(RunRow("a11", "e49"), RunRows.pick(snapshot("Monday"), "06:00", "15:00", weekdays))
+        assertEquals(RunRow("a11", "e49", "Monday", "6:00am to 10:00am"), RunRows.pick(snapshot("Monday"), "06:00", "15:00", weekdays))
     }
 
     @Test
@@ -42,7 +42,7 @@ class RunRowsTest {
     @Test
     fun `afternoon starts count from noon, and the window end is included`() {
         val afternoon = snapshot("Friday").replace("6:00 AM - 10:00 AM", "3:00 PM - 7:00 PM")
-        assertEquals(RunRow("a11", "e49"), RunRows.pick(afternoon, "06:00", "15:00", weekdays))
+        assertEquals(RunRow("a11", "e49", "Friday", "3:00pm to 7:00pm"), RunRows.pick(afternoon, "06:00", "15:00", weekdays))
         assertNull(RunRows.pick(afternoon, "06:00", "14:59", weekdays))
     }
 
@@ -57,7 +57,10 @@ class RunRowsTest {
 
     @Test
     fun `the days setting chooses which days count, including Sunday`() {
-        assertEquals(RunRow("a11", "e49"), RunRows.pick(snapshot("Sunday"), "06:00", "15:00", RunRows.dayNames("sun")))
+        assertEquals(
+            RunRow("a11", "e49", "Sunday", "6:00am to 10:00am"),
+            RunRows.pick(snapshot("Sunday"), "06:00", "15:00", RunRows.dayNames("sun")),
+        )
         assertNull(RunRows.pick(snapshot("Sunday"), "06:00", "15:00", RunRows.dayNames("mon, fri")))
     }
 
