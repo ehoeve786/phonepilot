@@ -23,8 +23,9 @@ class SensorReadTool(
         ToolSpec(
             name = "sensor.read",
             title = "Read a sensor",
-            description = "Reads one value from a sensor: light (lux), pressure (hPa), temperature (°C) or humidity (%). " +
-                "Returns null when the phone has no such sensor.",
+            description =
+                "Reads one value from a sensor: light (lux), pressure (hPa), temperature (°C) or humidity (%). " +
+                    "Returns null when the phone has no such sensor.",
             inputSchema =
                 schema(
                     """{"type":"object","properties":{"sensor":{"type":"string","enum":["light","pressure","temperature","humidity"]}},
