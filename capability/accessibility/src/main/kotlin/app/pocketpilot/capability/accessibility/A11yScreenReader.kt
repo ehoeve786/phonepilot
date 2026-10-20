@@ -58,7 +58,7 @@ class A11yScreenReader(
             val built =
                 SnapshotBuilder.build(
                     id,
-                    appWindow(service)?.root?.packageName?.toString(),
+                    A11yBridge.appPackage(service),
                     screenSize(service),
                     raw,
                     options,
@@ -71,7 +71,7 @@ class A11yScreenReader(
 
     override suspend fun foreground(): ForegroundApp? {
         val service = A11yBridge.require()
-        val packageName = appWindow(service)?.root?.packageName?.toString() ?: return null
+        val packageName = A11yBridge.appPackage(service) ?: return null
         return ForegroundApp(packageName, A11yBridge.windowClassOf(packageName))
     }
 
@@ -180,11 +180,6 @@ class A11yScreenReader(
         service.windows
             .filter { it.type != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY }
             .sortedByDescending { it.layer }
-
-    private fun appWindow(service: AccessibilityService): AccessibilityWindowInfo? {
-        val apps = service.windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
-        return apps.firstOrNull { it.isActive || it.isFocused } ?: apps.maxByOrNull { it.layer }
-    }
 
     internal fun screenSize(service: AccessibilityService): ScreenSize {
         val bounds = service.getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
