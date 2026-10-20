@@ -30,6 +30,7 @@ type Tunnel struct {
 	logs       *ring
 
 	mu        sync.Mutex
+	startMu   sync.Mutex // serializes Start and Stop, so a second Start cannot leave the first device running
 	dev       *device.Device
 	addresses []netip.Prefix
 	httpSrv   *http.Server
@@ -43,6 +44,8 @@ func NewTunnel(targetPort int, certs *CertManager) *Tunnel {
 
 // Start brings the tunnel up from a wg-quick config. A running tunnel is replaced.
 func (t *Tunnel) Start(config string) error {
+	t.startMu.Lock()
+	defer t.startMu.Unlock()
 	cfg, err := parseWgQuick(config)
 	if err != nil {
 		t.setError(err.Error())
@@ -54,7 +57,7 @@ func (t *Tunnel) Start(config string) error {
 		t.setError(err.Error())
 		return err
 	}
-	t.Stop()
+	t.stop()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.lastError = ""
@@ -127,6 +130,13 @@ func routeRepliesThroughServer(cfg *wgConfig) {
 
 // Stop takes the tunnel down.
 func (t *Tunnel) Stop() {
+	t.startMu.Lock()
+	defer t.startMu.Unlock()
+	t.stop()
+}
+
+// stop closes the running tunnel, if any. The caller holds startMu.
+func (t *Tunnel) stop() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.httpSrv != nil {

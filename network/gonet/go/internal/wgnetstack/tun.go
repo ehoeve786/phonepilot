@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -48,9 +49,12 @@ type netTun struct {
 	stack          *stack.Stack
 	events         chan tun.Event
 	incomingPacket chan *buffer.View
-	mtu            int
-	dnsServers     []netip.Addr
-	hasV4, hasV6   bool
+	// done is closed by Close. incomingPacket is never closed: WriteNotify may still be sending on it.
+	done         chan struct{}
+	closeOnce    sync.Once
+	mtu          int
+	dnsServers   []netip.Addr
+	hasV4, hasV6 bool
 }
 
 type Net netTun
@@ -66,6 +70,7 @@ func CreateNetTUN(localAddresses, dnsServers []netip.Addr, mtu int) (tun.Device,
 		stack:          stack.New(opts),
 		events:         make(chan tun.Event, 10),
 		incomingPacket: make(chan *buffer.View),
+		done:           make(chan struct{}),
 		dnsServers:     dnsServers,
 		mtu:            mtu,
 	}
@@ -124,8 +129,10 @@ func (t *netTun) Events() <-chan tun.Event {
 }
 
 func (t *netTun) Read(slab []byte, packets []tun.ReadPacket) (int, error) {
-	view, ok := <-t.incomingPacket
-	if !ok {
+	var view *buffer.View
+	select {
+	case view = <-t.incomingPacket:
+	case <-t.done:
 		return 0, os.ErrClosed
 	}
 
@@ -167,7 +174,10 @@ func (t *netTun) WriteNotify() {
 	view := pkt.ToView()
 	pkt.DecRef()
 
-	t.incomingPacket <- view
+	select {
+	case t.incomingPacket <- view:
+	case <-t.done:
+	}
 }
 
 func (t *netTun) Close() error {
@@ -179,9 +189,7 @@ func (t *netTun) Close() error {
 
 	t.ep.Close()
 
-	if t.incomingPacket != nil {
-		close(t.incomingPacket)
-	}
+	t.closeOnce.Do(func() { close(t.done) })
 
 	return nil
 }
