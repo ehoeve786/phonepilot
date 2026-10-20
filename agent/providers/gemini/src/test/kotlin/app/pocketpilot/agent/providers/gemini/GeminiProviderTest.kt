@@ -37,19 +37,18 @@ class GeminiProviderTest {
     private fun provider(
         memory: GeminiCallMemory = GeminiCallMemory(),
         reply: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
-    ) =
-        GeminiProvider(
-            HttpClient(
-                MockEngine { request ->
-                    requests += request
-                    val bytes = request.body.toByteArray()
-                    if (bytes.isNotEmpty()) bodies += Json.parseToJsonElement(bytes.decodeToString()).jsonObject
-                    reply(request)
-                },
-            ),
-            apiKey = "g-key",
-            memory = memory,
-        )
+    ) = GeminiProvider(
+        HttpClient(
+            MockEngine { request ->
+                requests += request
+                val bytes = request.body.toByteArray()
+                if (bytes.isNotEmpty()) bodies += Json.parseToJsonElement(bytes.decodeToString()).jsonObject
+                reply(request)
+            },
+        ),
+        apiKey = "g-key",
+        memory = memory,
+    )
 
     private fun MockRequestHandleScope.json(
         body: String,
