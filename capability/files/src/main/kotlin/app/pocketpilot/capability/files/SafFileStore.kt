@@ -148,8 +148,20 @@ class SafFileStore(
         val existing = children(parent).firstOrNull { it.name == name }
         return when {
             existing == null -> {
-                DocumentsContract.createDocument(resolver, parent.uri, mimeFor(name), name)
-                    ?: throw ToolException(ToolErrorCode.INTERNAL_ERROR, "Could not create $path")
+                val created =
+                    DocumentsContract.createDocument(resolver, parent.uri, mimeFor(name), name)
+                        ?: throw ToolException(ToolErrorCode.INTERNAL_ERROR, "Could not create $path")
+                // The provider may rename a new file to avoid a clash; then it is not the file that was asked for.
+                val actual = displayNameOf(created)
+                if (actual != name) {
+                    DocumentsContract.deleteDocument(resolver, created)
+                    throw ToolException(
+                        ToolErrorCode.INVALID_ARGUMENTS,
+                        "$path clashes with a file the provider renamed to $actual",
+                        "Pick a name nothing else in that folder uses",
+                    )
+                }
+                created
             }
 
             existing.folder -> {
@@ -257,9 +269,12 @@ class SafFileStore(
         hasFolders.value = distinct.isNotEmpty()
     }
 
-    /** Gives each tree the last part of its path as a name, numbered when two share one. */
+    /**
+     * Gives each tree the last part of its path as a name. A name already taken gets a number, and the number is
+     * taken too, so "Photos 2" never shares a name with a second "Photos".
+     */
     private fun named(uris: List<Uri>): List<SharedFolder> {
-        val seen = HashMap<String, Int>()
+        val taken = HashSet<String>()
         return uris.map { uri ->
             val base =
                 DocumentsContract
@@ -267,11 +282,20 @@ class SafFileStore(
                     .substringAfterLast(':')
                     .substringAfterLast('/')
                     .ifBlank { "Storage" }
-            val count = (seen[base] ?: 0) + 1
-            seen[base] = count
-            SharedFolder(if (count == 1) base else "$base $count", uri)
+            var name = base
+            var number = 1
+            while (!taken.add(name)) {
+                number++
+                name = "$base $number"
+            }
+            SharedFolder(name, uri)
         }
     }
+
+    private fun displayNameOf(uri: Uri): String? =
+        resolver.query(uri, arrayOf(Document.COLUMN_DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
 
     private companion object {
         const val PREFS = "shared_folders"

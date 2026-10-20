@@ -249,7 +249,17 @@ class ShizukuInputController(
 
     private fun point(target: Target): Pair<Int, Int> =
         when (target) {
-            is Target.AtPoint -> target.x to target.y
+            is Target.AtPoint -> {
+                if (target.x < 0 || target.y < 0) {
+                    throw ToolException(
+                        ToolErrorCode.INVALID_ARGUMENTS,
+                        "A tap point must be on the screen",
+                        "Use coordinates from screen.snapshot",
+                    )
+                }
+                target.x to target.y
+            }
+
             is Target.OnElement -> reader.bounds(target).let { it.centerX to it.centerY }
         }
 
@@ -339,6 +349,7 @@ class ShizukuAppAdmin(
 
     override suspend fun forceStop(packageName: String) {
         mutable(packageName)
+        AppAdminArgs.checkNotCritical(packageName)
         shizuku.call { it.forceStop(packageName) }
     }
 

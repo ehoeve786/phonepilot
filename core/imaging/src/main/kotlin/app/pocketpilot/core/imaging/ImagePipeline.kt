@@ -62,7 +62,8 @@ class ImagePipeline(
             } ?: Bounds(0, 0, frame.width, frame.height)
         require(!region.isEmpty) { "Region is outside the screen" }
         val cropped = crop(frame, region)
-        val redacted = redact(cropped, request.redact.map { it.offset(-region.left, -region.top) })
+        // A crop is a fresh copy, so redaction may paint on it; the whole frame is only copied when it was not cropped.
+        val redacted = redact(cropped, request.redact.map { it.offset(-region.left, -region.top) }, ownsPixels = cropped !== frame)
 
         val longEdge = max(redacted.width, redacted.height)
         val target =
@@ -107,10 +108,11 @@ class ImagePipeline(
     private fun redact(
         frame: Frame,
         boxes: List<Bounds>,
+        ownsPixels: Boolean,
     ): Frame {
         val visible = boxes.mapNotNull { it.clampTo(frame) }.filterNot(Bounds::isEmpty)
         if (visible.isEmpty()) return frame
-        val pixels = frame.pixels.copyOf()
+        val pixels = if (ownsPixels) frame.pixels else frame.pixels.copyOf()
         for (box in visible) {
             for (y in box.top until box.bottom) {
                 pixels.fill(OPAQUE_BLACK, y * frame.width + box.left, y * frame.width + box.right)

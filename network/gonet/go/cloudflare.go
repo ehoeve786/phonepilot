@@ -61,20 +61,33 @@ func (c *cloudflare) setA(ctx context.Context, name, ip string) error {
 		return err
 	}
 	var current *cfRecord
+	var others []string // further A records for the name; left alone they would keep sending visitors to an old address
 	for i, r := range existing {
 		if r.Type == "CNAME" || (r.Proxied != nil && *r.Proxied) {
 			return errDomainProxied
 		}
-		if r.Type == "A" && current == nil {
-			current = &existing[i]
+		if r.Type == "A" {
+			if current == nil {
+				current = &existing[i]
+			} else {
+				others = append(others, r.ID)
+			}
 		}
 	}
 	off := false
 	rec := cfRecord{Type: "A", Name: name, Content: ip, TTL: 60, Proxied: &off}
-	if current != nil {
-		return c.call(ctx, http.MethodPut, "/zones/"+zoneID+"/dns_records/"+current.ID, rec, nil)
+	if current == nil {
+		return c.call(ctx, http.MethodPost, "/zones/"+zoneID+"/dns_records", rec, nil)
 	}
-	return c.call(ctx, http.MethodPost, "/zones/"+zoneID+"/dns_records", rec, nil)
+	if err := c.call(ctx, http.MethodPut, "/zones/"+zoneID+"/dns_records/"+current.ID, rec, nil); err != nil {
+		return err
+	}
+	for _, id := range others {
+		if err := c.call(ctx, http.MethodDelete, "/zones/"+zoneID+"/dns_records/"+id, nil, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // zoneFor finds the zone holding name by trying its parent domains, longest first.

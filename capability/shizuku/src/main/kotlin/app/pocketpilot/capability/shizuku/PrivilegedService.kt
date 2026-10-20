@@ -6,6 +6,7 @@ import app.pocketpilot.capability.api.apps.AppAdminArgs
 import app.pocketpilot.capability.api.apps.IntentArgs
 import app.pocketpilot.capability.api.settings.SettingKey
 import app.pocketpilot.capability.api.shell.AdbQuery
+import java.io.BufferedReader
 import java.io.File
 import java.nio.file.Files
 import java.util.UUID
@@ -56,7 +57,14 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         run("input", "text", text.replace(" ", "%s"))
     }
 
-    override fun captureScreen(): ParcelFileDescriptor = pipe(ProcessBuilder("screencap").start())
+    override fun captureScreen(): ParcelFileDescriptor {
+        val process = ProcessBuilder("screencap").start()
+        // A screenshot that hangs must not hold its pipe open forever.
+        thread(name = "pp-capture-timeout") {
+            if (!process.waitFor(COMMAND_TIMEOUT_S, TimeUnit.SECONDS)) process.destroyForcibly()
+        }
+        return pipe(process)
+    }
 
     override fun dumpUiHierarchy(): ParcelFileDescriptor {
         // A random name, since /data/local/tmp is shared: nothing else can predict the file to plant a link at.
@@ -106,6 +114,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
 
     override fun forceStop(packageName: String) {
         mutable(packageName)
+        AppAdminArgs.checkNotCritical(packageName)
         run("am", "force-stop", packageName)
     }
 
@@ -232,7 +241,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
                     }
                 }
             }
-        val err = thread(name = "pp-shell-err") { stderr = process.errorStream.bufferedReader().readText() }
+        val err = thread(name = "pp-shell-err") { stderr = process.errorStream.bufferedReader().use { it.readCapped(MAX_SHELL_OUTPUT) } }
         val finished = process.waitFor(timeoutMs.coerceIn(1_000, MAX_SHELL_MS), TimeUnit.MILLISECONDS)
         if (!finished) process.destroyForcibly()
         out.join(STREAM_JOIN_MS)
@@ -272,6 +281,18 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         return output
     }
 
+    /** Reads at most [max] characters, draining the rest so the process never blocks on a full pipe. */
+    private fun BufferedReader.readCapped(max: Int): String {
+        val out = StringBuilder()
+        val buffer = CharArray(READ_CHUNK)
+        while (true) {
+            val n = read(buffer)
+            if (n < 0) break
+            if (out.length < max) out.append(buffer, 0, minOf(n, max - out.length))
+        }
+        return out.toString()
+    }
+
     private fun pipe(process: Process): ParcelFileDescriptor {
         val (read, write) = ParcelFileDescriptor.createPipe()
         thread(name = "pp-pipe") {
@@ -292,6 +313,7 @@ class PrivilegedService() : IPocketPilotPrivileged.Stub() {
         const val VERSION = 7
 
         private const val COMMAND_TIMEOUT_S = 15L
+        private const val READ_CHUNK = 4096
         private const val MAX_GESTURE_MS = 10_000L
         private const val MAX_KEYS = 256
         private const val MAX_KEYCODE = 400
