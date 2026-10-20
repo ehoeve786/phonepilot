@@ -555,7 +555,14 @@ internal object Actions {
                             choiceField(
                                 "stream",
                                 "Play through",
-                                listOf(Choice("media", "Media volume"), Choice("alarm", "Alarm volume")),
+                                listOf(
+                                    Choice("media", "Media / music"),
+                                    Choice("alarm", "Alarm"),
+                                    Choice("ringer", "Ringer"),
+                                    Choice("notification", "Notification"),
+                                    Choice("system", "System"),
+                                    Choice("call", "Voice call"),
+                                ),
                             ),
                         ),
                     tier = RiskTier.READ,

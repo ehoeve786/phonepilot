@@ -178,7 +178,7 @@ class AndroidAutomationHost(
 
             "media.control" -> media(params["command"].orEmpty())
 
-            "speak" -> speak(params["text"].orEmpty(), params["stream"] == "alarm")
+            "speak" -> speak(params["text"].orEmpty(), params["stream"].orEmpty())
 
             "vibrate" -> vibrate(params["ms"]?.toLongOrNull() ?: DEFAULT_VIBRATE_MS)
 
@@ -238,7 +238,7 @@ class AndroidAutomationHost(
 
     private suspend fun speak(
         text: String,
-        alarm: Boolean,
+        stream: String,
     ) {
         if (text.isBlank()) return
         val engine = tts ?: startTts().also { tts = it }
@@ -246,7 +246,7 @@ class AndroidAutomationHost(
         engine.setAudioAttributes(
             AudioAttributes
                 .Builder()
-                .setUsage(if (alarm) AudioAttributes.USAGE_ALARM else AudioAttributes.USAGE_MEDIA)
+                .setUsage(speechUsage(stream))
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                 .build(),
         )
@@ -272,6 +272,17 @@ class AndroidAutomationHost(
             }
         }
     }
+
+    /** The audio usage that plays speech through the stream the rule's Play through setting names. */
+    private fun speechUsage(stream: String): Int =
+        when (stream) {
+            "alarm" -> AudioAttributes.USAGE_ALARM
+            "ringer" -> AudioAttributes.USAGE_NOTIFICATION_RINGTONE
+            "notification" -> AudioAttributes.USAGE_NOTIFICATION
+            "system" -> AudioAttributes.USAGE_ASSISTANCE_SONIFICATION
+            "call" -> AudioAttributes.USAGE_VOICE_COMMUNICATION
+            else -> AudioAttributes.USAGE_MEDIA
+        }
 
     private suspend fun startTts(): TextToSpeech =
         withContext(Dispatchers.Main) {
