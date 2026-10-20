@@ -193,16 +193,14 @@ class PolicyEngineTest {
         }
 
     @Test
-    fun `a run the owner started shows no overlay`() =
+    fun `an automation run shows no overlay, an agent run does`() =
         runTest {
             val engine = engine()
             val run = Session(SessionId("01JA0000000000000000000001"), SessionKind.AUTOMATION, "Rule", Scope.KNOWN, 0)
-            engine.markOwnerStarted(run.id)
             assertEquals(Decision.Allow, engine.before(run, tap))
             assertEquals(emptyList(), acting)
-            engine.endSession(run.id)
-            engine.before(run, tap)
-            assertEquals(listOf("Rule"), acting, "the mark ends with the run")
+            engine.before(session, tap)
+            assertEquals(listOf("Claude"), acting, "an agent or client still shows the overlay")
         }
 
     @Test
