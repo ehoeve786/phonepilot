@@ -118,6 +118,9 @@ func (c *wgConfig) set(key, value string) (err error) {
 		}
 	case "mtu":
 		c.MTU, err = strconv.Atoi(value)
+		if err == nil && (c.MTU < minMTU || c.MTU > maxMTU) {
+			err = fmt.Errorf("MTU %d is outside %d to %d", c.MTU, minMTU, maxMTU)
+		}
 	case "listenport":
 		c.ListenPort, err = strconv.Atoi(value)
 	}
@@ -182,10 +185,17 @@ func (c *wgConfig) uapi(resolve func(hostport string) (netip.AddrPort, error)) (
 	return b.String(), nil
 }
 
+// The MTUs a tunnel may use; anything else is refused rather than handed to the stack.
+const (
+	minMTU = 576
+	maxMTU = 9000
+)
+
 func parseKey(s string) ([]byte, error) {
 	k, err := base64.StdEncoding.DecodeString(s)
 	if err != nil || len(k) != 32 {
-		return nil, fmt.Errorf("%q is not a WireGuard key", abbreviate(s))
+		// The value is left out: a mistyped key is still a key.
+		return nil, fmt.Errorf("not a WireGuard key: want 32 bytes in base64")
 	}
 	return k, nil
 }
@@ -209,12 +219,4 @@ func splitList(s string) []string {
 		}
 	}
 	return out
-}
-
-// abbreviate keeps error messages from echoing secrets in full.
-func abbreviate(s string) string {
-	if len(s) > 6 {
-		return s[:6] + "…"
-	}
-	return s
 }

@@ -41,7 +41,6 @@ class OpenAiProvider(
     private val extraHeaders: Map<String, String> = emptyMap(),
 ) : ModelProvider {
     private val baseUrl = baseUrl.trimEnd('/')
-    private val toolCallIds = AtomicLong()
 
     /**
      * Lists the models from `GET /models`. Throws [IOException] when the request fails, with the same
@@ -91,5 +90,8 @@ class OpenAiProvider(
 
     companion object {
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
+
+        /** Shared by every instance: key rotation and fallbacks make new providers mid-conversation. */
+        private val toolCallIds = AtomicLong()
     }
 }
