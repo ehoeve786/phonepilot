@@ -72,7 +72,9 @@ class CertificateManager(
     /** Key and certificate files from earlier versions move into the secret store, then are deleted. */
     private fun migrateFiles() {
         val blobs = SecretBlobs(secrets)
-        dir.listFiles().orEmpty()
+        dir
+            .listFiles()
+            .orEmpty()
             .filter { it.isFile && (it.name.endsWith(".key") || it.name.endsWith(".crt")) }
             .forEach { file ->
                 blobs.put(file.name, file.readBytes())
