@@ -9,6 +9,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
+import android.location.LocationManager
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
@@ -17,6 +21,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.wifi.WifiManager
+import android.nfc.NfcAdapter
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
@@ -75,11 +80,22 @@ class TriggerSources(
     private val jobs = mutableListOf<Job>()
     private var lastLevel: Int? = null
     private var internetOn: Boolean? = null
+    private val hardware = HardwareWatch(context, emit)
+    private var lastOrientation: String? = null
+    private var lastDark: Boolean? = null
+    private var lastGps: Boolean? = null
+    private var lastCelsius: Int? = null
 
     @Synchronized
     fun start() {
         if (receiver != null) return
         lastLevel = phone.batteryLevel()
+        lastCelsius = null
+        context.resources.configuration.let {
+            lastOrientation = orientationOf(it)
+            lastDark = darkOf(it)
+        }
+        lastGps = gpsOn()
         receiver = systemReceiver().also { register(it, systemFilter()) }
         packageReceiver =
             packageReceiver().also {
@@ -141,6 +157,7 @@ class TriggerSources(
             mediaWatch = null
         }
         watchScreenText(params("screen.text").mapNotNull { it["text"]?.trim()?.takeIf(String::isNotEmpty) }.toSet())
+        if ("torch.changed" in types || "camera.inuse" in types) hardware.start() else hardware.stop()
     }
 
     @Synchronized
@@ -158,6 +175,7 @@ class TriggerSources(
         mediaWatch = null
         screenText?.second?.cancel()
         screenText = null
+        hardware.stop()
         listOfNotNull(receiver, packageReceiver).forEach { runCatching { context.unregisterReceiver(it) } }
         receiver = null
         packageReceiver = null
@@ -363,6 +381,12 @@ class TriggerSources(
                 Intent.ACTION_BATTERY_CHANGED,
                 Intent.ACTION_AIRPLANE_MODE_CHANGED,
                 Intent.ACTION_TIMEZONE_CHANGED,
+                Intent.ACTION_DOCK_EVENT,
+                Intent.ACTION_CONFIGURATION_CHANGED,
+                LocationManager.PROVIDERS_CHANGED_ACTION,
+                NfcAdapter.ACTION_ADAPTER_STATE_CHANGED,
+                UsbManager.ACTION_USB_DEVICE_ATTACHED,
+                UsbManager.ACTION_USB_DEVICE_DETACHED,
                 PowerManager.ACTION_POWER_SAVE_MODE_CHANGED,
                 NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED,
                 AudioManager.RINGER_MODE_CHANGED_ACTION,
@@ -409,6 +433,16 @@ class TriggerSources(
                             if (level != lastLevel) {
                                 lastLevel = level
                                 emit(TriggerEvent("battery.level", mapOf("level" to level.toString())))
+                            }
+                        }
+                        // The temperature is in tenths of a degree; the first reading only sets the baseline.
+                        val tenths = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+                        if (tenths != Int.MIN_VALUE) {
+                            val celsius = tenths / 10
+                            val previous = lastCelsius
+                            lastCelsius = celsius
+                            if (previous != null && celsius != previous) {
+                                emit(TriggerEvent("battery.temperature", mapOf("celsius" to celsius.toString())))
                             }
                         }
                     }
@@ -458,9 +492,68 @@ class TriggerSources(
                     BluetoothDevice.ACTION_ACL_CONNECTED, BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
                         bluetoothDevice(intent)
                     }
+
+                    Intent.ACTION_DOCK_EVENT -> {
+                        val docked = intent.getIntExtra(Intent.EXTRA_DOCK_STATE, Intent.EXTRA_DOCK_STATE_UNDOCKED)
+                        emit(state("dock.changed", docked != Intent.EXTRA_DOCK_STATE_UNDOCKED))
+                    }
+
+                    Intent.ACTION_CONFIGURATION_CHANGED -> {
+                        configurationChanged(context.resources.configuration)
+                    }
+
+                    LocationManager.PROVIDERS_CHANGED_ACTION -> {
+                        // Fires for every provider; the GPS state is reported only when it changes.
+                        val on = gpsOn()
+                        if (on != lastGps) {
+                            lastGps = on
+                            emit(state("gps.changed", on))
+                        }
+                    }
+
+                    NfcAdapter.ACTION_ADAPTER_STATE_CHANGED -> {
+                        when (intent.getIntExtra(NfcAdapter.EXTRA_ADAPTER_STATE, NfcAdapter.STATE_OFF)) {
+                            NfcAdapter.STATE_ON -> emit(state("nfc.changed", true))
+                            NfcAdapter.STATE_OFF -> emit(state("nfc.changed", false))
+                        }
+                    }
+
+                    UsbManager.ACTION_USB_DEVICE_ATTACHED, UsbManager.ACTION_USB_DEVICE_DETACHED -> {
+                        usbDevice(intent)
+                    }
                 }
             }
         }
+
+    private fun configurationChanged(config: Configuration) {
+        val orientation = orientationOf(config)
+        if (orientation != lastOrientation) {
+            lastOrientation = orientation
+            emit(TriggerEvent("orientation.changed", mapOf("orientation" to orientation)))
+        }
+        val dark = darkOf(config)
+        if (dark != lastDark) {
+            lastDark = dark
+            emit(state("dark.changed", dark))
+        }
+    }
+
+    private fun gpsOn(): Boolean = context.getSystemService(LocationManager::class.java).isProviderEnabled(LocationManager.GPS_PROVIDER)
+
+    private fun usbDevice(intent: Intent) {
+        val device: UsbDevice =
+            (
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+                }
+            ) ?: return
+        val attached = intent.action == UsbManager.ACTION_USB_DEVICE_ATTACHED
+        val name = device.productName ?: device.deviceName
+        emit(TriggerEvent("usb.device", mapOf("state" to if (attached) "connected" else "disconnected", "name" to name)))
+    }
 
     private fun bluetoothDevice(intent: Intent) {
         val device: BluetoothDevice =
@@ -627,6 +720,12 @@ class TriggerSources(
     ) = TriggerEvent(type, mapOf("state" to PhoneState.onOff(on)))
 
     private companion object {
+        fun orientationOf(config: Configuration): String =
+            if (config.orientation == Configuration.ORIENTATION_LANDSCAPE) "landscape" else "portrait"
+
+        fun darkOf(config: Configuration): Boolean =
+            config.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+
         /** How long a withheld call's ring waits for the number before it is reported without one. */
         const val WITHHELD_RING_WAIT_MS = 1_500L
 

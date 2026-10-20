@@ -73,6 +73,35 @@ internal object Triggers {
             TriggerDef("screen.unlocked", Category.DEVICE, "Phone unlocked", "You unlocked the phone."),
             stateTrigger("airplane.changed", Category.DEVICE, "Airplane mode", "Airplane mode turned on or off.", "Airplane mode"),
             stateTrigger("dnd.changed", Category.SOUND, "Do Not Disturb", "Do Not Disturb turned on or off.", "Do Not Disturb"),
+            stateTrigger("dock.changed", Category.DEVICE, "Dock", "The phone is put in or taken out of a dock.", "Dock"),
+            stateTrigger("gps.changed", Category.DEVICE, "GPS", "GPS turned on or off.", "GPS"),
+            stateTrigger("nfc.changed", Category.DEVICE, "NFC", "NFC turned on or off.", "NFC"),
+            stateTrigger("torch.changed", Category.DEVICE, "Torch", "The flashlight turned on or off.", "Torch"),
+            stateTrigger(
+                "camera.inuse",
+                Category.DEVICE,
+                "Camera in use",
+                "Another app starts or stops using the camera.",
+                "Camera in use",
+            ),
+            stateTrigger("dark.changed", Category.SCREEN, "Dark theme", "Dark theme turned on or off.", "Dark theme"),
+            TriggerDef(
+                type = "orientation.changed",
+                category = Category.SCREEN,
+                title = "Screen orientation",
+                description = "The phone turns between portrait and landscape.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "to",
+                            "To",
+                            listOf(Choice("any", "Either"), Choice("portrait", "Portrait"), Choice("landscape", "Landscape")),
+                        ),
+                    ),
+                variables = listOf("orientation"),
+                sentence = { p -> if (either(p.p("to"), null)) "Screen turns" else "Screen turns to ${p.p("to")}" },
+                match = { p, e, _ -> either(p.p("to"), e["orientation"]) },
+            ),
             TriggerDef(
                 type = "ringer.changed",
                 category = Category.SOUND,
@@ -118,7 +147,37 @@ internal object Triggers {
                 },
                 match = { p, e, _ -> either(p.p("state"), e["state"]) },
             ),
+            TriggerDef(
+                type = "usb.device",
+                category = Category.CONNECTIVITY,
+                title = "USB device",
+                description = "A USB device is plugged in or removed.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "state",
+                            "When it is",
+                            listOf(Choice("any", "Either"), Choice("connected", "Plugged in"), Choice("disconnected", "Removed")),
+                        ),
+                    ),
+                variables = listOf("state", "name"),
+                sentence = { p ->
+                    when (p.p("state")) {
+                        "connected" -> "USB device plugged in"
+                        "disconnected" -> "USB device removed"
+                        else -> "USB device plugged in or removed"
+                    }
+                },
+                match = { p, e, _ -> either(p.p("state"), e["state"]) },
+            ),
             // Battery and power
+            TriggerDef(
+                type = "battery.temperature",
+                category = Category.BATTERY,
+                title = "Battery temperature",
+                description = "The battery's temperature changes by a whole degree.",
+                variables = listOf("celsius"),
+            ),
             TriggerDef(
                 type = "power.connected",
                 category = Category.BATTERY,
