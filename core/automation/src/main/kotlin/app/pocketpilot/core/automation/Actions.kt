@@ -162,6 +162,16 @@ internal object Actions {
                     sentence = { p -> "Open ${p.p("url")}" },
                 ),
                 ActionDef(
+                    type = "app.list",
+                    category = Category.APPS,
+                    title = "List installed apps",
+                    description = "Lists the apps with a launcher icon, as text, in a variable.",
+                    fields = listOf(textField("filter", "Name or package contains", required = false), INTO),
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Tool("app.list") { p -> args("filter" to p.p("filter")) },
+                    sentence = { p -> if (p.p("filter").isEmpty()) "List installed apps" else "List apps matching ${p.p("filter")}" },
+                ),
+                ActionDef(
                     type = "app.stop",
                     category = Category.APPS,
                     title = "Force stop an app",
