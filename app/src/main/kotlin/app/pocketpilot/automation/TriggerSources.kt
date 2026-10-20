@@ -818,7 +818,7 @@ class TriggerSources(
             if (config.orientation == Configuration.ORIENTATION_LANDSCAPE) "landscape" else "portrait"
 
         fun darkOf(config: Configuration): Boolean =
-            config.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            (config.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
         /** How long a withheld call's ring waits for the number before it is reported without one. */
         const val WITHHELD_RING_WAIT_MS = 1_500L
