@@ -73,4 +73,5 @@ pocketpilot-android-library = { id = "pocketpilot.android.library" }
 pocketpilot-android-library-compose = { id = "pocketpilot.android.library.compose" }
 pocketpilot-hilt = { id = "pocketpilot.hilt" }
 pocketpilot-jvm-library = { id = "pocketpilot.jvm.library" }
+pocketpilot-kotlin-serialization = { id = "pocketpilot.kotlin.serialization" }
 pocketpilot-module-graph = { id = "pocketpilot.module.graph" }
