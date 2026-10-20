@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -129,7 +130,27 @@ internal fun SettingsScreen(
                 logs = actions.remoteActions.logs,
             )
             ownNetworkCard()
-            ClientsCard(state.clients, actions.onRevokeClient, actions.onKillSwitch)
+            // Revokes every client and stops the tunnel, so it asks first, as the Home screen's kill switch does.
+            var confirmKill by rememberSaveable { mutableStateOf(false) }
+            ClientsCard(state.clients, actions.onRevokeClient, onKillSwitch = { confirmKill = true })
+            if (confirmKill) {
+                AlertDialog(
+                    onDismissRequest = { confirmKill = false },
+                    title = { Text(stringResource(R.string.nav_kill_switch_title)) },
+                    text = { Text(stringResource(R.string.nav_kill_switch_text)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            confirmKill = false
+                            actions.onKillSwitch()
+                        }) {
+                            Text(stringResource(R.string.nav_kill_switch_confirm), color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirmKill = false }) { Text(stringResource(R.string.nav_cancel)) }
+                    },
+                )
+            }
             TokenCard(state.token, state.eventKey, actions.onRotateToken)
             FoldersCard(state.sharedFolders, actions.onAddFolder, actions.onRemoveFolder)
             BiometricCard(state.biometricApprovals, actions.onBiometricChange)

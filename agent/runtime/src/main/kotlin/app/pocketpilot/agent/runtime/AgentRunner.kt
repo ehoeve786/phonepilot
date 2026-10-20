@@ -260,6 +260,10 @@ class AgentRun internal constructor(
             // The owner took over while the model was thinking: its plan is for a screen that may be
             // gone, so drop it and plan again after the takeover.
             if (paused.value) continue
+            // Neither text nor a tool call: the provider blocked the reply, or it came back empty. That is not a finish.
+            if (reply.text.isBlank() && reply.calls.isEmpty()) {
+                return RunStatus.FAILED to "The model gave an empty reply (stop reason: ${reply.stop.name.lowercase()})"
+            }
 
             val done =
                 when (model.toolMode) {

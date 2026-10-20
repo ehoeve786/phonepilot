@@ -55,7 +55,11 @@ class ImagePipeline(
         frame: Frame,
         request: CaptureRequest = CaptureRequest(),
     ): EncodedImage {
-        val region = request.region?.clampTo(frame) ?: Bounds(0, 0, frame.width, frame.height)
+        // A region that misses the screen is an error, not a request for the whole screen.
+        val region =
+            request.region?.let { requested ->
+                requested.clampTo(frame) ?: throw IllegalArgumentException("Region is outside the screen")
+            } ?: Bounds(0, 0, frame.width, frame.height)
         require(!region.isEmpty) { "Region is outside the screen" }
         val cropped = crop(frame, region)
         val redacted = redact(cropped, request.redact.map { it.offset(-region.left, -region.top) })

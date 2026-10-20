@@ -186,6 +186,8 @@ data class TriggerEvent(
     val ruleId: String? = null,
     /** Set when the event came from a run another app started, so the rules it starts get none of the owner's pre-approvals. */
     val fromOutside: Boolean = false,
+    /** For a rule.finished event: the rules whose finishing led to this one, so a loop of rules stops. */
+    val chain: List<String> = emptyList(),
 )
 
 /**

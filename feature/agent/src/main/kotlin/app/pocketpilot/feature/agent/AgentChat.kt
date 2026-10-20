@@ -100,7 +100,12 @@ fun AgentChat(
     val viewing = viewingId?.let { id -> earlier.firstOrNull { it.id == id } }
     val live = current?.takeIf { it.conversation && it.id != hiddenId }
     val shown = viewing ?: live
-    val profile = profiles.firstOrNull { it.id == profileId } ?: profiles.firstOrNull()
+    // A chat that is still open keeps the model it started with, so the header shows that model, not the picker's.
+    val openChatModel = live?.takeIf { it.open }?.model
+    val profile =
+        profiles.firstOrNull { it.model == openChatModel }
+            ?: profiles.firstOrNull { it.id == profileId }
+            ?: profiles.firstOrNull()
     val working = live?.active == true
 
     fun send(prompt: String) {
@@ -109,6 +114,8 @@ fun AgentChat(
         if (live?.status != RunStatus.WAITING || !actions.send(text)) {
             hiddenId = null
             actions.start(text, profile.id, allowSettings, useFallbacks && profiles.size > 1)
+            // Settings access is for the chat it was chosen for, not every chat after it.
+            allowSettings = false
         }
     }
 

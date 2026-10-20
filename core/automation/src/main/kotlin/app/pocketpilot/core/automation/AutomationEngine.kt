@@ -98,8 +98,8 @@ class AutomationEngine(
         for (rule in store.rules) {
             if (!rule.enabled || rule.pending) continue
             if (event.ruleId != null && event.ruleId != rule.id) continue
-            // A rule never starts itself by finishing.
-            if (event.type == RULE_FINISHED && event.data["ruleId"] == rule.id) continue
+            // A rule never starts itself, or a rule that already ran in the chain that led here, by finishing.
+            if (event.type == RULE_FINISHED && (event.data["ruleId"] == rule.id || rule.id in event.chain)) continue
             val trigger =
                 rule.triggers.firstOrNull { spec ->
                     val def = AutomationCatalog.trigger(spec.type) ?: return@firstOrNull false
@@ -113,7 +113,13 @@ class AutomationEngine(
                             )
                         }.getOrDefault(false)
                 } ?: continue
-            start(rule, Describe.trigger(trigger), event.data, fromOutside = event.fromOutside || event.type in OUTSIDE_EVENTS)
+            start(
+                rule,
+                Describe.trigger(trigger),
+                event.data,
+                fromOutside = event.fromOutside || event.type in OUTSIDE_EVENTS,
+                chain = event.chain,
+            )
         }
     }
 
@@ -124,12 +130,13 @@ class AutomationEngine(
         data: Map<String, String> = emptyMap(),
         checkConstraints: Boolean = true,
         fromOutside: Boolean = false,
+        chain: List<String> = emptyList(),
     ): Boolean {
         if (jobs.containsKey(rule.id)) return false
         val job =
             scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
                 try {
-                    run(rule, reason, data, checkConstraints, fromOutside)
+                    run(rule, reason, data, checkConstraints, fromOutside, chain)
                 } finally {
                     jobs.remove(rule.id)
                     runningIds.update { it - rule.id }
@@ -156,6 +163,7 @@ class AutomationEngine(
         data: Map<String, String> = emptyMap(),
         checkConstraints: Boolean = true,
         fromOutside: Boolean = false,
+        chain: List<String> = emptyList(),
     ): RunRecord {
         val started = clock.nowMillis()
         val lines = mutableListOf<String>()
@@ -208,6 +216,7 @@ class AutomationEngine(
                     RULE_FINISHED,
                     mapOf("ruleId" to rule.id, "outcome" to if (outcome == RunOutcome.OK) "ok" else "failed"),
                     fromOutside = fromOutside,
+                    chain = chain + rule.id,
                 ),
             )
         }
@@ -222,8 +231,11 @@ class AutomationEngine(
 
     private suspend fun runAgent(context: RunContext) {
         // The variables come from the phone and other apps, so they go in as data the agent must not follow.
+        // Only the ones the prompt names go to the AI provider.
+        val prompt = context.rule.agentPrompt
         val variables =
             context.vars.entries
+                .filter { (key, _) -> "{$key}" in prompt }
                 .joinToString("\n") { (key, value) -> "$key: $value" }
                 .replace(UNTRUSTED_TAG, "untrusted-data")
         val task =
@@ -724,8 +736,11 @@ class AutomationEngine(
         private val SENDS_OUT = setOf("http.request", "http.download", "ha.call", "calendar.add")
         private const val TRIGGER_PLACEHOLDER = "{trigger."
 
-        /** Steps an outside event may never run: they change which rules are on, which only the owner decides. */
-        private val OUTSIDE_REFUSED = setOf("flow.set_rule")
+        /**
+         * Steps an outside event may never run: they change which rules are on, which only the owner decides, or
+         * they hand the AI a task the event wrote.
+         */
+        private val OUTSIDE_REFUSED = setOf("flow.set_rule", "agent.ask")
 
         /** The "Event received" trigger, which any app can send. */
         const val INTENT_RECEIVED = "intent.received"
