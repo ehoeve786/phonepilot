@@ -248,13 +248,15 @@ object AppModule {
     @Singleton
     fun shellSwitch(
         @ApplicationContext context: Context,
-    ): ShellSwitch = ShellSwitch(context)
+        secrets: SecretStore,
+    ): ShellSwitch = ShellSwitch(context, secrets)
 
     @Provides
     @Singleton
     fun biometricGate(
         @ApplicationContext context: Context,
-    ): BiometricGate = BiometricGate(context)
+        secrets: SecretStore,
+    ): BiometricGate = BiometricGate(context, secrets)
 
     /**
      * Permissions, app ops, package state, intents and read-only adb commands through fixed Shizuku
@@ -463,7 +465,8 @@ object AppModule {
     @Singleton
     fun toolModeStore(
         @ApplicationContext context: Context,
-    ): ToolModeStore = ToolModeStore(context)
+        secrets: SecretStore,
+    ): ToolModeStore = ToolModeStore(context, secrets)
 
     @Provides
     @Singleton

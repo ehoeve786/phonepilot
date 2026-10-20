@@ -2,6 +2,7 @@ package app.pocketpilot.network.tailscale
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import app.pocketpilot.network.api.NetworkProvider
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.PublicAccess
@@ -74,8 +75,9 @@ class TailscaleProvider(
                     node.setPublic(mutablePublic.value.enabled)
                     node.start("")
                 } catch (e: Throwable) {
-                    // Errors too: a missing native library is an UnsatisfiedLinkError.
-                    mutableState.value = NetworkState.Error(e.message ?: e.toString(), e.stackTraceToString())
+                    // Errors too: a missing native library is an UnsatisfiedLinkError. The stack trace goes to logcat only.
+                    Log.e(TAG, "Tailscale failed to start", e)
+                    mutableState.value = NetworkState.Error(e.message ?: e.toString())
                     return@launch
                 }
                 while (isActive) {
@@ -199,6 +201,7 @@ class TailscaleProvider(
     }
 
     private companion object {
+        const val TAG = "Tailscale"
         const val PREFS = "network_tailscale"
         const val KEY_ENABLED = "enabled"
         const val KEY_PUBLIC = "public"
