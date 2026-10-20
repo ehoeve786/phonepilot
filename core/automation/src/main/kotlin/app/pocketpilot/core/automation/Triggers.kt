@@ -170,6 +170,87 @@ internal object Triggers {
                 },
                 match = { p, e, _ -> either(p.p("state"), e["state"]) },
             ),
+            stateTrigger("autorotate.changed", Category.SCREEN, "Auto-rotate", "Screen rotation turned on or off.", "Auto-rotate"),
+            TriggerDef(
+                type = "accessibility.changed",
+                category = Category.SETTINGS,
+                title = "Accessibility service",
+                description = "An accessibility service is turned on or off. Leave the app blank to match any service.",
+                fields =
+                    listOf(
+                        textField("package", "App package", required = false, hint = "For example com.example.app"),
+                        choiceField("state", "When it", STATE),
+                    ),
+                variables = listOf("package", "state"),
+                sentence = { p ->
+                    val who = p.p("package").ifBlank { "An accessibility service" }
+                    when (p.p("state")) {
+                        "on" -> "$who turns on"
+                        "off" -> "$who turns off"
+                        else -> "$who turns on or off"
+                    }
+                },
+                match = { p, e, _ -> (p.p("package").isEmpty() || p.p("package") == e["package"]) && either(p.p("state"), e["state"]) },
+            ),
+            TriggerDef(
+                type = "ip.changed",
+                category = Category.CONNECTIVITY,
+                title = "IP address changed",
+                description = "The phone's IP address changes, for example after switching networks.",
+                variables = listOf("address"),
+            ),
+            TriggerDef(
+                type = "app.enabled",
+                category = Category.APPS,
+                title = "App turned on or off",
+                description = "An app is turned on or off in Settings. Only apps named in a rule are watched.",
+                fields =
+                    listOf(
+                        textField("package", "App package", hint = "For example com.example.app"),
+                        choiceField("state", "When it", STATE),
+                    ),
+                variables = listOf("package", "state"),
+                sentence = { p ->
+                    when (p.p("state")) {
+                        "on" -> "${p.p("package")} turns on"
+                        "off" -> "${p.p("package")} turns off"
+                        else -> "${p.p("package")} turns on or off"
+                    }
+                },
+                match = { p, e, _ -> p.p("package") == e["package"] && either(p.p("state"), e["state"]) },
+            ),
+            TriggerDef(
+                type = "sensor.reading",
+                category = Category.SENSORS,
+                title = "Sensor reading",
+                description = "A sensor's reading crosses a value you set, such as the light level.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "sensor",
+                            "Sensor",
+                            listOf(
+                                Choice("light", "Light"),
+                                Choice("pressure", "Air pressure"),
+                                Choice("temperature", "Ambient temperature"),
+                                Choice("humidity", "Humidity"),
+                            ),
+                        ),
+                        choiceField("direction", "When it goes", listOf(Choice("above", "Above"), Choice("below", "Below"))),
+                        numberField("value", "Value"),
+                    ),
+                variables = listOf("sensor", "direction", "reading"),
+                sentence = { p -> "${p.p("sensor")} goes ${p.p("direction")} ${p.p("value")}" },
+                match = { p, e, _ ->
+                    p.p("sensor") == e["sensor"] && p.p("direction") == e["direction"] && p.p("value") == e["threshold"]
+                },
+            ),
+            TriggerDef(
+                type = "shizuku.stopped",
+                category = Category.DEVICE,
+                title = "Shizuku stopped",
+                description = "Shizuku stops running, so shell and settings actions fail until it starts again.",
+            ),
             // Battery and power
             TriggerDef(
                 type = "battery.temperature",

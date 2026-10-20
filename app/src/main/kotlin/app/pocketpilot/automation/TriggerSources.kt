@@ -17,6 +17,7 @@ import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.net.ConnectivityManager
+import android.net.LinkProperties
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
@@ -35,12 +36,14 @@ import androidx.core.content.ContextCompat
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.api.shell.SystemReader
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
+import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.core.automation.Place
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.TriggerEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import java.util.TimeZone
@@ -63,9 +66,13 @@ class TriggerSources(
     logs: SystemReader,
     /** Text messages are read in the sideload build only. */
     private val sideload: Boolean,
+    private val shizukuState: StateFlow<ShizukuState>,
     private val emit: (TriggerEvent) -> Unit,
 ) {
     private val sensors = SensorWatcher(context, emit)
+    private var addressCallback: ConnectivityManager.NetworkCallback? = null
+    private var lastAddresses: Set<String>? = null
+    private val enabledApps = HashMap<String, Boolean>()
     private val logWatcher = LogWatcher(logs, scope, hidden, emit)
     private var callReceiver: BroadcastReceiver? = null
     private var smsReceiver: BroadcastReceiver? = null
@@ -105,6 +112,7 @@ class TriggerSources(
                         addAction(Intent.ACTION_PACKAGE_ADDED)
                         addAction(Intent.ACTION_PACKAGE_REPLACED)
                         addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)
+                        addAction(Intent.ACTION_PACKAGE_CHANGED)
                         addDataScheme("package")
                     },
                 )
@@ -112,6 +120,14 @@ class TriggerSources(
         watchNetworks()
         watchHeadsets()
         jobs += scope.launch { watchFrontApp() }
+        jobs +=
+            scope.launch {
+                var previous = shizukuState.value
+                shizukuState.collect { now ->
+                    if (previous == ShizukuState.CONNECTED && now == ShizukuState.NOT_RUNNING) emit(TriggerEvent("shizuku.stopped"))
+                    previous = now
+                }
+            }
         jobs +=
             scope.launch {
                 ListenerNotificationSource.events.collect { change ->
@@ -139,7 +155,21 @@ class TriggerSources(
         fun params(type: String) = triggers.filter { it.type == type }.map { it.params }
 
         places.watch(params("location.place").mapNotNull(Place::from))
-        sensors.watch(shake = "sensor.shake" in types, flip = "sensor.flip" in types, proximity = "sensor.proximity" in types)
+        sensors.watch(
+            shake = "sensor.shake" in types,
+            flip = "sensor.flip" in types,
+            proximity = "sensor.proximity" in types,
+            thresholds = params("sensor.reading").mapNotNull(::sensorThresholdOf),
+        )
+        hardware.watch(
+            torchOrCamera = "torch.changed" in types || "camera.inuse" in types,
+            settingsWatch = "autorotate.changed" in types || "accessibility.changed" in types,
+        )
+        watchAddresses("ip.changed" in types)
+        // An app's state is judged against the state seen when the rule started, so the first change is not missed.
+        params("app.enabled").mapNotNull { it["package"]?.trim()?.takeIf(String::isNotEmpty) }.forEach { pkg ->
+            enabledApps.getOrPut(pkg) { appEnabled(pkg) }
+        }
         logWatcher.watch(params("log.line").mapNotNull { it["text"]?.trim()?.takeIf(String::isNotEmpty) }.toSet(), "app.crash" in types)
         calendars.watch(if ("calendar.event" in types) emit else null)
         homeAssistant.watch(
@@ -157,13 +187,14 @@ class TriggerSources(
             mediaWatch = null
         }
         watchScreenText(params("screen.text").mapNotNull { it["text"]?.trim()?.takeIf(String::isNotEmpty) }.toSet())
-        if ("torch.changed" in types || "camera.inuse" in types) hardware.start() else hardware.stop()
     }
 
     @Synchronized
     fun stop() {
         places.watch(emptyList())
         sensors.stop()
+        hardware.stop()
+        watchAddresses(false)
         logWatcher.stop()
         calendars.watch(null)
         homeAssistant.stop()
@@ -175,7 +206,6 @@ class TriggerSources(
         mediaWatch = null
         screenText?.second?.cancel()
         screenText = null
-        hardware.stop()
         listOfNotNull(receiver, packageReceiver).forEach { runCatching { context.unregisterReceiver(it) } }
         receiver = null
         packageReceiver = null
@@ -592,6 +622,10 @@ class TriggerSources(
                 intent: Intent,
             ) {
                 val pkg = intent.data?.schemeSpecificPart ?: return
+                if (intent.action == Intent.ACTION_PACKAGE_CHANGED) {
+                    appEnabledChanged(pkg)
+                    return
+                }
                 val replacing = intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
                 val event =
                     when (intent.action) {
@@ -603,6 +637,45 @@ class TriggerSources(
                 emit(TriggerEvent("app.package", mapOf("event" to event, "package" to pkg)))
             }
         }
+
+    private fun appEnabled(pkg: String): Boolean {
+        val setting = context.packageManager.getApplicationEnabledSetting(pkg)
+        return setting == PackageManager.COMPONENT_ENABLED_STATE_ENABLED || setting == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+    }
+
+    /** Reports an app turned on or off, for the apps a rule watches; other apps are not reported. */
+    private fun appEnabledChanged(pkg: String) {
+        val on = appEnabled(pkg)
+        val before = enabledApps.put(pkg, on) ?: return
+        if (before != on) emit(TriggerEvent("app.enabled", mapOf("package" to pkg, "state" to PhoneState.onOff(on))))
+    }
+
+    /** Reports the phone's address when the default network's addresses change; the first report is not a change. */
+    private fun watchAddresses(on: Boolean) {
+        val cm = context.getSystemService(ConnectivityManager::class.java)
+        if (!on) {
+            addressCallback?.let { runCatching { cm.unregisterNetworkCallback(it) } }
+            addressCallback = null
+            lastAddresses = null
+            return
+        }
+        if (addressCallback != null) return
+        addressCallback =
+            object : ConnectivityManager.NetworkCallback() {
+                override fun onLinkPropertiesChanged(
+                    network: Network,
+                    linkProperties: LinkProperties,
+                ) {
+                    val addresses = linkProperties.linkAddresses.mapNotNull { it.address?.hostAddress }.toSet()
+                    val before = lastAddresses
+                    lastAddresses = addresses
+                    if (before != null && addresses != before) {
+                        val shown = addresses.firstOrNull { !it.contains(':') } ?: addresses.firstOrNull().orEmpty()
+                        emit(TriggerEvent("ip.changed", mapOf("address" to shown)))
+                    }
+                }
+            }.also { cm.registerDefaultNetworkCallback(it) }
+    }
 
     private fun watchNetworks() {
         val cm = context.getSystemService(ConnectivityManager::class.java)
