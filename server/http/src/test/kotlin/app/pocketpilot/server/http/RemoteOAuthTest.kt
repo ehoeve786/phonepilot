@@ -176,12 +176,11 @@ class RemoteOAuthTest {
     }
 
     @Test
-    fun `failed remote attempts lock out remote clients but never the local token`() {
-        repeat(5) { attempt ->
+    fun `bad remote bearer tokens are refused each time without a lockout that blocks anyone`() {
+        repeat(10) { attempt ->
             val response = request("POST", "/mcp", body = INITIALIZE, contentType = "application/json", bearer = "wrong-$attempt")
             assertEquals(401, response.status)
         }
-        assertEquals(429, request("POST", "/mcp", body = INITIALIZE, contentType = "application/json", bearer = "wrong-6").status)
 
         val localPort = assertIs<ServerState.Running>(server.serverState.value).port
         val local =

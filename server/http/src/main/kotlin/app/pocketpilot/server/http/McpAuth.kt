@@ -3,7 +3,6 @@ package app.pocketpilot.server.http
 import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.orchestrator.SessionFactory
 import app.pocketpilot.server.oauth.AuthorizationServer
-import app.pocketpilot.server.oauth.Lockout
 import app.pocketpilot.server.oauth.PROTECTED_RESOURCE_PATH
 import app.pocketpilot.server.oauth.protectedResourceMetadataUrl
 import io.ktor.http.HttpHeaders
@@ -27,7 +26,6 @@ class McpAuthConfig {
 
     /** OAuth for remote clients; without it only the local token works. */
     var oauth: AuthorizationServer? = null
-    var lockout: Lockout = Lockout()
     var sessions: SessionFactory = SessionFactory()
 
     /** Host names the remote port answers to, such as the Tailscale node's `*.ts.net` name. */
@@ -65,7 +63,6 @@ val McpAuth =
             }
             if (!call.request.path().startsWith(PROTECTED_RESOURCE_PATH)) return@onCall
 
-            val address = call.clientAddress(config.remotePort)
             val presented =
                 call.request
                     .header(HttpHeaders.Authorization)
@@ -73,13 +70,8 @@ val McpAuth =
                     ?.substring(BEARER_PREFIX_LENGTH)
                     ?.trim()
 
-            // Checked before the lockout, so failures counted against an address never block the local token.
             if (presented != null && !remote && constantTimeEquals(presented, config.localToken())) {
                 call.attributes.put(SessionStarter) { config.sessions.localTokenSession() }
-                return@onCall
-            }
-            if (config.lockout.isBlocked(address)) {
-                call.respondText("Too many failed attempts; try again in an hour", status = HttpStatusCode.TooManyRequests)
                 return@onCall
             }
             val grant = presented?.let { config.oauth?.authenticate(it) }
@@ -88,7 +80,6 @@ val McpAuth =
                 return@onCall
             }
 
-            if (presented != null) config.lockout.recordFailure(address)
             val metadata = protectedResourceMetadataUrl(call.issuer(config.remotePort))
             call.response.header(
                 HttpHeaders.WWWAuthenticate,

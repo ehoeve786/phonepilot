@@ -79,7 +79,6 @@ class McpHttpServer(
                     install(McpAuth) {
                         localToken = this@McpHttpServer.localToken
                         oauth = this@McpHttpServer.oauth
-                        lockout = this@McpHttpServer.lockout
                         sessions = this@McpHttpServer.sessions
                         remoteHosts = this@McpHttpServer.remoteHosts
                         this.remotePort = chosenRemote
