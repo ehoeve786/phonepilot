@@ -2,6 +2,8 @@ package app.pocketpilot.core.automation
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /** Only commands the owner typed in full are approved with the rule; placeholder commands keep asking. */
 class FixedShellCommandsTest {
@@ -31,5 +33,11 @@ class FixedShellCommandsTest {
     @Test
     fun `a rule without shell steps approves nothing`() {
         assertEquals(emptySet(), rule(ActionStep("ui.tap_text", mapOf("text" to "OK"))).fixedShellCommands())
+    }
+
+    @Test
+    fun `a placeholder shell command still counts as a shell step`() {
+        assertTrue(rule(shell("echo {trigger.cmd}")).usesShell())
+        assertFalse(rule(ActionStep("ui.tap_text", mapOf("text" to "OK"))).usesShell())
     }
 }

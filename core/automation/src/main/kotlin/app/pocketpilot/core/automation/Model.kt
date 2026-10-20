@@ -193,12 +193,16 @@ data class TriggerEvent(
  * without a prompt each time. A command with a placeholder can take its text from an event's extras or
  * a screen, so it still asks for each command.
  */
-fun Rule.fixedShellCommands(): Set<String> {
-    fun ActionStep.all(): List<ActionStep> = listOf(this) + children.flatMap { it.all() } + elseChildren.flatMap { it.all() }
-    return actions
-        .flatMap { it.all() }
-        .filter { it.type == "shell.exec" }
+fun Rule.fixedShellCommands(): Set<String> =
+    shellSteps()
         .map { it.params["command"].orEmpty().trim() }
         .filter { it.isNotEmpty() && !Placeholders.contains(it) }
         .toSet()
+
+/** True when any step runs a shell command, fixed or built from a placeholder. */
+fun Rule.usesShell(): Boolean = shellSteps().isNotEmpty()
+
+private fun Rule.shellSteps(): List<ActionStep> {
+    fun ActionStep.all(): List<ActionStep> = listOf(this) + children.flatMap { it.all() } + elseChildren.flatMap { it.all() }
+    return actions.flatMap { it.all() }.filter { it.type == "shell.exec" }
 }

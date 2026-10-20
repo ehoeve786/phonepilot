@@ -14,6 +14,7 @@ import app.pocketpilot.capability.api.screen.InputController
 import app.pocketpilot.capability.api.screen.Key
 import app.pocketpilot.capability.api.screen.SwipeDirection
 import app.pocketpilot.capability.api.screen.Target
+import app.pocketpilot.capability.api.screen.passwordFieldRefused
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.delay
@@ -128,6 +129,7 @@ class A11yInputController(
                 )
             }
         }
+        if (field.isPassword) throw passwordFieldRefused()
         if (!field.isFocused) field.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         setText(field, text)
         if (submit) imeEnter(field)
