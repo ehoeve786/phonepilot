@@ -9,6 +9,7 @@
         <item quantity="other">%1$d rules are listening for their triggers.</item>
     </plurals>
     <string name="automation_proposal_title">%1$s proposed an automation</string>
+    <string name="automation_changed_title">%1$s changed an automation</string>
     <string name="automation_limit_title">Agent rules paused for this month</string>
     <string name="automation_limit_text">Automations reached their monthly AI limit. Raise it on the Automations tab to start them again.</string>
     <string name="automation_reason_run">Run button</string>

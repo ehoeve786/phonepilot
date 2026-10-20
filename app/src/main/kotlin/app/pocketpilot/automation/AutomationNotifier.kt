@@ -38,6 +38,21 @@ class AutomationNotifier(
         )
     }
 
+    /** An AI app changed [rule] in place; tapping opens the Automations list. */
+    fun changed(
+        rule: Rule,
+        by: String,
+    ) {
+        show(
+            CHANNEL_PROPOSALS,
+            R.string.automation_channel_proposals,
+            "changed:${rule.id}",
+            context.getString(R.string.automation_changed_title, by),
+            rule.name,
+            openIntent(MainActivity.OPEN_AUTOMATIONS),
+        )
+    }
+
     fun limitReached() {
         show(
             CHANNEL_PROPOSALS,

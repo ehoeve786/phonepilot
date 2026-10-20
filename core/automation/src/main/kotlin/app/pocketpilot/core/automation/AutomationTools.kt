@@ -225,16 +225,9 @@ class AutomationProposeTool(
                 "and settings from automation.catalog. Shape: {name, triggers:[{type, params}], conditions:[{type, params}], " +
                 "conditionMode: all|any|none|one, actions:[{type, params, conditions, actions (inside flow.if/repeat/while), " +
                 "elseActions, continueOnError}], runAs: direct|agent, agentPrompt}. Settings are strings; {trigger.<name>} " +
-                "and other variables are filled in when it runs. Returns the proposal id; read the outcome with automation.list.",
-            """{"type":"object","properties":{"name":{"type":"string"},"triggers":{"type":"array","items":$TYPED_ITEM},
-            "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,
-            "actions":{"type":"array","items":{"type":"object","properties":{"type":{"type":"string"},"params":$PARAMS,
-            "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,
-            "actions":{"type":"array","items":{"type":"object"},"description":"Steps inside flow.if, repeat or while, shaped like this one."},
-            "elseActions":{"type":"array","items":{"type":"object"},"description":"Steps for the else branch of flow.if."},
-            "continueOnError":{"type":"boolean"}},"required":["type"]}},
-            "runAs":{"type":"string","enum":["direct","agent"]},"agentPrompt":{"type":"string"}},
-            "required":["name","triggers"],"additionalProperties":false}""",
+                "and other variables are filled in when it runs. Returns the proposal id; read the outcome with automation.list. " +
+                "To change a rule the owner already has, use automation.update instead.",
+            """{"type":"object","properties":{$RULE_PROPERTIES},"required":["name","triggers"],"additionalProperties":false}""",
             RiskTier.READ,
         )
 
@@ -242,23 +235,7 @@ class AutomationProposeTool(
         call: ToolCall,
         session: Session,
     ): ToolResult {
-        val proposed =
-            runCatching { AutomationJson.json.decodeFromJsonElement(ProposedRule.serializer(), call.arguments) }
-                .getOrElse { invalid("The proposal does not have the expected shape: ${it.message?.lineSequence()?.firstOrNull()}") }
-        val rule =
-            Rule(
-                id = store.newId(),
-                name = proposed.name.trim(),
-                enabled = false,
-                triggers = proposed.triggers,
-                constraints = conditions(proposed.conditions, proposed.conditionMode),
-                actions = proposed.actions.map { it.toStep() },
-                runAs = if (proposed.runAs.equals("agent", ignoreCase = true)) RunMode.AGENT else RunMode.DIRECT,
-                agentPrompt = proposed.agentPrompt,
-                proposedBy = session.principal,
-            )
-        val problems = RuleValidator.problems(rule, sideload)
-        if (problems.isNotEmpty()) invalid("The proposal has problems: ${problems.joinToString("; ")}")
+        val rule = validRule(call.arguments, store.newId(), session.principal, sideload)
         store.upsert(rule)
         onProposed(store.rule(rule.id) ?: rule)
         return ToolResult.success(
@@ -271,6 +248,95 @@ class AutomationProposeTool(
     }
 }
 
+/**
+ * `automation.update`: an AI app changes one of the owner's rules in place, so the owner does not accept a
+ * copy and delete the old one. It is confirmed like any sensitive tool (or allowed in its tool mode). A change
+ * that adds or alters shell commands still waits as a proposal, since accepting those needs the owner's
+ * fingerprint; accepting it updates the rule in place.
+ */
+class AutomationUpdateTool(
+    private val store: RuleStore,
+    private val sideload: Boolean,
+    /** Tells the owner a rule was changed, and by whom. */
+    private val onChanged: (Rule, String) -> Unit,
+    /** Tells the owner a change waits for them, as for a new proposal. */
+    private val onProposed: (Rule) -> Unit,
+) : ToolHandler {
+    override val spec =
+        automationSpec(
+            "automation.update",
+            "Change an automation",
+            "Changes one of the owner's automations in place: give its id (from automation.list) and the whole new " +
+                "rule, shaped as for automation.propose. Its on/off switch, pin and history stay. A change to shell " +
+                "commands waits for the owner as a proposal instead.",
+            """{"type":"object","properties":{"id":{"type":"string"},$RULE_PROPERTIES},"required":["id","name","triggers"],
+            "additionalProperties":false}""",
+            RiskTier.SENSITIVE,
+        )
+
+    override suspend fun confirmationDetail(call: ToolCall): String? =
+        (call.arguments["id"] as? JsonPrimitive)?.contentOrNull?.let { id -> store.rule(id)?.name ?: id }
+
+    override suspend fun execute(
+        call: ToolCall,
+        session: Session,
+    ): ToolResult {
+        val id = call.arguments["id"]?.jsonPrimitive?.contentOrNull ?: invalid("Give id")
+        val current =
+            store.rule(id) ?: throw ToolException(ToolErrorCode.ELEMENT_NOT_FOUND, "No automation $id", "Call automation.list for the ids.")
+        val changed = validRule(JsonObject(call.arguments - "id"), id, session.principal, sideload)
+        val shellChanged = changed.usesShell() && changed.shellCommands() != current.shellCommands()
+        if (current.pending || !shellChanged) {
+            store.change(id, changed.copy(proposedBy = current.proposedBy))
+            val saved = store.rule(id) ?: changed
+            if (!current.pending) onChanged(saved, session.principal)
+            return ToolResult.success(
+                buildJsonObject {
+                    put("id", id)
+                    put("status", if (current.pending) "pending" else "updated")
+                }.toString(),
+            )
+        }
+        val proposal = changed.copy(id = store.newId(), enabled = false, replaces = id)
+        store.upsert(proposal)
+        onProposed(store.rule(proposal.id) ?: proposal)
+        return ToolResult.success(
+            buildJsonObject {
+                put("id", proposal.id)
+                put("status", "pending")
+                put("note", "It changes shell commands, so the owner accepts it on the phone; then it updates $id in place.")
+            }.toString(),
+        )
+    }
+}
+
+/** Parses and checks a rule in the propose shape, or fails with what is wrong. */
+private fun validRule(
+    arguments: JsonObject,
+    id: String,
+    principal: String,
+    sideload: Boolean,
+): Rule {
+    val proposed =
+        runCatching { AutomationJson.json.decodeFromJsonElement(ProposedRule.serializer(), arguments) }
+            .getOrElse { invalid("The rule does not have the expected shape: ${it.message?.lineSequence()?.firstOrNull()}") }
+    val rule =
+        Rule(
+            id = id,
+            name = proposed.name.trim(),
+            enabled = false,
+            triggers = proposed.triggers,
+            constraints = conditions(proposed.conditions, proposed.conditionMode),
+            actions = proposed.actions.map { it.toStep() },
+            runAs = if (proposed.runAs.equals("agent", ignoreCase = true)) RunMode.AGENT else RunMode.DIRECT,
+            agentPrompt = proposed.agentPrompt,
+            proposedBy = principal,
+        )
+    val problems = RuleValidator.problems(rule, sideload)
+    if (problems.isNotEmpty()) invalid("The rule has problems: ${problems.joinToString("; ")}")
+    return rule
+}
+
 /** Settings of a trigger, condition or action, all strings. */
 private const val PARAMS = """{"type":"object","additionalProperties":{"type":"string"}}"""
 
@@ -278,6 +344,16 @@ private const val PARAMS = """{"type":"object","additionalProperties":{"type":"s
 private const val TYPED_ITEM = """{"type":"object","properties":{"type":{"type":"string"},"params":$PARAMS},"required":["type"]}"""
 
 private const val CONDITION_MODE = """{"type":"string","enum":["all","any","none","one"]}"""
+
+/** The rule shape `automation.propose` and `automation.update` take. */
+private const val RULE_PROPERTIES = """"name":{"type":"string"},"triggers":{"type":"array","items":$TYPED_ITEM},
+    "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,
+    "actions":{"type":"array","items":{"type":"object","properties":{"type":{"type":"string"},"params":$PARAMS,
+    "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,
+    "actions":{"type":"array","items":{"type":"object"},"description":"Steps inside flow.if, repeat or while, shaped like this one."},
+    "elseActions":{"type":"array","items":{"type":"object"},"description":"Steps for the else branch of flow.if."},
+    "continueOnError":{"type":"boolean"}},"required":["type"]}},
+    "runAs":{"type":"string","enum":["direct","agent"]},"agentPrompt":{"type":"string"}"""
 
 /** `automation.run`: runs a rule whose owner allowed AI apps to run it (its trigger "AI app asks"). */
 class AutomationRunTool(

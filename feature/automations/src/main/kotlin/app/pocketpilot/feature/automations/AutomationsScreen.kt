@@ -186,7 +186,7 @@ fun AutomationsScreen(
                 }
 
                 1 -> {
-                    ProposalsList(proposals, actions, onEdit = { editing = it })
+                    ProposalsList(proposals, state.rules, actions, onEdit = { editing = it })
                 }
 
                 else -> {
@@ -349,6 +349,7 @@ private fun HomeAssistantSettings(
 @Composable
 private fun ProposalsList(
     proposals: List<Rule>,
+    rules: List<Rule>,
     actions: AutomationsActions,
     onEdit: (Rule) -> Unit,
 ) {
@@ -362,6 +363,7 @@ private fun ProposalsList(
         items(proposals, key = { it.id }) { rule ->
             ProposalCard(
                 rule = rule,
+                replacesName = rule.replaces?.let { id -> rules.firstOrNull { it.id == id }?.name },
                 onAccept = { actions.accept(rule.id) },
                 onEdit = { onEdit(rule) },
                 onDecline = { actions.decline(rule.id) },
