@@ -24,9 +24,12 @@ class BitmapImageEncoder : ImageEncoder {
                 ImageFormat.JPEG -> Bitmap.CompressFormat.JPEG
                 ImageFormat.PNG -> Bitmap.CompressFormat.PNG
             }
-        check(scaled.compress(compressFormat, quality, out)) { "Encoding $format failed" }
-        if (scaled !== source) scaled.recycle()
-        source.recycle()
-        return out.toByteArray()
+        try {
+            check(scaled.compress(compressFormat, quality, out)) { "Encoding $format failed" }
+            return out.toByteArray()
+        } finally {
+            if (scaled !== source) scaled.recycle()
+            source.recycle()
+        }
     }
 }
