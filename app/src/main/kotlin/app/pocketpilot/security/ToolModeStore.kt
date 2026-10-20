@@ -37,9 +37,10 @@ class ToolModeStore(
         val legacy = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
         if (legacy.all.isNotEmpty()) {
             val old =
-                legacy.all.mapNotNull { (tool, value) ->
-                    ToolMode.entries.firstOrNull { it.name == value }?.let { tool to it }
-                }.toMap()
+                legacy.all
+                    .mapNotNull { (tool, value) ->
+                        ToolMode.entries.firstOrNull { it.name == value }?.let { tool to it }
+                    }.toMap()
             if (secrets.get(NAME) == null) secrets.put(NAME, encode(old))
             legacy.edit().clear().apply()
         }
@@ -49,11 +50,13 @@ class ToolModeStore(
     private fun encode(modes: Map<String, ToolMode>): String = modes.entries.joinToString("\n") { "${it.key}=${it.value.name}" }
 
     private fun decode(text: String): Map<String, ToolMode> =
-        text.lines().mapNotNull { line ->
-            val mode = ToolMode.entries.firstOrNull { it.name == line.substringAfter('=', "") }
-            val tool = line.substringBefore('=')
-            if (tool.isNotEmpty() && mode != null) tool to mode else null
-        }.toMap()
+        text
+            .lines()
+            .mapNotNull { line ->
+                val mode = ToolMode.entries.firstOrNull { it.name == line.substringAfter('=', "") }
+                val tool = line.substringBefore('=')
+                if (tool.isNotEmpty() && mode != null) tool to mode else null
+            }.toMap()
 
     private companion object {
         const val NAME = "tool_modes"
