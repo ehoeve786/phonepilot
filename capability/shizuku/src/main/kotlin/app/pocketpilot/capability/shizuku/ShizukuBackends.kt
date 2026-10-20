@@ -260,7 +260,9 @@ class ShizukuInputController(
                 target.x to target.y
             }
 
-            is Target.OnElement -> reader.bounds(target).let { it.centerX to it.centerY }
+            is Target.OnElement -> {
+                reader.bounds(target).let { it.centerX to it.centerY }
+            }
         }
 
     private companion object {
