@@ -85,7 +85,7 @@ class GeminiProvider(
                 }
             val body = response.bodyAsText()
             if (!response.status.isSuccess()) throw IOException("HTTP ${response.status.value}: ${body.take(MAX_ERROR_BODY)}")
-            val page = Json.parseToJsonElement(body).jsonObject
+            val page = pageOf(body)
             page["models"]?.jsonArray?.forEach { item ->
                 val model = item.jsonObject
                 val methods = (model["supportedGenerationMethods"] as? JsonArray)?.map { (it as? JsonPrimitive)?.contentOrNull }
@@ -274,6 +274,10 @@ class GeminiProvider(
         events += ModelEvent.Stop(reason)
         return events
     }
+
+    /** A model list page; a body that is not JSON is an I/O failure, as listModels promises. */
+    private fun pageOf(body: String): JsonObject =
+        runCatching { Json.parseToJsonElement(body).jsonObject }.getOrElse { throw IOException("Unreadable model list", it) }
 
     private companion object {
         const val API_KEY_HEADER = "x-goog-api-key"

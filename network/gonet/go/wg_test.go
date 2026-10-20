@@ -133,7 +133,7 @@ func TestTunnelEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	certs := NewCertManager(t.TempDir())
+	certs := NewCertManager(newMemBlobs())
 	certs.cert = selfSigned(t, "phone.example.com")
 	tunnel := NewTunnel(backendLn.Addr().(*net.TCPAddr).Port, certs)
 	err = tunnel.Start(fmt.Sprintf("[Interface]\nPrivateKey = %s\nAddress = 10.66.0.2/32\nListenPort = %d\n[Peer]\nPublicKey = %s\nEndpoint = 127.0.0.1:%d\nAllowedIPs = 10.66.0.0/24\nPersistentKeepalive = 1\n",

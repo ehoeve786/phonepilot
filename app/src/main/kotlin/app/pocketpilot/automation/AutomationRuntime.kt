@@ -239,9 +239,11 @@ class AutomationRuntime(
                 commands += "pm grant ${context.packageName} ${Manifest.permission.BLUETOOTH_CONNECT}"
             }
         }
-        PERMISSIONS
-            .filter { (prefix, _) -> types.any { it.startsWith(prefix) } }
-            .flatMap { it.second }
+        val wanted =
+            PERMISSIONS
+                .filter { (prefix, _) -> types.any { it.startsWith(prefix) } }
+                .flatMap { it.second }
+        (wanted + types.flatMap { EXACT_PERMISSIONS[it].orEmpty() })
             .filter { sideload || it !in SIDELOAD_PERMISSIONS }
             .distinct()
             .filterNot(::granted)
@@ -300,7 +302,16 @@ class AutomationRuntime(
                     ),
                 "call." to listOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.READ_CALL_LOG),
                 "sms." to listOf(Manifest.permission.RECEIVE_SMS),
-                "calendar." to listOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR),
+            )
+
+        /** Permissions for single types, so reading a calendar never grants writing to it. */
+        val EXACT_PERMISSIONS =
+            mapOf(
+                "calendar.event" to listOf(Manifest.permission.READ_CALENDAR),
+                "calendar.busy" to listOf(Manifest.permission.READ_CALENDAR),
+                "calendar.now" to listOf(Manifest.permission.READ_CALENDAR),
+                "calendar.read" to listOf(Manifest.permission.READ_CALENDAR),
+                "calendar.add" to listOf(Manifest.permission.WRITE_CALENDAR),
             )
         val SIDELOAD_PERMISSIONS = setOf(Manifest.permission.READ_CALL_LOG, Manifest.permission.RECEIVE_SMS)
         const val SHELL_TIMEOUT_MS = 5_000L

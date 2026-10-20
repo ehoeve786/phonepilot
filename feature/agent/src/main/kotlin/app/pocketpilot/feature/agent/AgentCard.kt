@@ -28,10 +28,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -44,6 +43,7 @@ import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.agent.runtime.stepLine
 import app.pocketpilot.agent.runtime.transcript
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
+import app.pocketpilot.designsystem.copySensitive
 import kotlinx.coroutines.delay
 import java.util.UUID
 
@@ -419,7 +419,7 @@ private fun RunView(
     expandedByDefault: Boolean,
 ) {
     var expanded by rememberSaveable(run.id) { mutableStateOf(expandedByDefault) }
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(run.goal, style = MaterialTheme.typography.bodyMedium)
         Text(
@@ -444,7 +444,7 @@ private fun RunView(
                 }
             }
             TextButton(
-                onClick = { clipboard.setText(AnnotatedString(transcript(run))) },
+                onClick = { copySensitive(context, TRANSCRIPT_LABEL, transcript(run)) },
             ) { Text(stringResource(R.string.feature_agent_copy)) }
         }
     }
@@ -484,3 +484,6 @@ private const val NEW = "new"
 private const val LIST_DEBOUNCE_MS = 700L
 private const val HISTORY_SHOWN = 10
 private const val STEPS_SHOWN = 30
+
+/** The clipboard label for a copied transcript. */
+private const val TRANSCRIPT_LABEL = "PocketPilot transcript"

@@ -30,6 +30,7 @@ import app.pocketpilot.capability.api.screen.passwordFieldRefused
 import app.pocketpilot.capability.api.screen.swipePoints
 import app.pocketpilot.capability.api.settings.SettingKey
 import app.pocketpilot.capability.api.settings.SettingsController
+import app.pocketpilot.capability.api.shell.ShellReply
 import app.pocketpilot.capability.api.shell.ShellResult
 import app.pocketpilot.capability.api.shell.ShellRunner
 import app.pocketpilot.capability.api.shell.SystemReader
@@ -155,6 +156,8 @@ class ShizukuInputController(
     private val shizuku: ShizukuConnection,
     private val reader: ShizukuScreenReader,
     scope: CoroutineScope,
+    /** The screen in pixels, so a tap or swipe off the edge is refused rather than sent. */
+    private val screen: () -> ScreenSize = { ScreenSize(Int.MAX_VALUE, Int.MAX_VALUE) },
 ) : InputController {
     override val backendId: String = BackendIds.SHIZUKU
     override val available: StateFlow<Boolean> = shizuku.availability(scope)
@@ -179,6 +182,8 @@ class ShizukuInputController(
         toY: Int,
         durationMs: Long,
     ) {
+        checkOnScreen(fromX, fromY)
+        checkOnScreen(toX, toY)
         shizuku.call { it.swipe(fromX, fromY, toX, toY, durationMs) }
     }
 
@@ -247,16 +252,24 @@ class ShizukuInputController(
         }
     }
 
+    private fun checkOnScreen(
+        x: Int,
+        y: Int,
+    ) {
+        val size = screen()
+        if (x !in 0 until size.width || y !in 0 until size.height) {
+            throw ToolException(
+                ToolErrorCode.INVALID_ARGUMENTS,
+                "($x, $y) is off the screen, which is ${size.width} by ${size.height}",
+                "Use coordinates from screen.snapshot",
+            )
+        }
+    }
+
     private fun point(target: Target): Pair<Int, Int> =
         when (target) {
             is Target.AtPoint -> {
-                if (target.x < 0 || target.y < 0) {
-                    throw ToolException(
-                        ToolErrorCode.INVALID_ARGUMENTS,
-                        "A tap point must be on the screen",
-                        "Use coordinates from screen.snapshot",
-                    )
-                }
+                checkOnScreen(target.x, target.y)
                 target.x to target.y
             }
 
@@ -460,16 +473,7 @@ class ShizukuShellRunner(
     override suspend fun run(
         command: String,
         timeoutMs: Long,
-    ): ShellResult {
-        val parts = shizuku.call { it.runShell(command, timeoutMs) }.split('\u0000', limit = 3)
-        val exit = parts[0].toIntOrNull() ?: -1
-        return ShellResult(
-            exitCode = exit,
-            stdout = parts.getOrElse(1) { "" },
-            stderr = parts.getOrElse(2) { "" },
-            timedOut = exit == -1,
-        )
-    }
+    ): ShellResult = ShellReply.decode(shizuku.call { it.runShell(command, timeoutMs) })
 }
 
 /** Read-only adb commands for `adb.query` and `adb.logs`; the privileged service checks them again. */
@@ -484,14 +488,5 @@ class ShizukuSystemReader(
         argv: List<String>,
         filter: String,
         timeoutMs: Long,
-    ): ShellResult {
-        val parts = shizuku.call { it.runReadOnly(argv.toTypedArray(), filter, timeoutMs) }.split('\u0000', limit = 3)
-        val exit = parts[0].toIntOrNull() ?: -1
-        return ShellResult(
-            exitCode = exit,
-            stdout = parts.getOrElse(1) { "" },
-            stderr = parts.getOrElse(2) { "" },
-            timedOut = exit == -1,
-        )
-    }
+    ): ShellResult = ShellReply.decode(shizuku.call { it.runReadOnly(argv.toTypedArray(), filter, timeoutMs) })
 }

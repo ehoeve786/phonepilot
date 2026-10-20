@@ -9,6 +9,8 @@ import app.pocketpilot.core.model.ToolException
  */
 class SnapshotCache<T>(
     private val keep: Int = DEFAULT_KEEP,
+    /** Called with a payload when its snapshot leaves the cache, so live resources can be released. */
+    private val onEvict: (T) -> Unit = {},
 ) {
     class Entry<T>(
         val snapshot: Snapshot,
@@ -23,7 +25,7 @@ class SnapshotCache<T>(
         payload: T,
     ) {
         entries[snapshot.id] = Entry(snapshot, payload)
-        while (entries.size > keep) entries.remove(entries.keys.first())
+        while (entries.size > keep) entries.remove(entries.keys.first())?.let { onEvict(it.payload) }
     }
 
     @Synchronized

@@ -20,6 +20,7 @@ class KeystoreSecretStore(
     directory: File,
 ) : SecretStore {
     private val dir = File(directory, "secrets").apply { mkdirs() }
+    private val lostNames = HashSet<String>()
 
     @Synchronized
     override fun get(name: String): String? {
@@ -30,7 +31,8 @@ class KeystoreSecretStore(
             cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, blob, 0, IV_BYTES))
             cipher.doFinal(blob, IV_BYTES, blob.size - IV_BYTES).decodeToString()
         }.onFailure {
-            // Usually the Keystore key was lost; the owner has to enter the secret again. Say so in logcat.
+            // Usually the Keystore key was lost; the owner has to enter the secret again. Say so in logcat and in Settings.
+            lostNames += name
             Log.w(TAG, "Secret $name could not be decrypted and is treated as missing", it)
         }.getOrNull()
     }
@@ -46,7 +48,11 @@ class KeystoreSecretStore(
         val tmp = File(dir, "${file(name).name}.tmp")
         tmp.writeBytes(cipher.iv + sealed)
         check(tmp.renameTo(file(name))) { "Could not save secret $name" }
+        lostNames.remove(name)
     }
+
+    @Synchronized
+    override fun lost(): Set<String> = lostNames.toSet()
 
     @Synchronized
     override fun remove(name: String) {

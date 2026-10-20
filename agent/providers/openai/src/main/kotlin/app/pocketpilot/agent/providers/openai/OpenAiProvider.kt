@@ -50,7 +50,7 @@ class OpenAiProvider(
         val response = http.get("$baseUrl/models") { configure() }
         val body = response.bodyAsText()
         if (!response.status.isSuccess()) throw IOException(httpError(response, body).message)
-        return ChatCompletionsCodec.decodeModels(body)
+        return runCatching { ChatCompletionsCodec.decodeModels(body) }.getOrElse { throw IOException("Unreadable model list", it) }
     }
 
     override fun stream(request: ModelRequest): Flow<ModelEvent> =

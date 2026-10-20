@@ -62,6 +62,8 @@ internal class SettingsState(
     val capabilities: List<CapabilityStatus>,
     val shizukuState: ShizukuState,
     val setupSteps: List<SetupStep>,
+    val screenLockMissing: Boolean = false,
+    val secretsLost: Boolean = false,
 )
 
 /** The Settings screen's callbacks. */
@@ -118,6 +120,9 @@ internal fun SettingsScreen(
                     .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            if (state.secretsLost) {
+                Text(stringResource(R.string.settings_secrets_lost), style = MaterialTheme.typography.bodyMedium)
+            }
             AccessibilityCard(state.accessibilityOn, actions.onOpenAccessibilitySettings, actions.onOpenAppInfo)
             RemoteAccessCard(
                 state = state.remoteState,
@@ -153,7 +158,7 @@ internal fun SettingsScreen(
             }
             TokenCard(state.token, state.eventKey, actions.onRotateToken)
             FoldersCard(state.sharedFolders, actions.onAddFolder, actions.onRemoveFolder)
-            BiometricCard(state.biometricApprovals, actions.onBiometricChange)
+            BiometricCard(state.biometricApprovals, state.screenLockMissing, actions.onBiometricChange)
             OutlinedButton(onClick = actions.onOpenSetup, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.home_setup_guide))
             }
@@ -224,10 +229,14 @@ private fun FoldersCard(
 @Composable
 private fun BiometricCard(
     enabled: Boolean,
+    screenLockMissing: Boolean,
     onChange: (Boolean) -> Unit,
 ) {
     LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (screenLockMissing) {
+                Text(stringResource(R.string.biometric_no_screen_lock), style = MaterialTheme.typography.bodySmall)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     stringResource(R.string.biometric_title),

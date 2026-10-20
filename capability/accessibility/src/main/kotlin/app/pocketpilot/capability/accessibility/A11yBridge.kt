@@ -121,8 +121,10 @@ object A11yBridge {
         quietMs: Long,
     ): Boolean {
         val start = changes.value
+        val deadline = SystemClock.uptimeMillis() + timeoutMs
         withTimeoutOrNull(timeoutMs) { changes.first { it > start } } ?: return false
-        awaitIdle(quietMs, timeoutMs)
+        // The quiet wait comes out of the same budget, so the whole call takes at most timeoutMs.
+        awaitIdle(quietMs, (deadline - SystemClock.uptimeMillis()).coerceAtLeast(1))
         return true
     }
 }

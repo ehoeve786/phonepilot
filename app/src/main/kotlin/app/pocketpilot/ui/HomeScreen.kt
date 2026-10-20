@@ -128,6 +128,8 @@ fun HomeScreen(
     onAddFolder: () -> Unit = {},
     onRemoveFolder: (SharedFolder) -> Unit = {},
     biometricApprovals: Boolean = true,
+    screenLockMissing: Boolean = false,
+    secretsLost: Boolean = false,
     onBiometricChange: (Boolean) -> Unit = {},
     /** WireGuard's state, for the status header's remote access chips. */
     wireGuardState: NetworkState = NetworkState.Stopped,
@@ -188,6 +190,8 @@ fun HomeScreen(
                     eventKey = eventKey,
                     sharedFolders = sharedFolders,
                     biometricApprovals = biometricApprovals,
+                    screenLockMissing = screenLockMissing,
+                    secretsLost = secretsLost,
                     capabilities = capabilities,
                     shizukuState = shizukuState,
                     setupSteps = setupSteps,

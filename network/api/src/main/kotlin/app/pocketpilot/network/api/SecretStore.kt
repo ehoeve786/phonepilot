@@ -13,4 +13,7 @@ interface SecretStore {
     )
 
     fun remove(name: String)
+
+    /** Names whose saved value could not be read back, such as after the Keystore key was lost. */
+    fun lost(): Set<String> = emptySet()
 }

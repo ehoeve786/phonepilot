@@ -40,9 +40,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -55,6 +54,7 @@ import app.pocketpilot.agent.runtime.stepLine
 import app.pocketpilot.agent.runtime.transcript
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.designsystem.agent.AgentCommandBar
+import app.pocketpilot.designsystem.copySensitive
 import java.text.DateFormat
 import java.util.Date
 
@@ -367,7 +367,7 @@ private fun Messages(run: RunState) {
     LaunchedEffect(run.id, items.size, run.steps.size) {
         if (items.isNotEmpty()) listState.animateScrollToItem(items.lastIndex + 1)
     }
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(12.dp),
@@ -408,7 +408,7 @@ private fun Messages(run: RunState) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = { clipboard.setText(AnnotatedString(transcript(run))) }) {
+                TextButton(onClick = { copySensitive(context, TRANSCRIPT_LABEL, transcript(run)) }) {
                     Text(stringResource(R.string.feature_agent_copy))
                 }
             }
@@ -569,3 +569,6 @@ private val BUBBLE_TAIL = 4.dp
 private val BUBBLE_MAX_WIDTH = 320.dp
 private const val EARLIER_SHOWN = 20
 private const val WORK_STEPS_SHOWN = 30
+
+/** The clipboard label for a copied transcript. */
+private const val TRANSCRIPT_LABEL = "PocketPilot transcript"

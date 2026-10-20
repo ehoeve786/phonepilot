@@ -78,7 +78,7 @@ class AnthropicProvider(
                 }
             val body = response.bodyAsText()
             if (!response.status.isSuccess()) throw IOException("HTTP ${response.status.value}: ${body.take(MAX_ERROR_BODY)}")
-            val page = Json.parseToJsonElement(body).jsonObject
+            val page = pageOf(body)
             page["data"]?.jsonArray?.forEach { item ->
                 val model = item.jsonObject
                 val modelId = model.string("id") ?: return@forEach
@@ -124,6 +124,10 @@ class AnthropicProvider(
             listOf(ModelEvent.Error(ModelErrorCode.SERVER, "Unreadable reply: ${e.message}"))
         }
     }
+
+    /** A model list page; a body that is not JSON is an I/O failure, as listModels promises. */
+    private fun pageOf(body: String): JsonObject =
+        runCatching { Json.parseToJsonElement(body).jsonObject }.getOrElse { throw IOException("Unreadable model list", it) }
 
     internal companion object {
         const val API_VERSION = "2023-06-01"

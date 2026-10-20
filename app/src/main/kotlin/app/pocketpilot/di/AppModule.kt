@@ -15,6 +15,7 @@ import app.pocketpilot.capability.api.screen.InputController
 import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.capability.api.screen.ScreenPrivacy
 import app.pocketpilot.capability.api.screen.ScreenReader
+import app.pocketpilot.capability.api.screen.ScreenSize
 import app.pocketpilot.capability.apps.PackageAppController
 import app.pocketpilot.capability.device.AndroidDeviceInfoSource
 import app.pocketpilot.capability.files.SafFileStore
@@ -197,10 +198,14 @@ object AppModule {
     @Provides
     @Singleton
     fun shizukuInputController(
+        @ApplicationContext context: Context,
         shizuku: ShizukuConnection,
         reader: ShizukuScreenReader,
         scope: CoroutineScope,
-    ): ShizukuInputController = ShizukuInputController(shizuku, reader, scope)
+    ): ShizukuInputController =
+        ShizukuInputController(shizuku, reader, scope) {
+            context.resources.displayMetrics.let { ScreenSize(it.widthPixels, it.heightPixels) }
+        }
 
     @Provides
     @Singleton

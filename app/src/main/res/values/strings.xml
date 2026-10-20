@@ -146,4 +146,6 @@
     <string name="setup_proof_title">Try it</string>
     <string name="setup_proof_reason">Ask your AI to take a screenshot of this phone and describe it. This step turns green when the screenshot works.</string>
     <string name="home_setup_guide">Open the setup guide</string>
+    <string name="settings_secrets_lost">Some saved secrets could not be read, usually because the key store was reset. Enter them again.</string>
+    <string name="biometric_no_screen_lock">This phone has no screen lock, so approvals cannot ask for your fingerprint or face. Set a screen lock to use it.</string>
 </resources>

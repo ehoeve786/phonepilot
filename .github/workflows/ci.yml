@@ -100,7 +100,8 @@ jobs:
   dev-release:
     name: Publish the dev build
     needs: build
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    # Only builds of main reach the dev release, so a branch cannot replace the APK the owner's phone installs from.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -23,6 +23,10 @@ class BiometricGate(
 ) {
     private val _enabled = MutableStateFlow(readOrMigrate(context))
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
+    private val manager = context.getSystemService(BiometricManager::class.java)
+
+    /** False when the phone has no screen lock or fingerprint, so the lock has nothing to ask for. */
+    fun lockAvailable(): Boolean = manager.canAuthenticate(AUTHENTICATORS) == BiometricManager.BIOMETRIC_SUCCESS
 
     fun set(on: Boolean) {
         secrets.put(NAME, on.toString())

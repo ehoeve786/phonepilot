@@ -183,6 +183,16 @@ class TriggerSources(
         var last = TelephonyManager.EXTRA_STATE_IDLE
         var number = ""
         var answered = false
+        val main = Handler(Looper.getMainLooper())
+        var pendingRing: Runnable? = null
+
+        fun flushRing() {
+            pendingRing?.let {
+                main.removeCallbacks(it)
+                pendingRing = null
+                it.run()
+            }
+        }
         val receiver =
             object : BroadcastReceiver() {
                 override fun onReceive(
@@ -197,6 +207,7 @@ class TriggerSources(
                         // The second copy, with the number: a ringing call fires once it is known.
                         if (state == TelephonyManager.EXTRA_STATE_RINGING && number.isEmpty() && !incoming.isNullOrEmpty()) {
                             number = incoming
+                            flushRing()
                             emit(call("ringing", number))
                         }
                         return
@@ -207,16 +218,25 @@ class TriggerSources(
                         TelephonyManager.EXTRA_STATE_RINGING -> {
                             number = incoming.orEmpty()
                             answered = false
-                            if (number.isNotEmpty() || !granted(Manifest.permission.READ_CALL_LOG)) emit(call("ringing", number))
+                            if (number.isNotEmpty() || !granted(Manifest.permission.READ_CALL_LOG)) {
+                                emit(call("ringing", number))
+                            } else {
+                                // A withheld number never gets the second copy, so the ring goes out after a short wait.
+                                val ring = Runnable { emit(call("ringing", number)) }
+                                pendingRing = ring
+                                main.postDelayed(ring, WITHHELD_RING_WAIT_MS)
+                            }
                         }
 
                         TelephonyManager.EXTRA_STATE_OFFHOOK -> {
+                            flushRing()
                             if (before == TelephonyManager.EXTRA_STATE_IDLE) number = incoming.orEmpty()
                             answered = true
                             emit(call("answered", number))
                         }
 
                         TelephonyManager.EXTRA_STATE_IDLE -> {
+                            flushRing()
                             emit(call(if (answered) "ended" else "missed", number))
                             number = ""
                             answered = false
@@ -607,6 +627,9 @@ class TriggerSources(
     ) = TriggerEvent(type, mapOf("state" to PhoneState.onOff(on)))
 
     private companion object {
+        /** How long a withheld call's ring waits for the number before it is reported without one. */
+        const val WITHHELD_RING_WAIT_MS = 1_500L
+
         val IGNORED = setOf("com.android.systemui")
         const val SETTLE_MS = 2_000L
         const val SCREEN_SETTLE_MS = 1_000L
