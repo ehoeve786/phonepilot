@@ -12,6 +12,7 @@ import app.pocketpilot.agent.providers.api.Role
 import app.pocketpilot.agent.providers.api.StopReason
 import app.pocketpilot.agent.providers.api.ToolChoice
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -70,6 +71,7 @@ class AnthropicProvider(
         do {
             val response =
                 http.get("$baseUrl/v1/models") {
+                    expectSuccess = false
                     authHeaders()
                     parameter("limit", PAGE_SIZE)
                     afterId?.let { parameter("after_id", it) }
@@ -93,6 +95,7 @@ class AnthropicProvider(
                 try {
                     val response =
                         http.post("$baseUrl/v1/messages") {
+                            expectSuccess = false
                             authHeaders()
                             setBody(TextContent(requestBody(request).toString(), ContentType.Application.Json))
                         }

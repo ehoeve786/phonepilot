@@ -2,6 +2,7 @@ package app.pocketpilot.agent
 
 import app.pocketpilot.agent.providers.anthropic.AnthropicProvider
 import app.pocketpilot.agent.providers.api.ModelProvider
+import app.pocketpilot.agent.providers.gemini.GeminiCallMemory
 import app.pocketpilot.agent.providers.gemini.GeminiProvider
 import app.pocketpilot.agent.providers.openai.OpenAiProvider
 import app.pocketpilot.agent.providers.openaicompatible.CompatibleProfile
@@ -295,6 +296,9 @@ class AgentCoordinator(
         )
     }
 
+    /** One for the coordinator, so every key and fallback provider it builds shares the Gemini call state. */
+    private val geminiMemory = GeminiCallMemory()
+
     private fun provider(
         profile: AgentProfile,
         key: String?,
@@ -309,7 +313,7 @@ class AgentCoordinator(
             }
 
             ProviderKind.GEMINI -> {
-                GeminiProvider(http, key.orEmpty())
+                GeminiProvider(http, key.orEmpty(), memory = geminiMemory)
             }
 
             ProviderKind.OPENAI_COMPATIBLE -> {

@@ -34,18 +34,21 @@ class GeminiProviderTest {
     private val requests = mutableListOf<HttpRequestData>()
     private val bodies = mutableListOf<JsonObject>()
 
-    private fun provider(reply: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData) =
-        GeminiProvider(
-            HttpClient(
-                MockEngine { request ->
-                    requests += request
-                    val bytes = request.body.toByteArray()
-                    if (bytes.isNotEmpty()) bodies += Json.parseToJsonElement(bytes.decodeToString()).jsonObject
-                    reply(request)
-                },
-            ),
-            apiKey = "g-key",
-        )
+    private fun provider(
+        memory: GeminiCallMemory = GeminiCallMemory(),
+        reply: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
+    ) = GeminiProvider(
+        HttpClient(
+            MockEngine { request ->
+                requests += request
+                val bytes = request.body.toByteArray()
+                if (bytes.isNotEmpty()) bodies += Json.parseToJsonElement(bytes.decodeToString()).jsonObject
+                reply(request)
+            },
+        ),
+        apiKey = "g-key",
+        memory = memory,
+    )
 
     private fun MockRequestHandleScope.json(
         body: String,
@@ -149,6 +152,24 @@ class GeminiProviderTest {
 
             val followUp = hi.copy(messages = hi.messages + Message(Role.ASSISTANT, listOf(Part.ToolCall("call_0", "tap", """{"x":1}"""))))
             provider.stream(followUp).toList()
+            val echoed =
+                bodies
+                    .last()["contents"]!!
+                    .jsonArray[1]
+                    .jsonObject["parts"]!!
+                    .jsonArray[0]
+            assertEquals(parse("""{"functionCall":{"name":"tap","args":{"x":1}},"thoughtSignature":"sig-1"}"""), echoed)
+        }
+
+    @Test
+    fun `a follow-up sent through another provider still echoes the thought signature`() =
+        runTest {
+            val memory = GeminiCallMemory()
+            provider(memory) { json(toolReply) }.stream(hi).toList()
+
+            val followUp = hi.copy(messages = hi.messages + Message(Role.ASSISTANT, listOf(Part.ToolCall("call_0", "tap", """{"x":1}"""))))
+            provider(memory) { json(toolReply) }.stream(followUp).toList()
+
             val echoed =
                 bodies
                     .last()["contents"]!!
