@@ -91,6 +91,8 @@ internal class MediaWatch(
         }
 
         private fun fire(state: String) {
+            // The app may have been hidden since it was followed; its changes are not reported.
+            if (hidden(controller.packageName)) return
             val metadata = controller.metadata
             emit(
                 TriggerEvent(

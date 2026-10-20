@@ -253,6 +253,8 @@ func (n *Node) listenLocked() error {
 	}
 	if err != nil {
 		if n.public {
+			// Funnel is not up, so the node is not public now; the owner turns it on again once Funnel works.
+			n.public = false
 			// Stay reachable on the tailnet while Funnel is blocked.
 			if fallback, ferr := n.srv.ListenTLS("tcp", ":443"); ferr == nil {
 				n.serveLocked(fallback)

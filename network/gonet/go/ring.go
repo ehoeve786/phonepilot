@@ -2,6 +2,7 @@ package ppnet
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -15,7 +16,12 @@ type ring struct {
 	lines []string
 	max   int
 	file  *os.File
+	// written counts the bytes sent to file since it was last started over.
+	written int64
 }
+
+// maxFileBytes bounds the log file, so a long run cannot fill the phone's storage. The lines in memory are unaffected.
+const maxFileBytes = 256 << 10
 
 // writeTo starts copying lines to path, replacing what it held.
 func (r *ring) writeTo(path string) {
@@ -29,6 +35,7 @@ func (r *ring) writeTo(path string) {
 		_ = r.file.Close()
 	}
 	r.file = f
+	r.written = 0
 }
 
 func newRing(max int) *ring { return &ring{max: max} }
@@ -39,7 +46,14 @@ func (r *ring) logf(format string, args ...any) {
 	defer r.mu.Unlock()
 	r.lines = append(r.lines, line)
 	if r.file != nil {
-		_, _ = r.file.WriteString(line + "\n")
+		n, _ := r.file.WriteString(line + "\n")
+		r.written += int64(n)
+		if r.written > maxFileBytes {
+			// Start the file over rather than grow it without limit.
+			_ = r.file.Truncate(0)
+			_, _ = r.file.Seek(0, io.SeekStart)
+			r.written = 0
+		}
 	}
 	if len(r.lines) > r.max {
 		r.lines = r.lines[len(r.lines)-r.max:]

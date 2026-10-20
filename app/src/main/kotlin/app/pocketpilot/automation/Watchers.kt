@@ -255,6 +255,8 @@ class LogWatcher(
         job =
             scope.launch {
                 var since = System.currentTimeMillis()
+                // Lines logged in the same millisecond as the newest one seen; only a repeat of one of them is skipped.
+                val seenAtSince = HashSet<String>()
                 while (isActive) {
                     delay(POLL_MS)
                     if (!reader.available.value) continue
@@ -266,8 +268,12 @@ class LogWatcher(
                     result.stdout.lineSequence().forEach { line ->
                         val parsed = LINE.find(line) ?: return@forEach
                         val at = (parsed.groupValues[1].toDoubleOrNull()?.times(1000))?.toLong() ?: return@forEach
-                        if (at <= since) return@forEach
-                        since = at
+                        if (at < since) return@forEach
+                        if (at > since) {
+                            since = at
+                            seenAtSince.clear()
+                        }
+                        if (!seenAtSince.add(line)) return@forEach
                         handle(parsed.groupValues[2].trim(), parsed.groupValues[3])
                     }
                 }
@@ -290,7 +296,7 @@ class LogWatcher(
             }
         }
         if (texts.any { message.contains(it, ignoreCase = true) || tag.contains(it, ignoreCase = true) }) {
-            if (PACKAGE.findAll(message).any { hidden(it.value) }) return
+            if (hidden(tag) || PACKAGE.findAll(message).any { hidden(it.value) }) return
             emit(TriggerEvent("log.line", mapOf("line" to message.take(MAX_LINE), "tag" to tag)))
         }
     }
