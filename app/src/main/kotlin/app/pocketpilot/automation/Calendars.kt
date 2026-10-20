@@ -108,7 +108,7 @@ class Calendars(
             .joinToString("\n") { event ->
                 val start =
                     if (event.allDay) {
-                        Instant.ofEpochMilli(event.begin).atZone(ZoneId.of("UTC")).format(DAY) + ", all day"
+                        whenText(event.begin, allDay = true) + ", all day"
                     } else {
                         Instant.ofEpochMilli(event.begin).atZone(zone).format(DAY_TIME)
                     }
@@ -181,19 +181,29 @@ class Calendars(
         kind: String,
         event: CalendarInstance,
     ): TriggerEvent {
-        val zone = ZoneId.systemDefault()
         return TriggerEvent(
             "calendar.event",
             mapOf(
                 "event" to kind,
                 "title" to event.title,
                 "location" to event.location,
-                "start" to Instant.ofEpochMilli(event.begin).atZone(zone).format(DAY_TIME),
-                "end" to Instant.ofEpochMilli(event.end).atZone(zone).format(DAY_TIME),
+                "start" to whenText(event.begin, event.allDay),
+                "end" to whenText(event.end, event.allDay),
                 "all_day" to if (event.allDay) "yes" else "no",
             ),
         )
     }
+
+    /** All-day events are stored at midnight UTC, so their date is read in UTC; timed events in the phone's zone. */
+    private fun whenText(
+        millis: Long,
+        allDay: Boolean,
+    ): String =
+        if (allDay) {
+            Instant.ofEpochMilli(millis).atZone(UTC_ZONE).format(DAY)
+        } else {
+            Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(DAY_TIME)
+        }
 
     private fun schedule() {
         if (emit == null || !readable) return
@@ -259,6 +269,7 @@ class Calendars(
         private const val MINUTE_MS = 60_000L
         private const val HOUR_MS = 3_600_000L
         private const val DAY_MS = 86_400_000L
+        private val UTC_ZONE: ZoneId = ZoneId.of("UTC")
         private const val WEEK_MS = 7 * DAY_MS
         private const val MAX_HOURS = 24 * 31
         private const val MAX_MINUTES = 24 * 60 * 14

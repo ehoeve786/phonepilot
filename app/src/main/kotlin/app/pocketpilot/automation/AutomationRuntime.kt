@@ -175,6 +175,9 @@ class AutomationRuntime(
 
     private fun schedule(rule: Rule) {
         val now = System.currentTimeMillis()
+        // An interval counts from when it was first scheduled. Without this, each reschedule restarts the intervals
+        // that have not fired yet, so the longest one never comes due while a shorter one keeps firing.
+        rule.triggers.forEachIndexed { i, spec -> if (spec.type == "time.interval") lastFired.putIfAbsent(key(rule.id, i), now) }
         val next =
             rule.triggers
                 .mapIndexedNotNull { i, spec -> Schedule.next(spec, now, lastFired[key(rule.id, i)])?.let { i to it } }

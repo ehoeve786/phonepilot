@@ -28,7 +28,13 @@ internal object GeminiSchema {
         schema: JsonObject,
         root: Boolean,
     ): JsonObject {
-        val type = (schema["type"] as? JsonPrimitive)?.contentOrNull
+        // The type name, also when it comes as a list such as ["array", "null"].
+        val type =
+            when (val declared = schema["type"]) {
+                is JsonPrimitive -> declared.contentOrNull
+                is JsonArray -> declared.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.firstOrNull { it != "null" }
+                else -> null
+            }
         val freeform = !root && type == "object" && (schema["properties"] as? JsonObject).isNullOrEmpty()
         if (freeform) {
             return buildJsonObject {
