@@ -47,7 +47,7 @@ fun riskTierColors(tier: RiskTier): Pair<Color, Color> {
     return when (tier) {
         RiskTier.DESTRUCTIVE -> scheme.errorContainer to scheme.onErrorContainer
         RiskTier.SENSITIVE -> scheme.secondaryContainer to scheme.onSecondaryContainer
-        else -> scheme.surfaceContainerHighest to scheme.onSurfaceVariant
+        RiskTier.READ, RiskTier.INTERACT -> scheme.surfaceContainerHighest to scheme.onSurfaceVariant
     }
 }
 

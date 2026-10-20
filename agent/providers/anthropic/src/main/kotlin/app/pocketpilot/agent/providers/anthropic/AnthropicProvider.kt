@@ -182,7 +182,7 @@ class AnthropicProvider(
                     val ordered = if (role == Role.USER) parts.sortedBy { it !is Part.ToolResult } else parts
                     addJsonObject {
                         put("role", if (role == Role.USER) "user" else "assistant")
-                        put("content", JsonArray(ordered.map(::block)))
+                        put("content", JsonArray(ordered.filterNot { it is Part.Text && it.text.isEmpty() }.map(::block)))
                     }
                 }
             }
@@ -221,7 +221,7 @@ class AnthropicProvider(
                     buildJsonObject {
                         put("type", "tool_result")
                         put("tool_use_id", part.id)
-                        val content = part.parts.filter { it is Part.Text || it is Part.Image }
+                        val content = part.parts.filter { (it is Part.Text && it.text.isNotEmpty()) || it is Part.Image }
                         if (content.isNotEmpty()) put("content", JsonArray(content.map(::block)))
                         if (part.isError) put("is_error", true)
                     }

@@ -62,5 +62,8 @@ object ModuleGraphRules {
 
     /** The app may pull in pro modules, but only for the pro and play flavors. */
     private fun String.isAppProFlavor(configuration: String): Boolean =
-        this == ":app" && proConfigurationPrefixes.any { configuration.startsWith(it) }
+        this == ":app" && proConfigurationPrefixes.any { configuration.withoutTestPrefix().startsWith(it) }
+
+    /** AGP names test configurations such as `testProDebugImplementation`; the flavor follows the test prefix. */
+    private fun String.withoutTestPrefix(): String = removePrefix("androidTest").removePrefix("test").replaceFirstChar { it.lowercase() }
 }

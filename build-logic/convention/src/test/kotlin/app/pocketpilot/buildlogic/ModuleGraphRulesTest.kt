@@ -60,6 +60,12 @@ class ModuleGraphRulesTest {
     }
 
     @Test
+    fun `the app's pro and play test variants are allowed too`() {
+        assertEquals(emptyList(), violations(":app" to ":pro:licensing", configuration = "testProDebugUnitTestCompileClasspath"))
+        assertEquals(emptyList(), violations(":app" to ":pro:licensing", configuration = "androidTestPlayReleaseImplementation"))
+    }
+
+    @Test
     fun `a module's own test variants are ignored`() {
         assertEquals(emptyList(), violations(":app" to ":app", configuration = "ossDebugUnitTestCompileClasspath"))
     }

@@ -51,6 +51,7 @@ fun OnboardingScreen(
     onFinish: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (steps.isEmpty()) return
     val step = steps[index.coerceIn(steps.indices)]
     val last = index >= steps.lastIndex
     Surface(modifier.fillMaxSize()) {
@@ -70,9 +71,7 @@ fun OnboardingScreen(
             }
             Spacer(Modifier.padding(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (index >
-                    0
-                ) {
+                if (index > 0) {
                     OutlinedButton(onClick = { onIndexChange(index - 1) }) { Text(stringResource(R.string.feature_onboarding_back)) }
                 }
                 Spacer(Modifier.weight(1f))
