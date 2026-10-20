@@ -49,9 +49,11 @@ import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.capability.shizuku.ShizukuState
 import app.pocketpilot.control.ControlOverlay
 import app.pocketpilot.core.audit.AuditSink
+import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RuleStore
 import app.pocketpilot.core.automation.RuleValidator
 import app.pocketpilot.core.automation.parseSharedRule
+import app.pocketpilot.core.automation.usesShell
 import app.pocketpilot.core.capabilities.CapabilityGraph
 import app.pocketpilot.core.model.PolicyProfile
 import app.pocketpilot.core.model.ToolSpec
@@ -185,6 +187,20 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleOpen(intent)
+    }
+
+    /** Runs [onAccepted] once the owner confirms, when the rule runs shell commands; other rules need no check. */
+    private fun acceptGated(
+        rule: Rule?,
+        onAccepted: () -> Unit,
+    ) {
+        if (rule?.usesShell() != true) return onAccepted()
+        biometricGate.authenticate(
+            this,
+            getString(R.string.approvals_biometric_title),
+            getString(R.string.automation_accept_shell),
+            onAccepted,
+        )
     }
 
     /** A rule shared from another phone as a .pocketpilot file: it becomes a proposal to accept. */
@@ -356,14 +372,23 @@ class MainActivity : ComponentActivity() {
         val automationActions =
             AutomationsActions(
                 newId = automations.store::newId,
-                save = automations.store::upsert,
+                save = { rule ->
+                    // Saving a proposal accepts it, so it gets the same check as accepting it.
+                    if (automations.store.rule(rule.id)?.pending == true) {
+                        acceptGated(rule) { automations.store.upsert(rule) }
+                    } else {
+                        automations.store.upsert(rule)
+                    }
+                },
                 delete = automations.store::delete,
                 setEnabled = automations.store::setEnabled,
                 setPinned = automations.store::setPinned,
                 run = { rule -> automations.engine.start(rule, getString(R.string.automation_reason_run)) },
                 test = { rule -> automations.engine.start(rule, getString(R.string.automation_reason_test), checkConstraints = false) },
                 stop = automations.engine::stop,
-                accept = automations.store::accept,
+                accept = { id ->
+                    acceptGated(automations.store.rule(id)) { automations.store.accept(id) }
+                },
                 decline = automations.store::delete,
                 setSettings = automations.store::setSettings,
                 loadApps = automations::loadApps,

@@ -26,6 +26,7 @@ import app.pocketpilot.capability.api.screen.SnapshotCache
 import app.pocketpilot.capability.api.screen.SnapshotOptions
 import app.pocketpilot.capability.api.screen.SwipeDirection
 import app.pocketpilot.capability.api.screen.Target
+import app.pocketpilot.capability.api.screen.passwordFieldRefused
 import app.pocketpilot.capability.api.screen.swipePoints
 import app.pocketpilot.capability.api.settings.SettingKey
 import app.pocketpilot.capability.api.settings.SettingsController
@@ -200,6 +201,9 @@ class ShizukuInputController(
         target: Target.OnElement?,
         submit: Boolean,
     ) {
+        val password =
+            if (target != null) reader.element(target).password else reader.snapshot().elements.any { it.password && it.focused }
+        if (password) throw passwordFieldRefused()
         if (text.any { it.code !in 0x20..0x7e }) {
             throw ToolException(
                 ToolErrorCode.CAPABILITY_UNAVAILABLE,

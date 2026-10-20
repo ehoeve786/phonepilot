@@ -12,6 +12,7 @@
     <string name="automation_limit_title">Agent rules paused for this month</string>
     <string name="automation_limit_text">Automations reached their monthly AI limit. Raise it on the Automations tab to start them again.</string>
     <string name="automation_reason_run">Run button</string>
+    <string name="automation_accept_shell">Accepting this automation lets it run shell commands on this phone.</string>
     <string name="automation_reason_test">Test run</string>
     <string name="automation_tile">PocketPilot %1$d</string>
     <string name="automation_tile_1">PocketPilot 1</string>
