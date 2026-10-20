@@ -494,7 +494,7 @@ internal fun CrashCard(
     report: String,
     onDismiss: () -> Unit,
 ) {
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors =
@@ -513,7 +513,7 @@ internal fun CrashCard(
                 style = MaterialTheme.typography.bodySmall,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { clipboard.setText(AnnotatedString(report)) }) { Text(stringResource(R.string.crash_copy)) }
+                TextButton(onClick = { copyReport(context, report) }) { Text(stringResource(R.string.crash_copy)) }
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.crash_dismiss)) }
             }
         }

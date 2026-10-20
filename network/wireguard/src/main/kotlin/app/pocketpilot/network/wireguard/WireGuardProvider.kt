@@ -1,6 +1,7 @@
 package app.pocketpilot.network.wireguard
 
 import android.content.Context
+import android.util.Log
 import app.pocketpilot.network.api.NetworkProvider
 import app.pocketpilot.network.api.NetworkState
 import app.pocketpilot.network.api.SecretStore
@@ -98,7 +99,9 @@ class WireGuardProvider(
                 try {
                     tunnel().start(config)
                 } catch (e: Throwable) {
-                    mutableState.value = NetworkState.Error(e.message ?: e.toString(), e.stackTraceToString())
+                    // The stack trace goes to logcat; the screen shows only what failed, not the code it failed in.
+                    Log.e(TAG, "WireGuard failed to start", e)
+                    mutableState.value = NetworkState.Error(e.message ?: e.toString())
                     return@launch
                 }
                 var followedAt = 0L
@@ -172,6 +175,7 @@ class WireGuardProvider(
         }
 
     private companion object {
+        const val TAG = "WireGuard"
         const val PREFS = "network_wireguard"
         const val KEY_ENABLED = "enabled"
         const val SECRET_CONFIG = "wireguard_config"

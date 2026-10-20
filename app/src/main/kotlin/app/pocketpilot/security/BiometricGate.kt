@@ -7,6 +7,7 @@ import android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STR
 import android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import android.hardware.biometrics.BiometricPrompt
 import android.os.CancellationSignal
+import app.pocketpilot.network.api.SecretStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,14 +19,24 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class BiometricGate(
     context: Context,
+    private val secrets: SecretStore,
 ) {
-    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    private val _enabled = MutableStateFlow(prefs.getBoolean(KEY, true))
+    private val _enabled = MutableStateFlow(readOrMigrate(context))
     val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
 
     fun set(on: Boolean) {
-        prefs.edit().putBoolean(KEY, on).apply()
+        secrets.put(NAME, on.toString())
         _enabled.value = on
+    }
+
+    /** Kept in the Keystore-backed store, so editing a shared-preferences file cannot switch the lock off. */
+    private fun readOrMigrate(context: Context): Boolean {
+        val legacy = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
+        if (legacy.contains(LEGACY_KEY)) {
+            if (secrets.get(NAME) == null) secrets.put(NAME, legacy.getBoolean(LEGACY_KEY, true).toString())
+            legacy.edit().remove(LEGACY_KEY).apply()
+        }
+        return secrets.get(NAME)?.toBooleanStrictOrNull() ?: true
     }
 
     /**
@@ -60,8 +71,9 @@ class BiometricGate(
     }
 
     private companion object {
-        const val PREFS = "security"
-        const val KEY = "biometric_approvals"
+        const val NAME = "biometric_approvals"
+        const val LEGACY_PREFS = "security"
+        const val LEGACY_KEY = "biometric_approvals"
         const val AUTHENTICATORS = BIOMETRIC_STRONG or DEVICE_CREDENTIAL
     }
 }
