@@ -198,6 +198,21 @@ class RemoteOAuthTest {
     }
 
     @Test
+    fun `failed code exchanges lock only the client that failed`() {
+        fun exchange(clientId: String) =
+            request(
+                "POST",
+                "/token",
+                body = "grant_type=authorization_code&code=nope&client_id=$clientId",
+                contentType = "application/x-www-form-urlencoded",
+            )
+
+        repeat(5) { assertEquals(400, exchange("a").status) }
+        assertEquals(429, exchange("a").status)
+        assertEquals(400, exchange("b").status)
+    }
+
+    @Test
     fun `web pages on other sites cannot call the server`() {
         val fromPage =
             request(
