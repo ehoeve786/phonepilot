@@ -48,4 +48,8 @@ class ResolvingScreenReader(
     ): Boolean = backends.firstAvailable().awaitIdle(quietMs, timeoutMs)
 
     override suspend fun awaitChange(timeoutMs: Long): Boolean = backends.firstAvailable().awaitChange(timeoutMs)
+
+    /** Asks every backend that is on, since only some (Accessibility) can walk the layout for the bar. */
+    override suspend fun hasSelectionBarOf(label: String): Boolean =
+        backends.filter { it.available.value }.any { it.hasSelectionBarOf(label) }
 }

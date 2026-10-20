@@ -25,7 +25,9 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ResolverTest {
     private class Reader(
@@ -33,6 +35,7 @@ class ResolverTest {
         on: Boolean,
     ) : ScreenReader {
         override val available = MutableStateFlow(on)
+        var selectedTabs = emptySet<String>()
         private val cache = SnapshotCache<Unit>()
         private var count = 0
 
@@ -60,6 +63,8 @@ class ResolverTest {
         ) = true
 
         override suspend fun awaitChange(timeoutMs: Long) = true
+
+        override suspend fun hasSelectionBarOf(label: String) = label in selectedTabs
     }
 
     private class Input(
@@ -124,6 +129,17 @@ class ResolverTest {
         val reader = ResolvingScreenReader(listOf(a11yReader, shizukuReader), backgroundScope)
         return reader to ResolvingInputController(listOf(shizukuInput, a11yInput), reader, backgroundScope)
     }
+
+    @Test
+    fun `a tab check reaches the backend that can see the selection bar`() =
+        runTest {
+            val (reader, _) = resolvers()
+            a11yReader.selectedTabs = setOf("Open Runs")
+            assertTrue(reader.hasSelectionBarOf("Open Runs"))
+            assertFalse(reader.hasSelectionBarOf("My Runs"))
+            a11yReader.available.value = false
+            assertFalse(reader.hasSelectionBarOf("Open Runs"))
+        }
 
     @Test
     fun `snapshots come from Accessibility first and Shizuku when it is off`() =
