@@ -753,6 +753,46 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a rule that an outside run sets off is marked as coming from outside`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(listOf(ActionStep("var.set", mapOf("name" to "mode", "value" to "x", "scope" to "global"))))
+                    .copy(id = "setter", triggers = listOf(TriggerSpec("intent.action", mapOf("action" to "com.example.SET")))),
+            )
+            store.upsert(
+                rule(listOf(ActionStep("notify.post", mapOf("title" to "hi"))))
+                    .copy(id = "follower", triggers = listOf(TriggerSpec("variable.changed", mapOf("name" to "mode")))),
+            )
+
+            engine(this, host, store).onEvent(TriggerEvent("intent.action", mapOf("action" to "com.example.SET")))
+            advanceUntilIdle()
+
+            assertEquals(listOf(true, true), host.outside)
+        }
+
+    @Test
+    fun `a rule that an outside run finishes triggers its follower as coming from outside`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(listOf(ActionStep("notify.post", mapOf("title" to "hi"))))
+                    .copy(id = "first", triggers = listOf(TriggerSpec("sms.received"))),
+            )
+            store.upsert(
+                rule(listOf(ActionStep("notify.post", mapOf("title" to "next"))))
+                    .copy(id = "second", triggers = listOf(TriggerSpec("rule.finished"))),
+            )
+
+            engine(this, host, store).onEvent(TriggerEvent("sms.received", mapOf("from" to "+1555", "text" to "hi")))
+            advanceUntilIdle()
+
+            assertEquals(listOf(true, true), host.outside)
+        }
+
+    @Test
     fun `an outside event cannot turn another rule on or off`() =
         runTest {
             val host = FakeHost()

@@ -113,7 +113,7 @@ class AutomationEngine(
                             )
                         }.getOrDefault(false)
                 } ?: continue
-            start(rule, Describe.trigger(trigger), event.data, fromOutside = event.type in OUTSIDE_EVENTS)
+            start(rule, Describe.trigger(trigger), event.data, fromOutside = event.fromOutside || event.type in OUTSIDE_EVENTS)
         }
     }
 
@@ -203,7 +203,13 @@ class AutomationEngine(
             )
         store.addRun(record)
         if (outcome != RunOutcome.SKIPPED) {
-            onEvent(TriggerEvent(RULE_FINISHED, mapOf("ruleId" to rule.id, "outcome" to if (outcome == RunOutcome.OK) "ok" else "failed")))
+            onEvent(
+                TriggerEvent(
+                    RULE_FINISHED,
+                    mapOf("ruleId" to rule.id, "outcome" to if (outcome == RunOutcome.OK) "ok" else "failed"),
+                    fromOutside = fromOutside,
+                ),
+            )
         }
         return record
     }
@@ -470,7 +476,7 @@ class AutomationEngine(
             "var.set" -> {
                 val name = params.p("name").ifBlank { throw AutomationFailure("Give the variable a name") }
                 val value = params["value"].orEmpty()
-                if (params.p("scope") == "global") setGlobal(name, value) else context.vars[name] = value
+                if (params.p("scope") == "global") setGlobal(name, value, context.fromOutside) else context.vars[name] = value
             }
 
             "var.math" -> {
@@ -563,16 +569,23 @@ class AutomationEngine(
         value: String,
     ) {
         if (name.isBlank()) throw AutomationFailure("Give the variable a name")
-        if (name !in context.vars && name in store.data.value.variables) setGlobal(name, value) else context.vars[name] = value
+        if (name !in context.vars && name in store.data.value.variables) {
+            setGlobal(name, value, context.fromOutside)
+        } else {
+            context.vars[name] = value
+        }
     }
 
     private fun setGlobal(
         name: String,
         value: String,
+        fromOutside: Boolean,
     ) {
         val old = store.data.value.variables[name]
         store.setVariable(name, value)
-        if (old != value) scope.launch { onEvent(TriggerEvent("variable.changed", mapOf("name" to name, "value" to value))) }
+        if (old != value) {
+            scope.launch { onEvent(TriggerEvent("variable.changed", mapOf("name" to name, "value" to value), fromOutside = fromOutside)) }
+        }
     }
 
     private suspend fun callTool(

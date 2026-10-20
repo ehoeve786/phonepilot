@@ -12,6 +12,7 @@ import app.pocketpilot.agent.providers.api.Role
 import app.pocketpilot.agent.providers.api.StopReason
 import app.pocketpilot.agent.providers.api.ToolChoice
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -61,13 +62,10 @@ class GeminiProvider(
     private val http: HttpClient,
     private val apiKey: String,
     baseUrl: String = "https://generativelanguage.googleapis.com",
+    /** Shared by every provider of one conversation, since key rotation and fallbacks make new ones mid-run. */
+    private val memory: GeminiCallMemory = GeminiCallMemory(),
 ) : ModelProvider {
     private val baseUrl = baseUrl.trimEnd('/')
-    private val nextCallId = AtomicLong()
-    private val signatures =
-        object : LinkedHashMap<String, String>() {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>) = size > MAX_SIGNATURES
-        }
 
     override val id: String = "gemini"
 
@@ -80,6 +78,7 @@ class GeminiProvider(
         do {
             val response =
                 http.get("$baseUrl/v1beta/models") {
+                    expectSuccess = false
                     header(API_KEY_HEADER, apiKey)
                     parameter("pageSize", PAGE_SIZE)
                     pageToken?.let { parameter("pageToken", it) }
@@ -106,6 +105,7 @@ class GeminiProvider(
                 try {
                     val response =
                         http.post("$baseUrl/v1beta/models/${request.model.removePrefix("models/")}:generateContent") {
+                            expectSuccess = false
                             header(API_KEY_HEADER, apiKey)
                             setBody(TextContent(requestBody(request).toString(), ContentType.Application.Json))
                         }
@@ -229,7 +229,7 @@ class GeminiProvider(
                 put("name", call.name)
                 put("args", parseArgs(call.argsJson))
             }
-            synchronized(signatures) { signatures[call.id] }?.let { put("thoughtSignature", it) }
+            memory.signatureOf(call.id)?.let { put("thoughtSignature", it) }
         }
 
     private fun functionResponse(result: Part.ToolResult) =
@@ -254,8 +254,8 @@ class GeminiProvider(
             val call = part["functionCall"] as? JsonObject
             if (call != null) {
                 calledTool = true
-                val callId = call.string("id")?.takeIf { it.isNotEmpty() } ?: "call_${nextCallId.getAndIncrement()}"
-                part.string("thoughtSignature")?.let { signature -> synchronized(signatures) { signatures[callId] = signature } }
+                val callId = call.string("id")?.takeIf { it.isNotEmpty() } ?: memory.newCallId()
+                part.string("thoughtSignature")?.let { memory.remember(callId, it) }
                 events += ModelEvent.ToolCall(callId, call.string("name").orEmpty(), (call["args"] ?: JsonObject(emptyMap())).toString())
             } else {
                 part.string("text")?.takeIf { it.isNotEmpty() }?.let { events += ModelEvent.TextDelta(it) }
@@ -279,7 +279,6 @@ class GeminiProvider(
         const val API_KEY_HEADER = "x-goog-api-key"
         const val PAGE_SIZE = 1000
         const val MAX_ERROR_BODY = 500
-        const val MAX_SIGNATURES = 256
         val RETRY_DELAY = Regex(""""retryDelay"\s*:\s*"([\d.]+)s"""")
 
         /**
@@ -306,5 +305,31 @@ class GeminiProvider(
         fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
         fun JsonObject.int(key: String): Int = (this[key] as? JsonPrimitive)?.intOrNull ?: 0
+    }
+}
+
+/**
+ * The thought signatures Gemini attaches to function calls, and the ids given to calls without one. Both
+ * must be the same for every provider in a conversation: a call answered through another key, or after a
+ * fallback, must still send its signature back, and ids must not repeat between providers.
+ */
+class GeminiCallMemory {
+    private val nextCallId = AtomicLong()
+    private val signatures =
+        object : LinkedHashMap<String, String>() {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>) = size > MAX_SIGNATURES
+        }
+
+    fun newCallId(): String = "call_${nextCallId.getAndIncrement()}"
+
+    fun remember(
+        callId: String,
+        signature: String,
+    ) = synchronized(signatures) { signatures[callId] = signature }
+
+    fun signatureOf(callId: String): String? = synchronized(signatures) { signatures[callId] }
+
+    private companion object {
+        const val MAX_SIGNATURES = 256
     }
 }

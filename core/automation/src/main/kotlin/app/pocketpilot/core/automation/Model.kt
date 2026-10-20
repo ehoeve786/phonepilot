@@ -184,6 +184,8 @@ data class TriggerEvent(
     val data: Map<String, String> = emptyMap(),
     /** Set when the event is meant for one rule only, such as its own alarm. */
     val ruleId: String? = null,
+    /** Set when the event came from a run another app started, so the rules it starts get none of the owner's pre-approvals. */
+    val fromOutside: Boolean = false,
 )
 
 /**
