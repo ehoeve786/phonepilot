@@ -42,9 +42,10 @@ class SensorReadTool(
     ): ToolResult {
         val name = call.arguments.string("sensor").orEmpty()
         if (name !in SensorReader.SENSORS) invalid("sensor must be one of ${SensorReader.SENSORS.joinToString()}")
-        val value =
-            reader.read(name)
-                ?: throw ToolException(ToolErrorCode.CAPABILITY_UNAVAILABLE, "No $name reading from the phone", "Try another sensor")
+        val value = reader.read(name) ?: unavailable(name)
         return ToolResult.success(text = "$name: ${"%.1f".format(value)}")
     }
+
+    private fun unavailable(name: String): Nothing =
+        throw ToolException(ToolErrorCode.CAPABILITY_UNAVAILABLE, "No $name reading from the phone", "Try another sensor")
 }
