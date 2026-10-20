@@ -549,7 +549,15 @@ internal object Actions {
                     category = Category.SOUND,
                     title = "Speak text",
                     description = "Reads text aloud with the phone's text-to-speech.",
-                    fields = listOf(FieldDef("text", "Text", FieldKind.MULTILINE)),
+                    fields =
+                        listOf(
+                            FieldDef("text", "Text", FieldKind.MULTILINE),
+                            choiceField(
+                                "stream",
+                                "Play through",
+                                listOf(Choice("media", "Media volume"), Choice("alarm", "Alarm volume")),
+                            ),
+                        ),
                     tier = RiskTier.READ,
                     kind = ActionKind.Native,
                     sentence = { p -> "Say \"${p.p("text").take(30)}\"" },
