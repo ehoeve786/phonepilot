@@ -106,14 +106,15 @@ class UiSwipeTool(
             name = "ui.swipe",
             title = "Swipe",
             description =
-                "Swipes from (fromX, fromY) to (toX, toY) in screen pixels, across an element in a direction, or " +
+                "Swipes from (fromX, fromY) to (toX, toY) in screen pixels (or in percent of the screen with unit " +
+                    "percent, so one rule fits every phone), across an element in a direction, or " +
                     "across the middle of the screen when only direction is given. " +
                     "direction is where the finger moves: to scroll a list down to later items, swipe up. durationMs " +
                     "defaults to 300.",
             properties =
                 """"fromX":{"type":"integer"},"fromY":{"type":"integer"},"toX":{"type":"integer"},"toY":{"type":"integer"},
                 $ELEMENT,$SNAPSHOT_ID,"direction":{"type":"string","enum":["up","down","left","right"]},
-                "durationMs":{"type":"integer"},$RETURN_SNAPSHOT""",
+                "unit":{"type":"string","enum":["pixels","percent"]},"durationMs":{"type":"integer"},$RETURN_SNAPSHOT""",
         )
 
     override suspend fun execute(
@@ -140,7 +141,7 @@ class UiSwipeTool(
                 }
 
                 element == null && direction == null && points.all { it != null } -> {
-                    val (fromX, fromY, toX, toY) = points.map { it!! }
+                    val (fromX, fromY, toX, toY) = if (args.string("unit") == "percent") percentOfScreen(points) else points.map { it!! }
                     input.swipe(fromX, fromY, toX, toY, duration)
                     "Swiped from ($fromX, $fromY) to ($toX, $toY)."
                 }
@@ -152,6 +153,15 @@ class UiSwipeTool(
                 }
             }
         return afterAction(reader, summary, args.boolean("returnSnapshot") ?: true)
+    }
+
+    /** fromX, fromY, toX, toY given in percent (0 to 100) of the screen, turned into pixels. */
+    private suspend fun percentOfScreen(points: List<Int?>): List<Int> {
+        val screen = reader.snapshot().screen
+        return points.mapIndexed { i, percent ->
+            val size = if (i % 2 == 0) screen.width else screen.height
+            minOf(percent!!.coerceIn(0, 100) * size / 100, size - 1)
+        }
     }
 }
 
