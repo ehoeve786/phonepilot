@@ -65,6 +65,15 @@ class SettingCommandsTest {
     }
 
     @Test
+    fun `reads and sets ambient display in the secure settings`() {
+        outputs["settings get secure doze_always_on"] = "1"
+        assertEquals("on", commands.get(SettingKey.AMBIENT_DISPLAY))
+        commands.set(SettingKey.AMBIENT_DISPLAY, "off")
+        assertEquals("settings put secure doze_always_on 0", ran.last())
+        assertEquals("on", SettingKey.AMBIENT_DISPLAY.normalize("ON"))
+    }
+
+    @Test
     fun `sets the newer settings with their own commands`() {
         commands.set(SettingKey.AIRPLANE_MODE, "on")
         commands.set(SettingKey.SCREEN_TIMEOUT, "60")

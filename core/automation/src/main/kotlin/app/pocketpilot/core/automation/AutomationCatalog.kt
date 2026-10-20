@@ -170,6 +170,7 @@ internal val SETTING_TITLES =
         SettingKey.SCREEN_TIMEOUT to "Screen timeout",
         SettingKey.FONT_SCALE to "Font size",
         SettingKey.ANIMATIONS to "Animations",
+        SettingKey.AMBIENT_DISPLAY to "Ambient display",
     )
 
 internal fun args(vararg pairs: Pair<String, Any?>): JsonObject =
