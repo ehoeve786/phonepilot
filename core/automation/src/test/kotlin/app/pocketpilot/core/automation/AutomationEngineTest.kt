@@ -576,6 +576,26 @@ class AutomationEngineTest {
             assertEquals(null, accepted.replaces)
         }
 
+    @Test
+    fun `a shared rule with a name the owner has replaces that rule when accepted`() {
+        val store = RuleStore(MemoryPersistence(), clock)
+        store.upsert(Rule("r1", "Courier refresh", enabled = false, pinned = true, triggers = listOf(TriggerSpec("wifi.connected"))))
+        val shared = Rule("s1", "courier refresh ", triggers = listOf(TriggerSpec("screen.on")), proposedBy = SHARED_RULE_PROPOSER)
+        store.addShared(shared)
+        store.addShared(shared.copy(id = "s2", agentPrompt = "newer"))
+        val waiting = store.rules.single { it.pending }
+        assertEquals("s1", waiting.id)
+        assertEquals("newer", waiting.agentPrompt)
+        assertEquals("r1", waiting.replaces)
+
+        store.accept("s1")
+        val rule = store.rules.single()
+        assertEquals("r1", rule.id)
+        assertEquals("screen.on", rule.triggers.single().type)
+        assertTrue(rule.enabled)
+        assertTrue(rule.pinned)
+    }
+
     private fun updateArgs(
         id: String,
         name: String,

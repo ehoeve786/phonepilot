@@ -94,6 +94,24 @@ class RuleStore(
         }
     }
 
+    /**
+     * Adds a rule shared from another phone as a proposal. When the owner already has a rule of the same
+     * name, accepting it updates that rule in place, and a newer copy replaces an older one still waiting.
+     */
+    fun addShared(shared: Rule) =
+        update { data ->
+            fun sameName(rule: Rule) = rule.name.trim().equals(shared.name.trim(), ignoreCase = true)
+            val waiting = data.rules.firstOrNull { it.pending && it.proposedBy == shared.proposedBy && sameName(it) }
+            val target = data.rules.firstOrNull { !it.pending && sameName(it) }
+            val proposal =
+                shared.copy(
+                    id = waiting?.id ?: shared.id,
+                    replaces = target?.id,
+                    createdAtMillis = waiting?.createdAtMillis ?: clock.nowMillis(),
+                )
+            data.copy(rules = if (waiting == null) data.rules + proposal else data.rules.map { if (it.id == waiting.id) proposal else it })
+        }
+
     /** Changes rule [id] in place to [changed], keeping its id, switch, pin, creation time and last run. */
     fun change(
         id: String,

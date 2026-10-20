@@ -221,7 +221,7 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, R.string.app_shared_rule_invalid, Toast.LENGTH_LONG).show()
             return
         }
-        ruleStore.upsert(rule)
+        ruleStore.addShared(rule)
         openProposals = true
         openAutomations.intValue++
     }
