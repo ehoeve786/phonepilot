@@ -58,7 +58,7 @@ class A11yScreenReader(
             val built =
                 SnapshotBuilder.build(
                     id,
-                    A11yBridge.appWindow(service)?.root?.packageName?.toString(),
+                    A11yBridge.appPackage(service),
                     screenSize(service),
                     raw,
                     options,
@@ -71,7 +71,7 @@ class A11yScreenReader(
 
     override suspend fun foreground(): ForegroundApp? {
         val service = A11yBridge.require()
-        val packageName = A11yBridge.appWindow(service)?.root?.packageName?.toString() ?: return null
+        val packageName = A11yBridge.appPackage(service) ?: return null
         return ForegroundApp(packageName, A11yBridge.windowClassOf(packageName))
     }
 

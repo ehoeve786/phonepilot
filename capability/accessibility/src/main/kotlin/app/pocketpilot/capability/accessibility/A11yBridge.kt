@@ -120,14 +120,13 @@ object A11yBridge {
      * while the service is off. Unlike [frontPackage], a floating button, toast or keyboard from another
      * app does not replace it.
      */
-    fun frontAppPackage(): String? =
-        current.value?.let { service -> runCatching { appWindow(service)?.root?.packageName?.toString() }.getOrNull() }
-            ?: windowPackage.value
+    fun frontAppPackage(): String? = current.value?.let { runCatching { appPackage(it) }.getOrNull() } ?: windowPackage.value
 
-    /** The focused app window, or the top one when none has focus. */
-    internal fun appWindow(service: AccessibilityService): AccessibilityWindowInfo? {
+    /** The package of the focused app window, or of the top one when none has focus. */
+    internal fun appPackage(service: AccessibilityService): String? {
         val apps = service.windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
-        return apps.firstOrNull { it.isActive || it.isFocused } ?: apps.maxByOrNull { it.layer }
+        val window = apps.firstOrNull { it.isActive || it.isFocused } ?: apps.maxByOrNull { it.layer }
+        return window?.root?.packageName?.toString()
     }
 
     /** The class of the last window that opened in [packageName], usually its activity. */
