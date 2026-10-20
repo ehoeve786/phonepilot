@@ -56,7 +56,7 @@ class PhoneState(
             StateKeys.RINGER -> ringerName(audio.ringerMode)
             StateKeys.DND -> onOff(dndOn())
             StateKeys.HEADSET -> onOff(headsetConnected())
-            StateKeys.FOREGROUND -> A11yBridge.frontPackage.value
+            StateKeys.FOREGROUND -> A11yBridge.frontAppPackage()
             StateKeys.DARK_MODE -> onOff(darkMode())
             StateKeys.SHIZUKU -> onOff(shizuku.state.value == ShizukuState.CONNECTED)
             StateKeys.ACCESSIBILITY -> onOff(A11yBridge.connected.value)

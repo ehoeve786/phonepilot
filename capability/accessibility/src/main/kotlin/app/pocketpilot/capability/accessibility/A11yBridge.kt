@@ -1,9 +1,11 @@
 package app.pocketpilot.capability.accessibility
 
+import android.accessibilityservice.AccessibilityService
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import app.pocketpilot.core.model.ToolErrorCode
 import app.pocketpilot.core.model.ToolException
 import kotlinx.coroutines.delay
@@ -112,6 +114,21 @@ object A11yBridge {
             "PocketPilot's Accessibility service is off, so it cannot read or touch the screen",
             "Ask the phone's owner to turn on PocketPilot in Settings > Accessibility",
         )
+
+    /**
+     * The package of the app window the owner is using now, or the last window that came to the front
+     * while the service is off. Unlike [frontPackage], a floating button, toast or keyboard from another
+     * app does not replace it.
+     */
+    fun frontAppPackage(): String? =
+        current.value?.let { service -> runCatching { appWindow(service)?.root?.packageName?.toString() }.getOrNull() }
+            ?: windowPackage.value
+
+    /** The focused app window, or the top one when none has focus. */
+    internal fun appWindow(service: AccessibilityService): AccessibilityWindowInfo? {
+        val apps = service.windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+        return apps.firstOrNull { it.isActive || it.isFocused } ?: apps.maxByOrNull { it.layer }
+    }
 
     /** The class of the last window that opened in [packageName], usually its activity. */
     internal fun windowClassOf(packageName: String): String? = lastWindowClass?.takeIf { it.first == packageName }?.second
