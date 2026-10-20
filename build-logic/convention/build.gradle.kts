@@ -80,6 +80,13 @@ gradlePlugin {
                     .pluginId
             implementationClass = "JvmLibraryConventionPlugin"
         }
+        register("kotlinSerialization") {
+            id =
+                libs.plugins.pocketpilot.kotlin.serialization
+                    .get()
+                    .pluginId
+            implementationClass = "KotlinSerializationConventionPlugin"
+        }
         register("moduleGraph") {
             id =
                 libs.plugins.pocketpilot.module.graph
