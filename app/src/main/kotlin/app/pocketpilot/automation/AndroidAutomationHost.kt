@@ -258,14 +258,19 @@ class AndroidAutomationHost(
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                 .build()
         engine.setAudioAttributes(attributes)
-        // Asking for focus lets the speech duck, rather than fight, whatever else is playing.
+        // Asking for focus lets the speech duck, rather than fight, whatever else is playing. Alarm speech on the
+        // phone speaker skips it: taking focus during a call would pause the call's audio, even for a moment.
         val audio = context.getSystemService(AudioManager::class.java)
         val focus =
-            AudioFocusRequest
-                .Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
-                .setAudioAttributes(attributes)
-                .build()
-        audio.requestAudioFocus(focus)
+            if (stream == "alarm") {
+                null
+            } else {
+                AudioFocusRequest
+                    .Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(attributes)
+                    .build()
+            }
+        focus?.let { audio.requestAudioFocus(it) }
         val id = ids.next()
         try {
             val finished =
@@ -276,7 +281,7 @@ class AndroidAutomationHost(
                 }
             if (!finished) throw AutomationFailure("The phone did not finish speaking the text")
         } finally {
-            audio.abandonAudioFocusRequest(focus)
+            focus?.let { audio.abandonAudioFocusRequest(it) }
         }
     }
 
