@@ -302,6 +302,7 @@ private fun AppField(
 ) {
     var picking by remember { mutableStateOf(false) }
     val selected = value.split(',').map(String::trim).filter(String::isNotEmpty)
+    LaunchedEffect(Unit) { context.loadApps() }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(
             value = value,
@@ -317,7 +318,6 @@ private fun AppField(
         TextButton(onClick = { picking = true }) { Text(stringResource(R.string.feature_automations_choose_apps)) }
     }
     if (picking) {
-        LaunchedEffect(Unit) { context.loadApps() }
         var query by remember { mutableStateOf("") }
         var chosen by remember { mutableStateOf(selected.toSet()) }
         ModalBottomSheet(onDismissRequest = { picking = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
