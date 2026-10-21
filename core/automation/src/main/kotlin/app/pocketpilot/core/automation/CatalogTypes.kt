@@ -14,6 +14,9 @@ enum class FieldKind {
     /** One of [FieldDef.choices]. */
     CHOICE,
 
+    /** One of [FieldDef.choices], shown as a grid of icons in the tabs named by [Choice.tab]. */
+    ICON,
+
     /** "HH:mm", 24-hour. */
     TIME,
 
@@ -39,6 +42,8 @@ enum class FieldKind {
 data class Choice(
     val value: String,
     val label: String,
+    /** The tab an icon choice is listed under; null for the first tab. */
+    val tab: String? = null,
 )
 
 /** One setting of a trigger, constraint or action. */
