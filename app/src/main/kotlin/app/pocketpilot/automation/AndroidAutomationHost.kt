@@ -6,6 +6,7 @@ import android.hardware.camera2.CameraManager
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.os.Build
+import android.os.Bundle
 import android.os.PowerManager
 import android.os.SystemClock
 import android.os.VibrationEffect
@@ -178,7 +179,7 @@ class AndroidAutomationHost(
 
             "media.control" -> media(params["command"].orEmpty())
 
-            "speak" -> speak(params["text"].orEmpty(), params["stream"].orEmpty())
+            "speak" -> speak(params["text"].orEmpty(), params["stream"].orEmpty(), params["volume"])
 
             "vibrate" -> vibrate(params["ms"]?.toLongOrNull() ?: DEFAULT_VIBRATE_MS)
 
@@ -239,8 +240,11 @@ class AndroidAutomationHost(
     private suspend fun speak(
         text: String,
         stream: String,
+        volume: String?,
     ) {
         if (text.isBlank()) return
+        // The utterance's volume scales within the stream's own level, so it can lower the speech but not raise it.
+        val level = (volume?.toFloatOrNull() ?: SPEAK_FULL_VOLUME).coerceIn(0f, SPEAK_FULL_VOLUME) / SPEAK_FULL_VOLUME
         val engine = tts ?: startTts().also { tts = it }
         // The engine keeps its audio attributes, so each utterance sets the stream it should play through.
         engine.setAudioAttributes(
@@ -267,7 +271,8 @@ class AndroidAutomationHost(
                         }
                     },
                 )
-                if (engine.speak(text, TextToSpeech.QUEUE_ADD, null, id) != TextToSpeech.SUCCESS && done.isActive) done.resume(Unit)
+                val options = Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, level) }
+                if (engine.speak(text, TextToSpeech.QUEUE_ADD, options, id) != TextToSpeech.SUCCESS && done.isActive) done.resume(Unit)
                 done.invokeOnCancellation { engine.stop() }
             }
         }
@@ -429,6 +434,7 @@ class AndroidAutomationHost(
         const val SHELL_TIMEOUT_MS = 5_000L
         const val WAKE_MS = 5_000L
         const val SPEAK_TIMEOUT_MS = 120_000L
+        const val SPEAK_FULL_VOLUME = 100f
         const val TTS_INIT_TIMEOUT_MS = 10_000L
         const val DEFAULT_VIBRATE_MS = 500L
         const val MAX_VIBRATE_MS = 10_000L

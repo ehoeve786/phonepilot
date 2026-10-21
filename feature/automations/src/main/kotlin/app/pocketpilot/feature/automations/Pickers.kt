@@ -24,6 +24,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,6 +49,7 @@ import app.pocketpilot.core.automation.PickOption
 import app.pocketpilot.core.automation.PickSource
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.model.RiskTier
+import kotlin.math.roundToInt
 
 /** One entry of a catalog picker. */
 internal data class PickerItem(
@@ -367,6 +369,18 @@ private fun FieldEditor(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 Switch(checked = value == "true", onCheckedChange = { onChange(it.toString()) })
+            }
+        }
+
+        FieldKind.PERCENT -> {
+            val percent = value.toFloatOrNull()?.coerceIn(0f, 100f) ?: 100f
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("$label: ${percent.roundToInt()}%", style = MaterialTheme.typography.bodyLarge)
+                Slider(
+                    value = percent,
+                    onValueChange = { onChange(it.roundToInt().toString()) },
+                    valueRange = 0f..100f,
+                )
             }
         }
 

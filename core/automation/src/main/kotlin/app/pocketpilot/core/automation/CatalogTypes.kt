@@ -17,6 +17,9 @@ enum class FieldKind {
     /** "HH:mm", 24-hour. */
     TIME,
 
+    /** A number from 0 to 100, set with a slider. */
+    PERCENT,
+
     /** Weekdays as "mon,tue,wed"; empty means every day. */
     DAYS,
 

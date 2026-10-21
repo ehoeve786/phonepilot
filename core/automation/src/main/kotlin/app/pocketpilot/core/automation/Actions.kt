@@ -572,6 +572,7 @@ internal object Actions {
                                     Choice("call", "Voice call"),
                                 ),
                             ),
+                            FieldDef("volume", "Volume", FieldKind.PERCENT, required = false, default = "100"),
                         ),
                     tier = RiskTier.READ,
                     kind = ActionKind.Native,
