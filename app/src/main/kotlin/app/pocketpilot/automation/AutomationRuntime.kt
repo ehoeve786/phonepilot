@@ -1,8 +1,11 @@
 package app.pocketpilot.automation
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.bluetooth.BluetoothManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -10,6 +13,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.os.Build
+import android.os.Environment
+import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.core.automation.ActionStep
@@ -17,6 +22,8 @@ import app.pocketpilot.core.automation.AutomationData
 import app.pocketpilot.core.automation.AutomationEngine
 import app.pocketpilot.core.automation.ConstraintGroup
 import app.pocketpilot.core.automation.ConstraintNode
+import app.pocketpilot.core.automation.PickOption
+import app.pocketpilot.core.automation.PickSource
 import app.pocketpilot.core.automation.Place
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RuleStore
@@ -31,8 +38,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.time.LocalTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -51,6 +60,7 @@ class AutomationRuntime(
     private val shell: ShizukuShellRunner,
     private val scope: CoroutineScope,
     private val calendars: Calendars,
+    private val homeAssistant: HomeAssistant,
     /** False in the Play build, which never asks for call log or text message access. */
     private val sideload: Boolean,
     sources: (emit: (TriggerEvent) -> Unit) -> TriggerSources,
@@ -129,6 +139,147 @@ class AutomationRuntime(
         lastFired[key(ruleId, index)] = now
         onEvent(TriggerEvent(spec.type, mapOf("time" to LocalTime.now().format(HH_MM)), ruleId))
         schedule(rule)
+    }
+
+    private val mutableOptions = MutableStateFlow<Map<PickSource, List<PickOption>>>(emptyMap())
+
+    /** Suggested values for text fields, by source; each list loads the first time its field shows. */
+    val options: StateFlow<Map<PickSource, List<PickOption>>> = mutableOptions.asStateFlow()
+
+    fun loadOptions(source: PickSource) {
+        scope.launch(Dispatchers.IO) {
+            val list =
+                when (source) {
+                    PickSource.VARIABLE -> {
+                        store.data.value.variables.keys
+                            .sorted()
+                            .map { PickOption(it, it) }
+                    }
+
+                    PickSource.BLUETOOTH_DEVICE -> {
+                        bondedDevices()
+                    }
+
+                    PickSource.WIFI_NETWORK -> {
+                        knownNetworks()
+                    }
+
+                    PickSource.HA_ENTITY -> {
+                        homeAssistant.entities()
+                    }
+
+                    PickSource.HA_SERVICE -> {
+                        homeAssistant.services()
+                    }
+
+                    PickSource.CALENDAR -> {
+                        calendarNames()
+                    }
+
+                    PickSource.INTENT_COMPONENT -> {
+                        launcherComponents()
+                    }
+
+                    PickSource.INTENT_ACTION -> {
+                        INTENT_ACTIONS.map { PickOption(it, it) }
+                    }
+                }
+            mutableOptions.update { it + (source to list) }
+        }
+    }
+
+    /**
+     * The entries of [path] for the file browser: folders first, each with a trailing slash,
+     * and a ".." row for the folder above. Reads through All files access, or Shizuku when it is on.
+     */
+    suspend fun listDirectory(path: String): List<PickOption> =
+        withContext(Dispatchers.IO) {
+            val folder = path.trimEnd('/').ifBlank { DEFAULT_FOLDER }
+            val names: List<String> =
+                when {
+                    Environment.isExternalStorageManager() -> {
+                        File(folder).listFiles().orEmpty().map { if (it.isDirectory) "${it.name}/" else it.name }
+                    }
+
+                    shell.available.value -> {
+                        val quoted = "'" + folder.replace("'", "'\\''") + "'"
+                        runCatching { shell.run("ls -1Ap $quoted", SHELL_TIMEOUT_MS).stdout }
+                            .getOrDefault("")
+                            .lines()
+                            .filter(String::isNotBlank)
+                    }
+
+                    else -> {
+                        emptyList()
+                    }
+                }
+            val rows =
+                names.sortedWith(compareBy({ !it.endsWith("/") }, { it.lowercase() })).map { name ->
+                    val isFolder = name.endsWith("/")
+                    PickOption("$folder/$name", name.removeSuffix("/"), if (isFolder) "Folder" else null)
+                }
+            val parent = folder.substringBeforeLast('/', "") + "/"
+            listOf(PickOption(parent, "..", "Up one folder")) + rows
+        }
+
+    /** Paired devices, by name with their address; needs Bluetooth connect access. */
+    @SuppressLint("MissingPermission")
+    private fun bondedDevices(): List<PickOption> {
+        if (!granted(Manifest.permission.BLUETOOTH_CONNECT)) return emptyList()
+        val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter ?: return emptyList()
+        return runCatching { adapter.bondedDevices.orEmpty().toList() }
+            .getOrDefault(emptyList())
+            .map { device ->
+                val name = device.name ?: device.address
+                PickOption(name, name, device.address)
+            }.sortedBy { it.label.lowercase() }
+    }
+
+    /** Networks the phone has saved, read through Shizuku, since apps may not read them directly. */
+    private suspend fun knownNetworks(): List<PickOption> {
+        if (!shell.available.value) return emptyList()
+        val reply = runCatching { shell.run("cmd wifi list-networks", SHELL_TIMEOUT_MS) }.getOrNull() ?: return emptyList()
+        return SAVED_NETWORK
+            .findAll(reply.stdout)
+            .map { it.groupValues[1] }
+            .distinct()
+            .map { PickOption(it, it) }
+            .toList()
+    }
+
+    private fun calendarNames(): List<PickOption> {
+        if (!granted(Manifest.permission.READ_CALENDAR)) return emptyList()
+        val cursor =
+            context.contentResolver.query(
+                CalendarContract.Calendars.CONTENT_URI,
+                arrayOf(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME),
+                null,
+                null,
+                null,
+            ) ?: return emptyList()
+        return cursor.use { rows ->
+            generateSequence {
+                if (rows.moveToNext()) {
+                    rows.getString(
+                        0,
+                    )
+                } else {
+                    null
+                }
+            }.filterNotNull().distinct().map { PickOption(it, it) }.toList()
+        }
+    }
+
+    /** Apps' launcher screens as "package/class", the form intent components take. */
+    private fun launcherComponents(): List<PickOption> {
+        val pm = context.packageManager
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        return pm
+            .queryIntentActivities(launcher, 0)
+            .map { info ->
+                val component = ComponentName(info.activityInfo.packageName, info.activityInfo.name).flattenToShortString()
+                PickOption(component, info.loadLabel(pm).toString(), component)
+            }.sortedBy { it.label.lowercase() }
     }
 
     private fun iconBitmap(drawable: Drawable): Bitmap {
@@ -327,6 +478,29 @@ class AutomationRuntime(
             )
         val SIDELOAD_PERMISSIONS = setOf(Manifest.permission.READ_CALL_LOG, Manifest.permission.RECEIVE_SMS)
         const val SHELL_TIMEOUT_MS = 5_000L
+
+        private val SAVED_NETWORK = Regex("\"([^\"]+)\"")
+
+        private const val DEFAULT_FOLDER = "/storage/emulated/0"
+
+        /** Common Android intent actions, offered for the intent fields. */
+        private val INTENT_ACTIONS =
+            listOf(
+                "android.intent.action.VIEW",
+                "android.intent.action.SEND",
+                "android.intent.action.SENDTO",
+                "android.intent.action.DIAL",
+                "android.intent.action.CALL",
+                "android.intent.action.EDIT",
+                "android.intent.action.INSERT",
+                "android.intent.action.WEB_SEARCH",
+                "android.media.action.IMAGE_CAPTURE",
+                "android.media.action.VIDEO_CAPTURE",
+                "android.intent.action.SET_ALARM",
+                "android.intent.action.SET_TIMER",
+                "android.intent.action.SHOW_ALARMS",
+                "android.settings.SETTINGS",
+            )
         const val LIMIT_MESSAGE = "monthly AI limit"
         val HH_MM: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     }

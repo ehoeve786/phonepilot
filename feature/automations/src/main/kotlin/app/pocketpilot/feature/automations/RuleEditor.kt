@@ -47,6 +47,8 @@ import app.pocketpilot.core.automation.Describe
 import app.pocketpilot.core.automation.FieldDef
 import app.pocketpilot.core.automation.GroupMode
 import app.pocketpilot.core.automation.OnError
+import app.pocketpilot.core.automation.PickOption
+import app.pocketpilot.core.automation.PickSource
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RuleValidator
 import app.pocketpilot.core.automation.RunMode
@@ -170,12 +172,14 @@ internal fun RuleEditor(
     onTest: (Rule) -> Unit,
     onDelete: (() -> Unit)?,
     onLoadApps: () -> Unit,
+    onLoadOptions: (PickSource) -> Unit,
+    onListDirectory: suspend (String) -> List<PickOption>,
     modifier: Modifier = Modifier,
 ) {
     var rule by remember(initial.id) { mutableStateOf(initial) }
     val sheets = remember(state.sideload) { Sheets(state.sideload) }
     val problems = RuleValidator.problems(rule, state.sideload)
-    val context = FieldContext(state.apps, state.rules, state.tools, rule.id, onLoadApps)
+    val context = FieldContext(state.apps, state.options, state.rules, state.tools, rule.id, onLoadApps, onLoadOptions, onListDirectory)
 
     Column(modifier.fillMaxSize()) {
         TopAppBar(

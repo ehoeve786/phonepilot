@@ -64,6 +64,10 @@
     <string name="feature_automations_no_other_rules">There are no other rules yet.</string>
     <string name="feature_automations_choose_apps">Choose apps</string>
     <string name="feature_automations_loading_apps">Loading apps…</string>
+    <string name="feature_automations_choose">Choose</string>
+    <string name="feature_automations_no_suggestions">Nothing to choose from yet.</string>
+    <string name="feature_automations_browse">Browse</string>
+    <string name="feature_automations_no_files">Nothing here. Turn on Shizuku, or allow All files access for PocketPilot in Settings.</string>
 
     <string name="feature_automations_name">Name</string>
     <string name="feature_automations_delete">Delete rule</string>

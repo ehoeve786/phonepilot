@@ -48,6 +48,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.core.automation.AutomationJson
 import app.pocketpilot.core.automation.AutomationSettings
+import app.pocketpilot.core.automation.PickOption
+import app.pocketpilot.core.automation.PickSource
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RunOutcome
 import app.pocketpilot.core.automation.RunRecord
@@ -69,6 +71,7 @@ data class AutomationsState(
     val settings: AutomationSettings = AutomationSettings(),
     val agentSpentThisMonthUsd: Double = 0.0,
     val apps: List<AppOption> = emptyList(),
+    val options: Map<PickSource, List<PickOption>> = emptyMap(),
     /** Tool names for "Call any tool". */
     val tools: List<String> = emptyList(),
     /** False in the Play build: no shell actions. */
@@ -94,6 +97,10 @@ class AutomationsActions(
     val setSettings: (AutomationSettings) -> Unit,
     /** Loads [AutomationsState.apps] the first time a picker needs them. */
     val loadApps: () -> Unit,
+    /** Loads the suggested values for one kind of text field the first time its list is needed. */
+    val loadOptions: (PickSource) -> Unit = {},
+    /** The entries of a folder for a path field's file browser. */
+    val listDirectory: suspend (String) -> List<PickOption> = { emptyList() },
     /** Saves Home Assistant's address, and its token when one is typed. */
     val setHomeAssistant: (url: String, token: String) -> Unit = { _, _ -> },
 )
@@ -150,6 +157,8 @@ fun AutomationsScreen(
                     null
                 },
             onLoadApps = actions.loadApps,
+            onLoadOptions = actions.loadOptions,
+            onListDirectory = actions.listDirectory,
             modifier = modifier,
         )
         return

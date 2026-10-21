@@ -109,7 +109,13 @@ internal object Actions {
                                 hint = "package/class, for example com.google.android.deskclock/.DeskClock",
                             ),
                             singleAppField("package", "App", required = false, hint = "For an implicit intent"),
-                            textField("action", "Action", required = false, hint = "For example android.intent.action.VIEW"),
+                            pickField(
+                                "action",
+                                "Action",
+                                PickSource.INTENT_ACTION,
+                                required = false,
+                                hint = "For example android.intent.action.VIEW",
+                            ),
                             textField("data", "Data URI", required = false),
                             FieldDef("extras", "Extras (JSON)", FieldKind.JSON, required = false),
                         ),
@@ -134,9 +140,9 @@ internal object Actions {
                     description = "Sends a broadcast intent, for example to Tasker, MacroDroid or another app.",
                     fields =
                         listOf(
-                            textField("action", "Action"),
+                            pickField("action", "Action", PickSource.INTENT_ACTION),
                             singleAppField("package", "App", required = false),
-                            textField("component", "Component", required = false),
+                            pickField("component", "Component", PickSource.INTENT_COMPONENT, required = false),
                             FieldDef("extras", "Extras (JSON)", FieldKind.JSON, required = false),
                         ),
                     tier = RiskTier.SENSITIVE,
@@ -609,7 +615,7 @@ internal object Actions {
                     description = "Writes or appends text to a file in a folder you shared with PocketPilot.",
                     fields =
                         listOf(
-                            textField("path", "Path", hint = "Folder/file.txt"),
+                            fileField("path", "Path", hint = "Folder/file.txt"),
                             FieldDef("text", "Text", FieldKind.MULTILINE),
                             choiceField("mode", "Mode", listOf(Choice("append", "Append"), Choice("replace", "Replace"))),
                         ),
@@ -626,7 +632,7 @@ internal object Actions {
                     category = Category.FILES,
                     title = "Read a file",
                     description = "Reads a file in a shared folder into a variable.",
-                    fields = listOf(textField("path", "Path"), INTO.copy(required = true, default = "file")),
+                    fields = listOf(fileField("path", "Path"), INTO.copy(required = true, default = "file")),
                     tier = RiskTier.SENSITIVE,
                     kind = ActionKind.Engine,
                     tools = setOf("files.read"),
@@ -682,7 +688,7 @@ internal object Actions {
                     category = Category.FILES,
                     title = "Delete a file",
                     description = "Deletes one file in a shared folder. Asks you each time.",
-                    fields = listOf(textField("path", "Path", hint = "Folder/file.txt")),
+                    fields = listOf(fileField("path", "Path", hint = "Folder/file.txt")),
                     tier = RiskTier.SENSITIVE,
                     kind = ActionKind.Tool("files.delete") { p -> args("path" to p.p("path")) },
                     sentence = { p -> "Delete ${p.p("path")}" },
@@ -692,7 +698,7 @@ internal object Actions {
                     category = Category.FILES,
                     title = "Download a file",
                     description = "Saves a web address to a new file in a shared folder; never replaces a file. Up to 50 MB.",
-                    fields = listOf(textField("url", "URL"), textField("path", "Save as", hint = "Folder/file.pdf"), INTO),
+                    fields = listOf(textField("url", "URL"), fileField("path", "Save as", hint = "Folder/file.pdf"), INTO),
                     tier = RiskTier.SENSITIVE,
                     kind = ActionKind.Native,
                     sentence = { p -> "Download to ${p.p("path")}" },
@@ -721,8 +727,8 @@ internal object Actions {
                     description = "Calls a Home Assistant action, such as light.turn_on, on an entity.",
                     fields =
                         listOf(
-                            textField("service", "Action", hint = "For example light.turn_on"),
-                            textField("entity", "Entity ID", required = false, hint = "For example light.kitchen"),
+                            pickField("service", "Action", PickSource.HA_SERVICE, hint = "For example light.turn_on"),
+                            pickField("entity", "Entity ID", PickSource.HA_ENTITY, required = false, hint = "For example light.kitchen"),
                             FieldDef(
                                 "data",
                                 "Extra data (JSON)",
@@ -743,7 +749,7 @@ internal object Actions {
                     description = "Saves an entity's state, or one of its attributes, in a variable.",
                     fields =
                         listOf(
-                            textField("entity", "Entity ID", hint = "For example sensor.outside_temperature"),
+                            pickField("entity", "Entity ID", PickSource.HA_ENTITY, hint = "For example sensor.outside_temperature"),
                             textField("attribute", "Attribute", required = false, hint = "The state when empty"),
                             INTO.copy(required = true, default = "state"),
                         ),
@@ -763,7 +769,7 @@ internal object Actions {
                             textField("start", "Starts", hint = "2026-10-20 14:30, or 14:30 for today"),
                             numberField("minutes", "Length (minutes)", default = "60"),
                             textField("location", "Place", required = false),
-                            textField("calendar", "Calendar", required = false, hint = "The main calendar when empty"),
+                            pickField("calendar", "Calendar", PickSource.CALENDAR, required = false, hint = "The main calendar when empty"),
                         ),
                     tier = RiskTier.SENSITIVE,
                     kind = ActionKind.Native,
@@ -949,7 +955,7 @@ internal object Actions {
                     description = "Adds, subtracts, multiplies or divides a variable.",
                     fields =
                         listOf(
-                            textField("name", "Variable"),
+                            pickField("name", "Variable", PickSource.VARIABLE),
                             choiceField(
                                 "op",
                                 "Operation",
@@ -973,7 +979,7 @@ internal object Actions {
                     description = "Replaces, extracts or changes the case of a text variable.",
                     fields =
                         listOf(
-                            textField("name", "Variable"),
+                            pickField("name", "Variable", PickSource.VARIABLE),
                             choiceField(
                                 "op",
                                 "Operation",
@@ -1000,7 +1006,7 @@ internal object Actions {
                     description = "A whole number between two values.",
                     fields =
                         listOf(
-                            textField("name", "Variable"),
+                            pickField("name", "Variable", PickSource.VARIABLE),
                             numberField("min", "From", default = "1"),
                             numberField("max", "To", default = "6"),
                         ),
