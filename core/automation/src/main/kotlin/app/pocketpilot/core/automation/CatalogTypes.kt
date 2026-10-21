@@ -47,6 +47,8 @@ data class FieldDef(
     val default: String? = null,
     val choices: List<Choice> = emptyList(),
     val hint: String? = null,
+    /** For an APP field: pick one app, stored as its package name, not a list. */
+    val single: Boolean = false,
 )
 
 /** Groups for the builder's pickers. */

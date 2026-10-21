@@ -178,7 +178,7 @@ internal object Triggers {
                 description = "An accessibility service is turned on or off. Leave the app blank to match any service.",
                 fields =
                     listOf(
-                        textField("package", "App package", required = false, hint = "For example com.example.app"),
+                        singleAppField("package", "App", required = false, hint = "Any app when empty"),
                         choiceField("state", "When it", STATE),
                     ),
                 variables = listOf("package", "state"),
@@ -206,7 +206,7 @@ internal object Triggers {
                 description = "An app is turned on or off in Settings. Only apps named in a rule are watched.",
                 fields =
                     listOf(
-                        textField("package", "App package", hint = "For example com.example.app"),
+                        singleAppField("package", "App"),
                         choiceField("state", "When it", STATE),
                     ),
                 variables = listOf("package", "state"),

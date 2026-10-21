@@ -39,6 +39,13 @@ internal fun appsField(
     required: Boolean = false,
 ) = FieldDef("apps", label, FieldKind.APP, required = required, hint = if (required) null else "Any app when empty")
 
+internal fun singleAppField(
+    key: String,
+    label: String,
+    required: Boolean = true,
+    hint: String? = null,
+) = FieldDef(key, label, FieldKind.APP, required = required, hint = hint, single = true)
+
 internal fun textField(
     key: String,
     label: String,

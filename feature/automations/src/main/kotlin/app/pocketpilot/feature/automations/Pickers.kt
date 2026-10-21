@@ -1,5 +1,6 @@
 package app.pocketpilot.feature.automations
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -34,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -220,7 +223,7 @@ private fun FieldEditor(
         }
 
         FieldKind.APP -> {
-            AppField(label, value, context, onChange)
+            AppField(label, value, context, field.single, onChange)
         }
 
         FieldKind.RULE -> {
@@ -298,6 +301,7 @@ private fun AppField(
     label: String,
     value: String,
     context: FieldContext,
+    single: Boolean,
     onChange: (String) -> Unit,
 ) {
     var picking by remember { mutableStateOf(false) }
@@ -347,18 +351,21 @@ private fun AppField(
                             Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    chosen =
-                                        if (app.packageName in
-                                            chosen
-                                        ) {
-                                            chosen - app.packageName
-                                        } else {
-                                            chosen + app.packageName
-                                        }
+                                    if (single) {
+                                        onChange(app.packageName)
+                                        picking = false
+                                    } else {
+                                        chosen = if (app.packageName in chosen) chosen - app.packageName else chosen + app.packageName
+                                    }
                                 }.padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Checkbox(checked = app.packageName in chosen, onCheckedChange = null)
+                            if (!single) {
+                                Checkbox(checked = app.packageName in chosen, onCheckedChange = null)
+                            }
+                            app.icon?.let { icon ->
+                                Image(bitmap = icon.asImageBitmap(), contentDescription = null, modifier = Modifier.size(32.dp))
+                            }
                             Column(Modifier.weight(1f).padding(start = 8.dp)) {
                                 Text(app.label, style = MaterialTheme.typography.bodyLarge)
                                 Text(app.packageName, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
@@ -368,12 +375,14 @@ private fun AppField(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 16.dp)) {
                     TextButton(onClick = { picking = false }) { Text(stringResource(R.string.feature_automations_cancel)) }
-                    Button(
-                        onClick = {
-                            onChange(chosen.joinToString(","))
-                            picking = false
-                        },
-                    ) { Text(stringResource(R.string.feature_automations_done)) }
+                    if (!single) {
+                        Button(
+                            onClick = {
+                                onChange(chosen.joinToString(","))
+                                picking = false
+                            },
+                        ) { Text(stringResource(R.string.feature_automations_done)) }
+                    }
                 }
             }
         }

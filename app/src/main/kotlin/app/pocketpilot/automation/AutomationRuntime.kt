@@ -6,6 +6,9 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.os.Build
 import androidx.core.content.ContextCompat
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
@@ -128,6 +131,14 @@ class AutomationRuntime(
         schedule(rule)
     }
 
+    private fun iconBitmap(drawable: Drawable): Bitmap {
+        val px = 48
+        val bitmap = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+        drawable.setBounds(0, 0, px, px)
+        drawable.draw(Canvas(bitmap))
+        return bitmap
+    }
+
     fun loadApps() {
         if (mutableApps.value.isNotEmpty()) return
         scope.launch(Dispatchers.IO) {
@@ -136,7 +147,7 @@ class AutomationRuntime(
             mutableApps.value =
                 pm
                     .queryIntentActivities(launcher, 0)
-                    .map { AppOption(it.activityInfo.packageName, it.loadLabel(pm).toString()) }
+                    .map { AppOption(it.activityInfo.packageName, it.loadLabel(pm).toString(), iconBitmap(it.loadIcon(pm))) }
                     .distinctBy { it.packageName }
                     .sortedBy { it.label.lowercase() }
         }

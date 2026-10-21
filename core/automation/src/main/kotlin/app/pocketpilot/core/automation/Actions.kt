@@ -108,7 +108,7 @@ internal object Actions {
                                 required = false,
                                 hint = "package/class, for example com.google.android.deskclock/.DeskClock",
                             ),
-                            textField("package", "Package", required = false, hint = "For an implicit intent"),
+                            singleAppField("package", "App", required = false, hint = "For an implicit intent"),
                             textField("action", "Action", required = false, hint = "For example android.intent.action.VIEW"),
                             textField("data", "Data URI", required = false),
                             FieldDef("extras", "Extras (JSON)", FieldKind.JSON, required = false),
@@ -135,7 +135,7 @@ internal object Actions {
                     fields =
                         listOf(
                             textField("action", "Action"),
-                            textField("package", "Package", required = false),
+                            singleAppField("package", "App", required = false),
                             textField("component", "Component", required = false),
                             FieldDef("extras", "Extras (JSON)", FieldKind.JSON, required = false),
                         ),

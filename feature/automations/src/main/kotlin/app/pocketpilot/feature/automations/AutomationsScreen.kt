@@ -1,5 +1,6 @@
 package app.pocketpilot.feature.automations
 
+import android.graphics.Bitmap
 import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +58,7 @@ import app.pocketpilot.designsystem.LiquidGlassBentoCard
 data class AppOption(
     val packageName: String,
     val label: String,
+    val icon: Bitmap? = null,
 )
 
 /** Everything the Automations tab shows. */
