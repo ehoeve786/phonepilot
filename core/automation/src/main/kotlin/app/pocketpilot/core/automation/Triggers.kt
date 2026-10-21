@@ -800,7 +800,7 @@ internal object Triggers {
                 type = "floating_button",
                 category = Category.MANUAL,
                 title = "Floating button",
-                description = "Shows a button over other apps while the Accessibility service is on. Tap it to run the rule.",
+                description = "Shows a button over other apps while the Accessibility service is on. Tap or long-press it to run the rule.",
                 fields =
                     listOf(
                         choiceField(
@@ -808,11 +808,24 @@ internal object Triggers {
                             "Button",
                             (1..FLOATING_BUTTON_SLOTS).map { Choice("$it", "Button $it") },
                         ),
-                        textField("label", "Button label", required = false, hint = "Short text on the button, for example Tesla"),
+                        choiceField("press", "Press", listOf(Choice("tap", "Tap"), Choice("long", "Long press"))),
+                        textField("label", "Identifier", required = false, hint = "Text on the button, for example Tesla"),
+                        choiceField("size", "Size", listOf(Choice("normal", "Normal"), Choice("small", "Small"))),
+                        choiceField("background", "Background", listOf(Choice("dark", "Dark"), Choice("transparent", "Transparent"))),
+                        textField("opacity", "Opacity", required = false, hint = "0 to 100, default 100"),
+                        choiceField("vibrate", "Vibrate on press", listOf(Choice("no", "No"), Choice("yes", "Yes"))),
+                        textField("x", "X location", required = false, hint = "Pixels from the left; empty stacks it on the right"),
+                        textField("y", "Y location", required = false, hint = "Pixels from the top"),
                     ),
                 source = Source.POCKETPILOT,
-                sentence = { p -> "Floating button ${p.p("slot")} tapped" },
-                match = { p, e, _ -> p.p("slot").ifBlank { "1" } == e["slot"] },
+                sentence = { p -> "Floating button ${p.p("slot")} ${if (p.p("press") == "long") "long-pressed" else "tapped"}" },
+                match = {
+                    p,
+                    e,
+                    _,
+                    ->
+                    p.p("slot").ifBlank { "1" } == e["slot"] && (p.p("press").ifBlank { "tap" }) == (e["press"] ?: "tap")
+                },
             ),
             TriggerDef(
                 type = "shortcut",

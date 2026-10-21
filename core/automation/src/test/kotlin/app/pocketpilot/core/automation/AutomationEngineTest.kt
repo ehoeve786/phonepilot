@@ -432,8 +432,9 @@ class AutomationEngineTest {
                 ),
             )
             val engine = engine(this, host, store)
-            engine.onEvent(TriggerEvent("floating_button", mapOf("slot" to "2")))
-            engine.onEvent(TriggerEvent("floating_button", mapOf("slot" to "1")))
+            engine.onEvent(TriggerEvent("floating_button", mapOf("slot" to "2", "press" to "tap")))
+            engine.onEvent(TriggerEvent("floating_button", mapOf("slot" to "1", "press" to "long")))
+            engine.onEvent(TriggerEvent("floating_button", mapOf("slot" to "1", "press" to "tap")))
             advanceUntilIdle()
             assertEquals(listOf(false), host.outside)
             assertEquals(1, host.calls.count { it.first == "notify.post" })
