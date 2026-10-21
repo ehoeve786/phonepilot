@@ -22,6 +22,8 @@ data class PhoneNotification(
     /** True when tapping the notification opens something. */
     val opens: Boolean,
     val actions: List<NotificationAction>,
+    /** Every other text the notification carries, by the name the system gives it (full text, subtext, lines, ticker). */
+    val extras: Map<String, String> = emptyMap(),
 )
 
 /** What to do with a notification. */
