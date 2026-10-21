@@ -100,6 +100,11 @@ object A11yBridge {
             if (pkg != null && cls != null) lastWindowClass = pkg to cls
             if (pkg != null) windowPackage.value = pkg
         }
+        // Going home or to another app can change the windows without a state event naming the new app,
+        // so the front app is also read from the windows themselves.
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+            current.value?.let { service -> appPackage(service)?.let { windowPackage.value = it } }
+        }
         lastChangeAt = SystemClock.uptimeMillis()
         changes.value += 1
     }
