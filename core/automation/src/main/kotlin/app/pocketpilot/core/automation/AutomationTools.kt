@@ -15,6 +15,7 @@ import app.pocketpilot.core.orchestrator.ToolHandler
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -124,7 +125,10 @@ class AutomationCatalogTool(
         }
 }
 
-/** `automation.list`: the owner's rules and proposals. */
+/**
+ * `automation.list`: the owner's rules and proposals. Each rule has its sentences in words and its full
+ * settings in `rule`, in the shape `automation.update` takes, so one step can be changed and sent back.
+ */
 class AutomationListTool(
     private val store: RuleStore,
 ) : ToolHandler {
@@ -133,7 +137,9 @@ class AutomationListTool(
             "automation.list",
             "List automations",
             "Lists the phone's automations and pending proposals: id, name, on or off, whether it waits for the owner, " +
-                "its triggers and actions in words, whether an AI app may run it (automation.run), and its last run.",
+                "its triggers and actions in words, whether an AI app may run it (automation.run), its last run, and " +
+                "its full settings as rule, in the shape automation.update takes. To change one step, edit that rule " +
+                "and send the whole of it back with automation.update.",
             """{"type":"object","properties":{},"additionalProperties":false}""",
             RiskTier.READ,
             readOnly = true,
@@ -157,6 +163,7 @@ class AutomationListTool(
                             put("then", JsonArray(rule.actions.map { JsonPrimitive(Describe.action(it)) }))
                             put("runnableByAi", rule.triggers.any { it.type == "mcp.call" })
                             rule.lastRun?.let { put("lastRun", "${it.outcome.name.lowercase()} at ${it.atMillis}") }
+                            ruleSettings(rule)?.let { put("rule", it) }
                         },
                     )
                 }
@@ -164,6 +171,60 @@ class AutomationListTool(
         return ToolResult.success(buildJsonObject { put("automations", rules) }.toString())
     }
 }
+
+/**
+ * A rule's settings in the shape `automation.update` takes, or null when it has a group of conditions inside
+ * another group. That shape has no place for one, and an update would drop it, so such a rule is edited on the phone.
+ */
+internal fun ruleSettings(rule: Rule): JsonObject? {
+    if (hasNestedGroup(rule.constraints) || rule.actions.any { hasNestedStep(it) }) return null
+    return buildJsonObject {
+        put("name", rule.name)
+        put("triggers", JsonArray(rule.triggers.map { settingsOf(it.type, it.params) }))
+        conditionSettings(this, rule.constraints)
+        put("actions", JsonArray(rule.actions.map { stepSettings(it) }))
+        put("runAs", if (rule.runAs == RunMode.AGENT) "agent" else "direct")
+        if (rule.agentPrompt.isNotEmpty()) put("agentPrompt", rule.agentPrompt)
+    }
+}
+
+private fun hasNestedGroup(group: ConstraintGroup): Boolean = group.items.any { it is ConstraintNode.Group }
+
+private fun hasNestedStep(step: ActionStep): Boolean =
+    hasNestedGroup(step.constraints) || (step.children + step.elseChildren).any { hasNestedStep(it) }
+
+private fun stepSettings(step: ActionStep): JsonObject =
+    buildJsonObject {
+        put("type", step.type)
+        put("params", paramsOf(step.params))
+        conditionSettings(this, step.constraints)
+        if (step.children.isNotEmpty()) put("actions", JsonArray(step.children.map { stepSettings(it) }))
+        if (step.elseChildren.isNotEmpty()) put("elseActions", JsonArray(step.elseChildren.map { stepSettings(it) }))
+        if (step.onError == OnError.CONTINUE) put("continueOnError", true)
+    }
+
+/** Writes a flat group of conditions as `conditionMode` and `conditions`. Callers have already ruled out nested groups. */
+private fun conditionSettings(
+    builder: JsonObjectBuilder,
+    group: ConstraintGroup,
+) {
+    if (group.isEmpty) return
+    builder.put("conditionMode", group.mode.name.lowercase())
+    builder.put("conditions", JsonArray(group.items.map { settingsOf((it as ConstraintNode.Check).spec) }))
+}
+
+private fun settingsOf(
+    type: String,
+    params: Map<String, String>,
+): JsonObject =
+    buildJsonObject {
+        put("type", type)
+        put("params", paramsOf(params))
+    }
+
+private fun settingsOf(spec: ConstraintSpec): JsonObject = settingsOf(spec.type, spec.params)
+
+private fun paramsOf(params: Map<String, String>): JsonObject = buildJsonObject { params.forEach { (key, value) -> put(key, value) } }
 
 /** A rule as `automation.propose` takes it: flatter than [Rule], with conditions as a list. */
 @Serializable
