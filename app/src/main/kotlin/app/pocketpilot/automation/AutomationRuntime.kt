@@ -16,6 +16,8 @@ import android.os.Build
 import android.os.Environment
 import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
+import app.pocketpilot.capability.accessibility.A11yBridge
+import app.pocketpilot.capability.accessibility.A11yOverlay
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.core.automation.ActionStep
 import app.pocketpilot.core.automation.AutomationData
@@ -36,6 +38,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -88,6 +91,12 @@ class AutomationRuntime(
                 .map(::activeRules)
                 .distinctUntilChanged()
                 .collect { rules -> withContext(Dispatchers.Main) { apply(rules) } }
+        }
+        scope.launch {
+            combine(store.data.map { floatingButtons(activeRules(it)) }, A11yBridge.connected) { buttons, connected ->
+                if (connected) buttons else emptyList()
+            }.distinctUntilChanged()
+                .collect { buttons -> withContext(Dispatchers.Main) { showFloatingButtons(buttons) } }
         }
         scope.launch {
             var newest =
@@ -302,6 +311,24 @@ class AutomationRuntime(
                     .distinctBy { it.packageName }
                     .sortedBy { it.label.lowercase() }
         }
+    }
+
+    /** The floating buttons of [rules] as pairs of slot and label, in slot order. */
+    private fun floatingButtons(rules: List<Rule>): List<Pair<String, String>> =
+        rules
+            .flatMap { rule ->
+                rule.triggers
+                    .filter { it.type == "floating_button" }
+                    .map { trigger ->
+                        (trigger.params["slot"] ?: "1") to (trigger.params["label"]?.takeIf { it.isNotBlank() } ?: rule.name)
+                    }
+            }.sortedBy { it.first }
+
+    /** Puts the buttons over other apps; a tap fires the trigger of its slot. */
+    private fun showFloatingButtons(buttons: List<Pair<String, String>>) {
+        A11yOverlay.showButtons(
+            buttons.map { (slot, label) -> label to { onEvent(TriggerEvent("floating_button", mapOf("slot" to slot))) } },
+        )
     }
 
     /** The rule for Quick Settings tile [slot], for the tile's label. */

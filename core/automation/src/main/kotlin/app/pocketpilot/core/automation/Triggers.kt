@@ -1,5 +1,8 @@
 package app.pocketpilot.core.automation
 
+/** How many floating buttons a rule can pick: "Button 1" to "Button [FLOATING_BUTTON_SLOTS]". */
+const val FLOATING_BUTTON_SLOTS = 5
+
 /**
  * The triggers this build can fire. The app turns phone events into [TriggerEvent]s with the same
  * type and the data keys listed in [TriggerDef.variables]; rules read them as `{trigger.<key>}`.
@@ -791,6 +794,24 @@ internal object Triggers {
                 fields = listOf(choiceField("slot", "Tile", listOf(Choice("1", "Tile 1"), Choice("2", "Tile 2"), Choice("3", "Tile 3")))),
                 source = Source.POCKETPILOT,
                 sentence = { p -> "Quick Settings tile ${p.p("slot")} tapped" },
+                match = { p, e, _ -> p.p("slot").ifBlank { "1" } == e["slot"] },
+            ),
+            TriggerDef(
+                type = "floating_button",
+                category = Category.MANUAL,
+                title = "Floating button",
+                description = "Shows a button over other apps while the Accessibility service is on. Tap it to run the rule.",
+                fields =
+                    listOf(
+                        choiceField(
+                            "slot",
+                            "Button",
+                            (1..FLOATING_BUTTON_SLOTS).map { Choice("$it", "Button $it") },
+                        ),
+                        textField("label", "Button label", required = false, hint = "Short text on the button, for example Tesla"),
+                    ),
+                source = Source.POCKETPILOT,
+                sentence = { p -> "Floating button ${p.p("slot")} tapped" },
                 match = { p, e, _ -> p.p("slot").ifBlank { "1" } == e["slot"] },
             ),
             TriggerDef(

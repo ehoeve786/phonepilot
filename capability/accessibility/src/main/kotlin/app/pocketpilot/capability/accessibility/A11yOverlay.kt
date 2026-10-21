@@ -25,6 +25,9 @@ object A11yOverlay {
     /** The service [shown] was added with; its window goes away with that service. */
     private var owner: PocketPilotA11yService? = null
 
+    /** The bar of floating buttons, if any are up. */
+    private var buttonBar: View? = null
+
     /**
      * Shows the pill with [text], or updates it if it is already up. Returns false when the
      * Accessibility service is off, so the caller can fall back to a notification.
@@ -103,6 +106,67 @@ object A11yOverlay {
             label = null
             owner = null
         }
+    }
+
+    /**
+     * Shows one button per entry down the right edge, replacing any shown before. A tap runs the
+     * entry's action. Returns false when the Accessibility service is off, so nothing is shown.
+     */
+    fun showButtons(buttons: List<Pair<String, () -> Unit>>): Boolean {
+        val service = A11yBridge.service() ?: return false
+        main.post {
+            removeButtons()
+            if (buttons.isEmpty()) return@post
+            val dp = { value: Int ->
+                TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), service.resources.displayMetrics).toInt()
+            }
+            val bar = LinearLayout(service).apply { orientation = LinearLayout.VERTICAL }
+            buttons.forEach { (text, onTap) ->
+                val button =
+                    TextView(service).apply {
+                        this.text = text
+                        setTextColor(Color.WHITE)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                        setPadding(dp(14), dp(10), dp(14), dp(10))
+                        background =
+                            GradientDrawable().apply {
+                                cornerRadius = dp(18).toFloat()
+                                setColor(Color.argb(230, 32, 33, 36))
+                                setStroke(dp(1), Color.rgb(229, 57, 53))
+                            }
+                        setOnClickListener { onTap() }
+                    }
+                bar.addView(
+                    button,
+                    LinearLayout.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT).apply {
+                        bottomMargin = dp(8)
+                    },
+                )
+            }
+            val params =
+                WindowManager
+                    .LayoutParams(
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                        PixelFormat.TRANSLUCENT,
+                    ).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL }
+            val manager = service.getSystemService(WindowManager::class.java)
+            runCatching { manager.addView(bar, params) }.onSuccess { buttonBar = bar }
+        }
+        return true
+    }
+
+    /** Removes the floating buttons if they are up. */
+    fun hideButtons() {
+        main.post { removeButtons() }
+    }
+
+    private fun removeButtons() {
+        val bar = buttonBar ?: return
+        runCatching { bar.context.getSystemService(WindowManager::class.java).removeView(bar) }
+        buttonBar = null
     }
 
     private const val TOP_OFFSET_DP = 40
