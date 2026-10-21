@@ -49,7 +49,7 @@ class PhoneState(
             StateKeys.WIFI_ENABLED -> onOff(wifiEnabled())
             StateKeys.WIFI_SSID -> wifiSsid()
             StateKeys.BLUETOOTH_ENABLED -> onOff(globalInt(Settings.Global.BLUETOOTH_ON) == 1)
-            StateKeys.BLUETOOTH_DEVICES -> bluetoothDevices.values.joinToString("\n")
+            StateKeys.BLUETOOTH_DEVICES -> (bluetoothDevices.values + bluetoothAudioNames()).distinct().joinToString("\n")
             StateKeys.INTERNET -> onOff(hasTransportOrCapability(capability = NetworkCapabilities.NET_CAPABILITY_VALIDATED))
             StateKeys.VPN -> onOff(hasTransportOrCapability(transport = NetworkCapabilities.TRANSPORT_VPN))
             StateKeys.AIRPLANE -> onOff(globalInt(Settings.Global.AIRPLANE_MODE_ON) == 1)
@@ -137,6 +137,17 @@ class PhoneState(
 
     fun headsetConnected(): Boolean = audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type in HEADSET_TYPES }
 
+    /**
+     * Names of the Bluetooth outputs Android routes audio to right now. A call moves a car to its call
+     * profile, which can drop the audio profile the connection broadcasts were counted on, and a device
+     * connected before the app started sends no broadcast at all. The live route is read in both cases.
+     */
+    private fun bluetoothAudioNames(): List<String> =
+        audio
+            .getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            .filter { it.type in BLUETOOTH_OUTPUT_TYPES }
+            .mapNotNull { it.productName?.toString()?.takeIf(String::isNotBlank) }
+
     private fun darkMode(): Boolean =
         context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
 
@@ -152,6 +163,13 @@ class PhoneState(
                 AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
                 AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
                 AudioDeviceInfo.TYPE_USB_HEADSET,
+                AudioDeviceInfo.TYPE_BLE_HEADSET,
+            )
+
+        val BLUETOOTH_OUTPUT_TYPES =
+            setOf(
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
                 AudioDeviceInfo.TYPE_BLE_HEADSET,
             )
 
