@@ -7,6 +7,8 @@ import android.app.RemoteInput
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
 import android.service.notification.StatusBarNotification
@@ -194,24 +196,31 @@ object ListenerNotificationSource : NotificationSource {
     }
 
     /**
-     * Every text the notification carries, under the name the system gives it, so the owner can read the whole
-     * payload and not only the title and first text. Pictures and other non-text extras are left out.
+     * Everything the notification carries, under the name the system gives it, so the owner can read the whole
+     * payload: every extra as text, the ids and group, and the package that owns the tap target. Pictures are
+     * named, not dumped.
      */
     private fun StatusBarNotification.extraTexts(): Map<String, String> {
         val texts = sortedMapOf<String, String>()
+        texts["id"] = id.toString()
+        tag?.let { texts["tag"] = it }
+        groupKey?.let { texts["groupKey"] = it }
+        notification.group?.let { texts["group"] = it }
+        notification.sortKey?.let { texts["sortKey"] = it }
         notification.tickerText?.let { texts["ticker"] = it.toString() }
         notification.category?.let { texts["category"] = it }
         notification.channelId?.let { texts["channel"] = it }
+        notification.contentIntent?.creatorPackage?.let { texts["tapTargetPackage"] = it }
         val extras = notification.extras
         extras.keySet().sorted().forEach { key ->
-            val value = runCatching { extras.get(key) }.getOrNull()
+            val value = runCatching { extras.get(key) }.getOrNull() ?: return@forEach
             val text =
                 when (value) {
-                    is CharSequence -> value.toString()
-                    is Array<*> -> value.filterIsInstance<CharSequence>().joinToString("\n")
-                    else -> null
+                    is Array<*> -> value.joinToString("\n") { it.toString() }
+                    is Bitmap, is Icon -> "(${value.javaClass.simpleName})"
+                    else -> value.toString()
                 }
-            text?.takeIf { it.isNotBlank() }?.let { texts[key] = it.take(MAX_EXTRA_CHARS) }
+            if (text.isNotBlank()) texts[key] = text.take(MAX_EXTRA_CHARS)
         }
         return texts
     }
