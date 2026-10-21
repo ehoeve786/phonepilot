@@ -9,7 +9,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -84,6 +83,7 @@ import app.pocketpilot.onboarding.SetupActions
 import app.pocketpilot.onboarding.SetupState
 import app.pocketpilot.onboarding.setupSteps
 import app.pocketpilot.security.BiometricGate
+import app.pocketpilot.security.ScreenshotLock
 import app.pocketpilot.security.ShellSwitch
 import app.pocketpilot.security.ToolModeStore
 import app.pocketpilot.server.LocalTokenStore
@@ -142,6 +142,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var controlOverlay: ControlOverlay
 
     @Inject lateinit var biometricGate: BiometricGate
+
+    @Inject lateinit var screenshotLock: ScreenshotLock
 
     @Inject lateinit var shizukuShell: ShizukuShellRunner
 
@@ -325,8 +327,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // The screens show the local token and keys: keep them out of screenshots and the recents preview.
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         // The launching intent is redelivered when the activity is recreated, so handle it only on a fresh start.
         if (savedInstanceState == null) handleOpen(intent)
         val crashReports = (application as PocketPilotApplication).crashReports
@@ -584,6 +584,9 @@ class MainActivity : ComponentActivity() {
                         screenLockMissing = !biometricGate.lockAvailable(),
                         secretsLost = secrets.lost().isNotEmpty(),
                         onBiometricChange = { on -> if (on) biometricGate.set(true) else withOwner { biometricGate.set(false) } },
+                        secretsLocked = screenshotLock.enabled.collectAsStateWithLifecycle().value,
+                        // Letting screenshots show the token needs the owner, like loosening the biometric lock does.
+                        onSecretsLockChange = { on -> if (on) screenshotLock.set(true) else withOwner { screenshotLock.set(false) } },
                         wireGuardState = wireGuardState,
                         auditEvents = auditEvents,
                         approvals = approvalItems.map(::pendingApproval),

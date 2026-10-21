@@ -64,6 +64,7 @@ internal class SettingsState(
     val setupSteps: List<SetupStep>,
     val screenLockMissing: Boolean = false,
     val secretsLost: Boolean = false,
+    val secretsLocked: Boolean = true,
 )
 
 /** The Settings screen's callbacks. */
@@ -80,6 +81,7 @@ internal class SettingsActions(
     val onOpenSetup: () -> Unit,
     val onGrantShizuku: () -> Unit,
     val onAllowNotifications: () -> Unit,
+    val onSecretsLockChange: (Boolean) -> Unit,
 )
 
 /**
@@ -156,6 +158,7 @@ internal fun SettingsScreen(
                     },
                 )
             }
+            SecretsLockCard(state.secretsLocked, actions.onSecretsLockChange)
             TokenCard(state.token, state.eventKey, actions.onRotateToken)
             FoldersCard(state.sharedFolders, actions.onAddFolder, actions.onRemoveFolder)
             BiometricCard(state.biometricApprovals, state.screenLockMissing, actions.onBiometricChange)
@@ -222,6 +225,26 @@ private fun FoldersCard(
                 }
             }
             Button(onClick = onAdd) { Text(stringResource(R.string.folders_add)) }
+        }
+    }
+}
+
+@Composable
+private fun SecretsLockCard(
+    locked: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    LiquidGlassBentoCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.secrets_lock_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(checked = locked, onCheckedChange = onChange)
+            }
+            Text(stringResource(R.string.secrets_lock_explainer), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
