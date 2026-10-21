@@ -392,6 +392,8 @@ class MainActivity : ComponentActivity() {
                 decline = automations.store::delete,
                 setSettings = automations.store::setSettings,
                 loadApps = automations::loadApps,
+                loadOptions = automations::loadOptions,
+                listDirectory = automations::listDirectory,
                 setHomeAssistant = { url, token ->
                     val settings = automations.store.data.value.settings
                     automations.store.setSettings(settings.copy(homeAssistantUrl = url.ifBlank { null }))
@@ -440,6 +442,7 @@ class MainActivity : ComponentActivity() {
                     settings = automationData.settings,
                     agentSpentThisMonthUsd = automationData.agentSpendUsd[YearMonth.now().toString()] ?: 0.0,
                     apps = automations.apps.collectAsStateWithLifecycle().value,
+                    options = automations.options.collectAsStateWithLifecycle().value,
                     tools = remember(tools) { tools.map { it.name }.sorted() },
                     sideload = policyProfile.shellExecAvailable,
                     homeAssistantToken = homeAssistantToken.value,

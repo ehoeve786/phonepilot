@@ -186,7 +186,13 @@ internal object Constraints {
                 fields =
                     listOf(
                         choiceField("mode", "Is", listOf(Choice("connected", "Connected to"), Choice("not_connected", "Not connected to"))),
-                        textField("ssid", "Network name", required = false, hint = "Any network when empty; several with commas"),
+                        pickField(
+                            "ssid",
+                            "Network name",
+                            PickSource.WIFI_NETWORK,
+                            required = false,
+                            hint = "Any network when empty; several with commas",
+                        ),
                     ),
                 sentence = { p ->
                     val name = p.p("ssid").ifBlank { "Wi-Fi" }
@@ -205,7 +211,10 @@ internal object Constraints {
                 category = Category.CONNECTIVITY,
                 title = "Bluetooth device connected",
                 description = "A Bluetooth device is connected.",
-                fields = listOf(textField("name", "Device name", required = false, hint = "Any device when empty")),
+                fields =
+                    listOf(
+                        pickField("name", "Device name", PickSource.BLUETOOTH_DEVICE, required = false, hint = "Any device when empty"),
+                    ),
                 sentence = { p -> "${p.p("name").ifBlank { "A Bluetooth device" }} connected" },
                 check = { p ->
                     val devices = state(StateKeys.BLUETOOTH_DEVICES).orEmpty().lines().filter(String::isNotBlank)
@@ -263,7 +272,7 @@ internal object Constraints {
                 description = "Compares a variable with a value.",
                 fields =
                     listOf(
-                        textField("name", "Variable", hint = "Without braces, for example trigger.title"),
+                        pickField("name", "Variable", PickSource.VARIABLE, hint = "Without braces, for example trigger.title"),
                         choiceField(
                             "op",
                             "Is",
@@ -391,7 +400,7 @@ internal object Constraints {
                 description = "An entity in Home Assistant has a state, such as a door being closed.",
                 fields =
                     listOf(
-                        textField("entity", "Entity ID", hint = "For example lock.front_door"),
+                        pickField("entity", "Entity ID", PickSource.HA_ENTITY, hint = "For example lock.front_door"),
                         choiceField("op", "Is", listOf(Choice("equals", "Equal to"), Choice("not_equals", "Not equal to"))),
                         textField("value", "State", hint = "For example locked"),
                     ),

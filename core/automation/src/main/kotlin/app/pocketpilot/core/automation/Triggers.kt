@@ -178,7 +178,7 @@ internal object Triggers {
                 description = "An accessibility service is turned on or off. Leave the app blank to match any service.",
                 fields =
                     listOf(
-                        textField("package", "App package", required = false, hint = "For example com.example.app"),
+                        singleAppField("package", "App", required = false, hint = "Any app when empty"),
                         choiceField("state", "When it", STATE),
                     ),
                 variables = listOf("package", "state"),
@@ -206,7 +206,7 @@ internal object Triggers {
                 description = "An app is turned on or off in Settings. Only apps named in a rule are watched.",
                 fields =
                     listOf(
-                        textField("package", "App package", hint = "For example com.example.app"),
+                        singleAppField("package", "App"),
                         choiceField("state", "When it", STATE),
                     ),
                 variables = listOf("package", "state"),
@@ -361,7 +361,16 @@ internal object Triggers {
                 category = Category.CONNECTIVITY,
                 title = "Wi-Fi connected",
                 description = "Connected to a Wi-Fi network. Reading the network name needs location access.",
-                fields = listOf(textField("ssid", "Network name", required = false, hint = "Any network when empty; several with commas")),
+                fields =
+                    listOf(
+                        pickField(
+                            "ssid",
+                            "Network name",
+                            PickSource.WIFI_NETWORK,
+                            required = false,
+                            hint = "Any network when empty; several with commas",
+                        ),
+                    ),
                 variables = listOf("ssid"),
                 sentence = { p -> if (p.p("ssid").isBlank()) "Wi-Fi connects" else "Connected to ${p.p("ssid")}" },
                 match = { p, e, _ -> anyOf(p.p("ssid"), e["ssid"]) },
@@ -371,7 +380,10 @@ internal object Triggers {
                 category = Category.CONNECTIVITY,
                 title = "Wi-Fi disconnected",
                 description = "Left a Wi-Fi network.",
-                fields = listOf(textField("ssid", "Network name", required = false, hint = "Any network when empty")),
+                fields =
+                    listOf(
+                        pickField("ssid", "Network name", PickSource.WIFI_NETWORK, required = false, hint = "Any network when empty"),
+                    ),
                 variables = listOf("ssid"),
                 sentence = { p -> if (p.p("ssid").isBlank()) "Wi-Fi disconnects" else "Left ${p.p("ssid")}" },
                 match = { p, e, _ -> anyOf(p.p("ssid"), e["ssid"]) },
@@ -390,7 +402,13 @@ internal object Triggers {
                             "When it",
                             listOf(Choice("connected", "Connects"), Choice("disconnected", "Disconnects"), Choice("any", "Either")),
                         ),
-                        textField("name", "Device name", required = false, hint = "Any device when empty; several with commas"),
+                        pickField(
+                            "name",
+                            "Device name",
+                            PickSource.BLUETOOTH_DEVICE,
+                            required = false,
+                            hint = "Any device when empty; several with commas",
+                        ),
                     ),
                 variables = listOf("event", "name", "address"),
                 sentence = { p ->
@@ -738,7 +756,7 @@ internal object Triggers {
                 description = "An entity in Home Assistant changes state. Set up Home Assistant under Automations settings.",
                 fields =
                     listOf(
-                        textField("entity", "Entity ID", hint = "For example binary_sensor.front_door"),
+                        pickField("entity", "Entity ID", PickSource.HA_ENTITY, hint = "For example binary_sensor.front_door"),
                         textField("to", "Changes to", required = false, hint = "Any change when empty"),
                         textField("from", "Changes from", required = false),
                     ),
@@ -835,7 +853,7 @@ internal object Triggers {
                 category = Category.VARIABLES,
                 title = "Variable changed",
                 description = "A global variable got a new value.",
-                fields = listOf(textField("name", "Variable"), textField("value", "New value is", required = false)),
+                fields = listOf(pickField("name", "Variable", PickSource.VARIABLE), textField("value", "New value is", required = false)),
                 source = Source.POCKETPILOT,
                 variables = listOf("name", "value"),
                 sentence = { p -> "{${p.p("name")}} changes" },

@@ -3,6 +3,7 @@ package app.pocketpilot.automation
 import app.pocketpilot.agent.providers.api.keyMayBeSentTo
 import app.pocketpilot.core.automation.AutomationFailure
 import app.pocketpilot.core.automation.AutomationJson
+import app.pocketpilot.core.automation.PickOption
 import app.pocketpilot.core.automation.RuleStore
 import app.pocketpilot.network.api.SecretStore
 import io.ktor.client.HttpClient
@@ -23,6 +24,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -67,6 +69,40 @@ class HomeAssistant(
             null
         } else {
             runCatching { entity(entity)["state"]?.jsonPrimitive?.contentOrNull }.getOrNull()
+        }
+
+    /** Every entity, with its friendly name when it has one, for the builder's entity list. */
+    suspend fun entities(): List<PickOption> =
+        if (!configured) {
+            emptyList()
+        } else {
+            runCatching {
+                AutomationJson.json.parseToJsonElement(request("GET", "/api/states", null)).jsonArray.mapNotNull { element ->
+                    val entity = element.jsonObject
+                    val id = entity["entity_id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                    val name =
+                        entity["attributes"]
+                            ?.jsonObject
+                            ?.get("friendly_name")
+                            ?.jsonPrimitive
+                            ?.contentOrNull
+                    PickOption(id, name ?: id, id.takeIf { name != null })
+                }
+            }.getOrDefault(emptyList()).sortedBy { it.value }
+        }
+
+    /** Every service as "domain.service", for the builder's action list. */
+    suspend fun services(): List<PickOption> =
+        if (!configured) {
+            emptyList()
+        } else {
+            runCatching {
+                AutomationJson.json.parseToJsonElement(request("GET", "/api/services", null)).jsonArray.flatMap { domain ->
+                    val json = domain.jsonObject
+                    val name = json["domain"]?.jsonPrimitive?.contentOrNull ?: return@flatMap emptyList()
+                    (json["services"]?.jsonObject?.keys ?: emptySet()).map { PickOption("$name.$it", "$name.$it") }
+                }
+            }.getOrDefault(emptyList()).sortedBy { it.value }
         }
 
     /** Calls the action [service] ("light.turn_on") with [data], adding [entity] as its target. */

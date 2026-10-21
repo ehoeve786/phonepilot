@@ -131,6 +131,7 @@ object AutomationModule {
             shell,
             scope,
             calendars,
+            homeAssistant,
             profile.shellExecAvailable,
         ) { emit ->
             TriggerSources(

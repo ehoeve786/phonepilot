@@ -19,6 +19,8 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- The file browser for automation paths. Granted by hand under Settings > All files access. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <!-- Automations wave 2: places, calls, the calendar and the media sessions of other apps. Each is
          granted through Shizuku only once an enabled rule uses it. The sideload flavors add call log
          and text message access. -->

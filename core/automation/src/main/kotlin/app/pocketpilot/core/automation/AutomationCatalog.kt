@@ -39,6 +39,27 @@ internal fun appsField(
     required: Boolean = false,
 ) = FieldDef("apps", label, FieldKind.APP, required = required, hint = if (required) null else "Any app when empty")
 
+internal fun singleAppField(
+    key: String,
+    label: String,
+    required: Boolean = true,
+    hint: String? = null,
+) = FieldDef(key, label, FieldKind.APP, required = required, hint = hint, single = true)
+
+internal fun pickField(
+    key: String,
+    label: String,
+    source: PickSource,
+    required: Boolean = true,
+    hint: String? = null,
+) = FieldDef(key, label, FieldKind.TEXT, required = required, hint = hint, source = source)
+
+internal fun fileField(
+    key: String,
+    label: String,
+    hint: String? = null,
+) = FieldDef(key, label, FieldKind.TEXT, hint = hint, browse = true)
+
 internal fun textField(
     key: String,
     label: String,

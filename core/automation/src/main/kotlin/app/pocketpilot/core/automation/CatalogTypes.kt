@@ -47,6 +47,35 @@ data class FieldDef(
     val default: String? = null,
     val choices: List<Choice> = emptyList(),
     val hint: String? = null,
+    /** For an APP field: pick one app, stored as its package name, not a list. */
+    val single: Boolean = false,
+    /** For a text field: offer a list of values from this source, and still accept typing. */
+    val source: PickSource? = null,
+    /** For a text field: offer a file browser to choose a path, and still accept typing. */
+    val browse: Boolean = false,
+)
+
+/** Where a text field's list of suggested values comes from. */
+enum class PickSource {
+    VARIABLE,
+    BLUETOOTH_DEVICE,
+    WIFI_NETWORK,
+    HA_ENTITY,
+    HA_SERVICE,
+    CALENDAR,
+    INTENT_COMPONENT,
+    INTENT_ACTION,
+    ;
+
+    /** Bluetooth devices and Wi-Fi networks can be several, stored comma-separated. */
+    val multiple: Boolean get() = this == BLUETOOTH_DEVICE || this == WIFI_NETWORK
+}
+
+/** One suggested value: [value] is stored, [label] and [detail] are shown in the list. */
+data class PickOption(
+    val value: String,
+    val label: String,
+    val detail: String? = null,
 )
 
 /** Groups for the builder's pickers. */

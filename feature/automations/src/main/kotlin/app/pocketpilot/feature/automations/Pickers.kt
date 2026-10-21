@@ -1,5 +1,6 @@
 package app.pocketpilot.feature.automations
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -34,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -41,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import app.pocketpilot.core.automation.Category
 import app.pocketpilot.core.automation.FieldDef
 import app.pocketpilot.core.automation.FieldKind
+import app.pocketpilot.core.automation.PickOption
+import app.pocketpilot.core.automation.PickSource
 import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.model.RiskTier
 
@@ -121,10 +126,13 @@ private const val SHEET_HEIGHT = 0.9f
 /** What a field picker may need from the app. */
 internal data class FieldContext(
     val apps: List<AppOption>,
+    val options: Map<PickSource, List<PickOption>>,
     val rules: List<Rule>,
     val tools: List<String>,
     val currentRuleId: String,
     val loadApps: () -> Unit,
+    val loadOptions: (PickSource) -> Unit,
+    val listDirectory: suspend (String) -> List<PickOption>,
 )
 
 /** Edits [fields] of one trigger, condition or action, plus any [extra] settings, in a bottom sheet. */
@@ -165,6 +173,165 @@ internal fun FieldsSheet(
     }
 }
 
+/** A text field with a searchable list of suggested values; typing still works. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SourceField(
+    label: String,
+    value: String,
+    source: PickSource,
+    context: FieldContext,
+    onChange: (String) -> Unit,
+) {
+    var picking by remember { mutableStateOf(false) }
+    val selected = value.split(',').map(String::trim).filter(String::isNotEmpty)
+    LaunchedEffect(source) { context.loadOptions(source) }
+    val options = context.options[source].orEmpty()
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onChange,
+            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        TextButton(onClick = { picking = true }) { Text(stringResource(R.string.feature_automations_choose)) }
+    }
+    if (picking) {
+        var query by remember { mutableStateOf("") }
+        var chosen by remember { mutableStateOf(selected.toSet()) }
+        ModalBottomSheet(onDismissRequest = { picking = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            Column(Modifier.padding(horizontal = 16.dp).fillMaxHeight(SHEET_HEIGHT), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text(stringResource(R.string.feature_automations_search)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (options.isEmpty()) {
+                    Text(
+                        stringResource(R.string.feature_automations_no_suggestions),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                LazyColumn(Modifier.weight(1f)) {
+                    items(
+                        options.filter {
+                            query.isBlank() || it.label.contains(query, ignoreCase = true) || it.value.contains(query, ignoreCase = true)
+                        },
+                        key = { it.value },
+                    ) { option ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (!source.multiple) {
+                                        onChange(option.value)
+                                        picking = false
+                                    } else {
+                                        chosen = if (option.value in chosen) chosen - option.value else chosen + option.value
+                                    }
+                                }.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (source.multiple) {
+                                Checkbox(checked = option.value in chosen, onCheckedChange = null)
+                            }
+                            Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                                Text(option.label, style = MaterialTheme.typography.bodyLarge)
+                                option.detail?.let {
+                                    Text(it, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
+                                }
+                            }
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 16.dp)) {
+                    TextButton(onClick = { picking = false }) { Text(stringResource(R.string.feature_automations_cancel)) }
+                    if (source.multiple) {
+                        Button(
+                            onClick = {
+                                onChange(chosen.joinToString(","))
+                                picking = false
+                            },
+                        ) { Text(stringResource(R.string.feature_automations_done)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private const val DEFAULT_BROWSE_FOLDER = "/storage/emulated/0"
+
+/** A path text field with a browse button for folders and files; typing still works. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FileField(
+    label: String,
+    value: String,
+    context: FieldContext,
+    onChange: (String) -> Unit,
+) {
+    var browsing by remember { mutableStateOf(false) }
+    var folder by remember { mutableStateOf(DEFAULT_BROWSE_FOLDER) }
+    var entries by remember { mutableStateOf<List<PickOption>>(emptyList()) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onChange,
+            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        TextButton(
+            onClick = {
+                folder = value.substringBeforeLast('/', "").ifBlank { DEFAULT_BROWSE_FOLDER }
+                browsing = true
+            },
+        ) { Text(stringResource(R.string.feature_automations_browse)) }
+    }
+    if (browsing) {
+        LaunchedEffect(folder) { entries = context.listDirectory(folder) }
+        ModalBottomSheet(
+            onDismissRequest = { browsing = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            Column(Modifier.padding(horizontal = 16.dp).fillMaxHeight(SHEET_HEIGHT), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(folder, style = MaterialTheme.typography.labelMedium, fontFamily = FontFamily.Monospace)
+                if (entries.isEmpty()) {
+                    Text(
+                        stringResource(R.string.feature_automations_no_files),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                LazyColumn(Modifier.weight(1f)) {
+                    items(entries, key = { it.value }) { entry ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (entry.value.endsWith("/")) {
+                                        folder = entry.value.trimEnd('/')
+                                    } else {
+                                        onChange(entry.value)
+                                        browsing = false
+                                    }
+                                }.padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(entry.label, style = MaterialTheme.typography.bodyLarge)
+                                entry.detail?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+                            }
+                        }
+                    }
+                }
+                TextButton(onClick = { browsing = false }) { Text(stringResource(R.string.feature_automations_cancel)) }
+            }
+        }
+    }
+}
+
 private val DAYS = listOf("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -176,6 +343,14 @@ private fun FieldEditor(
     onChange: (String) -> Unit,
 ) {
     val label = field.label + if (field.required) "" else " " + stringResource(R.string.feature_automations_optional)
+    field.source?.let { source ->
+        SourceField(field.label, value, source, context, onChange)
+        return
+    }
+    if (field.browse) {
+        FileField(field.label, value, context, onChange)
+        return
+    }
     when (field.kind) {
         FieldKind.CHOICE -> {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -220,7 +395,7 @@ private fun FieldEditor(
         }
 
         FieldKind.APP -> {
-            AppField(label, value, context, onChange)
+            AppField(label, value, context, field.single, onChange)
         }
 
         FieldKind.RULE -> {
@@ -298,10 +473,12 @@ private fun AppField(
     label: String,
     value: String,
     context: FieldContext,
+    single: Boolean,
     onChange: (String) -> Unit,
 ) {
     var picking by remember { mutableStateOf(false) }
     val selected = value.split(',').map(String::trim).filter(String::isNotEmpty)
+    LaunchedEffect(Unit) { context.loadApps() }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         OutlinedTextField(
             value = value,
@@ -317,7 +494,6 @@ private fun AppField(
         TextButton(onClick = { picking = true }) { Text(stringResource(R.string.feature_automations_choose_apps)) }
     }
     if (picking) {
-        LaunchedEffect(Unit) { context.loadApps() }
         var query by remember { mutableStateOf("") }
         var chosen by remember { mutableStateOf(selected.toSet()) }
         ModalBottomSheet(onDismissRequest = { picking = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -347,18 +523,21 @@ private fun AppField(
                             Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    chosen =
-                                        if (app.packageName in
-                                            chosen
-                                        ) {
-                                            chosen - app.packageName
-                                        } else {
-                                            chosen + app.packageName
-                                        }
+                                    if (single) {
+                                        onChange(app.packageName)
+                                        picking = false
+                                    } else {
+                                        chosen = if (app.packageName in chosen) chosen - app.packageName else chosen + app.packageName
+                                    }
                                 }.padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Checkbox(checked = app.packageName in chosen, onCheckedChange = null)
+                            if (!single) {
+                                Checkbox(checked = app.packageName in chosen, onCheckedChange = null)
+                            }
+                            app.icon?.let { icon ->
+                                Image(bitmap = icon.asImageBitmap(), contentDescription = null, modifier = Modifier.size(32.dp))
+                            }
                             Column(Modifier.weight(1f).padding(start = 8.dp)) {
                                 Text(app.label, style = MaterialTheme.typography.bodyLarge)
                                 Text(app.packageName, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
@@ -368,12 +547,14 @@ private fun AppField(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 16.dp)) {
                     TextButton(onClick = { picking = false }) { Text(stringResource(R.string.feature_automations_cancel)) }
-                    Button(
-                        onClick = {
-                            onChange(chosen.joinToString(","))
-                            picking = false
-                        },
-                    ) { Text(stringResource(R.string.feature_automations_done)) }
+                    if (!single) {
+                        Button(
+                            onClick = {
+                                onChange(chosen.joinToString(","))
+                                picking = false
+                            },
+                        ) { Text(stringResource(R.string.feature_automations_done)) }
+                    }
                 }
             }
         }
