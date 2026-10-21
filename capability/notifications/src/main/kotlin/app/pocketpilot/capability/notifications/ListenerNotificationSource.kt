@@ -69,6 +69,7 @@ object ListenerNotificationSource : NotificationSource {
     }
 
     private const val CHANGE_BUFFER = 64
+    private const val MAX_EXTRA_CHARS = 2_000
 
     override suspend fun active(): List<PhoneNotification> =
         listener()
@@ -188,7 +189,31 @@ object ListenerNotificationSource : NotificationSource {
                 notification.actions.orEmpty().mapNotNull { action ->
                     action.title?.toString()?.let { NotificationAction(it, acceptsText = !action.remoteInputs.isNullOrEmpty()) }
                 },
+            extras = extraTexts(),
         )
+    }
+
+    /**
+     * Every text the notification carries, under the name the system gives it, so the owner can read the whole
+     * payload and not only the title and first text. Pictures and other non-text extras are left out.
+     */
+    private fun StatusBarNotification.extraTexts(): Map<String, String> {
+        val texts = sortedMapOf<String, String>()
+        notification.tickerText?.let { texts["ticker"] = it.toString() }
+        notification.category?.let { texts["category"] = it }
+        notification.channelId?.let { texts["channel"] = it }
+        val extras = notification.extras
+        extras.keySet().sorted().forEach { key ->
+            val value = runCatching { extras.get(key) }.getOrNull()
+            val text =
+                when (value) {
+                    is CharSequence -> value.toString()
+                    is Array<*> -> value.filterIsInstance<CharSequence>().joinToString("\n")
+                    else -> null
+                }
+            text?.takeIf { it.isNotBlank() }?.let { texts[key] = it.take(MAX_EXTRA_CHARS) }
+        }
+        return texts
     }
 }
 

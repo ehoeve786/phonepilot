@@ -24,7 +24,7 @@ class NotifyToolsTest {
         override val backendId = "fake"
         override val available = MutableStateFlow(true)
         val acted = mutableListOf<Pair<String, NotificationCommand>>()
-        val shade =
+        var shade =
             listOf(
                 PhoneNotification(
                     key = "msg",
@@ -69,6 +69,27 @@ class NotifyToolsTest {
             assertTrue("Dinner at 7?" in text)
             assertFalse("123456" in text, "a bank's code never leaves the phone")
             assertTrue("\"withheld\":1" in text)
+        }
+
+    @Test
+    fun `lists the full payload of a notification`() =
+        runTest {
+            val withExtras =
+                PhoneNotification(
+                    key = "offer",
+                    packageName = "com.delco.courier",
+                    title = "SkipTheDishes",
+                    text = "You've been matched to a new order.",
+                    postedAtMillis = 3,
+                    clearable = true,
+                    opens = true,
+                    actions = emptyList(),
+                    extras = mapOf("android.bigText" to "Pickup at 5th and Main", "android.subText" to "Order 42"),
+                )
+            source.shade = listOf(withExtras)
+            val text = dispatcher.dispatch(session, "notify.list", buildJsonObject {}).content.toString()
+            assertTrue("Pickup at 5th and Main" in text)
+            assertTrue("android.subText" in text)
         }
 
     @Test

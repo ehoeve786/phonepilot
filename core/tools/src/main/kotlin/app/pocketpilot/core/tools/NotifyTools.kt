@@ -79,6 +79,12 @@ class NotifyListTool(
             put("postedAt", postedAtMillis)
             put("opens", opens)
             put("clearable", clearable)
+            if (extras.isNotEmpty()) {
+                put(
+                    "extras",
+                    buildJsonObject { extras.forEach { (name, text) -> put(name, text) } },
+                )
+            }
             if (actions.isNotEmpty()) {
                 put(
                     "actions",
