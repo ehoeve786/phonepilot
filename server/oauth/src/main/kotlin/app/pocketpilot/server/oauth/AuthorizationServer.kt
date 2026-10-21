@@ -487,7 +487,7 @@ class AuthorizationServer(
             val query =
                 params
                     .filter { it.second != null }
-                    .joinToString("&") { (k, v) -> "$k=${URLEncoder.encode(v, Charsets.UTF_8)}" }
+                    .joinToString("&") { (k, v) -> "$k=${URLEncoder.encode(v, "UTF-8")}" }
             return uri + (if ('?' in uri) "&" else "?") + query
         }
 

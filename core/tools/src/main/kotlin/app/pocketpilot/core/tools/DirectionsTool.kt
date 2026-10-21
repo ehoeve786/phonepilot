@@ -321,7 +321,7 @@ class AppDirectionsTool(
         reader.awaitIdle(quietMs = SETTLE_MS, timeoutMs = OPEN_WAIT_MS)
     }
 
-    private fun encode(text: String) = URLEncoder.encode(text, Charsets.UTF_8).replace("+", "%20")
+    private fun encode(text: String) = URLEncoder.encode(text, "UTF-8").replace("+", "%20")
 
     private companion object {
         const val MAPS = "com.google.android.apps.maps"
