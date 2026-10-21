@@ -89,6 +89,8 @@ class AutomationsActions(
     val setPinned: (String, Boolean) -> Unit,
     /** Runs the rule now, checking its conditions. */
     val run: (Rule) -> Unit,
+    /** Puts a home screen icon named [name] on the home, for the rule's "Home screen icon" trigger. */
+    val addIcon: (String) -> Unit,
     /** Runs the rule's actions once now, without its conditions. */
     val test: (Rule) -> Unit,
     val stop: (String) -> Unit,
@@ -255,6 +257,7 @@ private fun RulesList(
                 onEnabledChange = { actions.setEnabled(rule.id, it) },
                 onOpen = { onOpen(rule) },
                 onRun = { actions.run(rule) },
+                onAddIcon = actions.addIcon,
                 onStop = { actions.stop(rule.id) },
                 onPinnedChange = { actions.setPinned(rule.id, it) },
             )

@@ -11,11 +11,14 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Environment
 import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
+import app.pocketpilot.capability.accessibility.A11yBridge
+import app.pocketpilot.capability.accessibility.A11yOverlay
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.core.automation.ActionStep
 import app.pocketpilot.core.automation.AutomationData
@@ -31,11 +34,13 @@ import app.pocketpilot.core.automation.RunOutcome
 import app.pocketpilot.core.automation.Schedule
 import app.pocketpilot.core.automation.TriggerEvent
 import app.pocketpilot.feature.automations.AppOption
+import app.pocketpilot.feature.automations.automationIconRes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -88,6 +93,12 @@ class AutomationRuntime(
                 .map(::activeRules)
                 .distinctUntilChanged()
                 .collect { rules -> withContext(Dispatchers.Main) { apply(rules) } }
+        }
+        scope.launch {
+            combine(store.data.map { floatingButtons(activeRules(it)) }, A11yBridge.connected) { buttons, connected ->
+                if (connected) buttons else emptyList()
+            }.distinctUntilChanged()
+                .collect { buttons -> withContext(Dispatchers.Main) { showFloatingButtons(buttons) } }
         }
         scope.launch {
             var newest =
@@ -304,6 +315,33 @@ class AutomationRuntime(
         }
     }
 
+    /** The floating buttons of [rules], one per slot, in slot order. */
+    private fun floatingButtons(rules: List<Rule>): List<FloatingSpec> =
+        rules
+            .flatMap { rule -> rule.triggers.filter { it.type == "floating_button" }.map { FloatingSpec.from(rule.name, it.params) } }
+            .distinctBy { it.slot }
+            .sortedBy { it.slot }
+
+    /** Puts the buttons over other apps; a tap or long press fires the trigger of its slot and press. */
+    private fun showFloatingButtons(buttons: List<FloatingSpec>) {
+        A11yOverlay.showButtons(
+            buttons.map { spec ->
+                A11yOverlay.FloatingButton(
+                    text = spec.label,
+                    icon = spec.icon(context),
+                    small = spec.small,
+                    transparent = spec.transparent,
+                    opacity = spec.opacity,
+                    x = spec.x,
+                    y = spec.y,
+                    vibrate = spec.vibrate,
+                    onTap = { onEvent(TriggerEvent("floating_button", mapOf("slot" to spec.slot, "press" to "tap"))) },
+                    onLongPress = { onEvent(TriggerEvent("floating_button", mapOf("slot" to spec.slot, "press" to "long"))) },
+                )
+            },
+        )
+    }
+
     /** The rule for Quick Settings tile [slot], for the tile's label. */
     fun tileRule(slot: Int): Rule? =
         store.rules.firstOrNull { rule ->
@@ -503,5 +541,45 @@ class AutomationRuntime(
             )
         const val LIMIT_MESSAGE = "monthly AI limit"
         val HH_MM: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    }
+}
+
+/** How one floating button looks and where it sits, from its trigger's settings. */
+private data class FloatingSpec(
+    val slot: String,
+    val label: String,
+    /** A drawable from this app's resources, tinted white. */
+    val iconRes: Int?,
+    /** The installed app whose icon is shown. */
+    val iconPackage: String?,
+    val small: Boolean,
+    val transparent: Boolean,
+    val opacity: Float,
+    val x: Int?,
+    val y: Int?,
+    val vibrate: Boolean,
+) {
+    /** The icon to draw: a tinted resource, else the app's icon, else none. */
+    fun icon(context: Context): Drawable? =
+        iconRes?.let { id -> context.getDrawable(id)?.mutate()?.apply { setTint(Color.WHITE) } }
+            ?: iconPackage?.let { pkg -> runCatching { context.packageManager.getApplicationIcon(pkg) }.getOrNull() }
+
+    companion object {
+        fun from(
+            ruleName: String,
+            params: Map<String, String>,
+        ): FloatingSpec =
+            FloatingSpec(
+                slot = params["slot"] ?: "1",
+                label = params["label"]?.takeIf { it.isNotBlank() } ?: ruleName,
+                iconRes = automationIconRes(params["icon"].orEmpty()),
+                iconPackage = if (params["icon"] == "app") params["app"]?.takeIf { it.isNotBlank() } else null,
+                small = params["size"] == "small",
+                transparent = params["background"] == "transparent",
+                opacity = ((params["opacity"]?.toIntOrNull() ?: 100).coerceIn(0, 100)) / 100f,
+                x = params["x"]?.toIntOrNull(),
+                y = params["y"]?.toIntOrNull(),
+                vibrate = params["vibrate"] == "yes",
+            )
     }
 }

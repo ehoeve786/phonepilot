@@ -75,6 +75,13 @@ internal fun choiceField(
     default: String = choices.first().value,
 ) = FieldDef(key, label, FieldKind.CHOICE, default = default, choices = choices)
 
+internal fun iconField(
+    key: String,
+    label: String,
+    choices: List<Choice>,
+    default: String = choices.first().value,
+) = FieldDef(key, label, FieldKind.ICON, default = default, choices = choices)
+
 internal fun numberField(
     key: String,
     label: String,

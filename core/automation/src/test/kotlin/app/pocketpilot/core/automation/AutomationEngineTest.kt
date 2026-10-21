@@ -421,6 +421,44 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a floating button runs only the rule for its slot, and the tap is not from outside`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(
+                    listOf(ActionStep("notify.post", mapOf("title" to "one"))),
+                    triggers = listOf(TriggerSpec("floating_button", mapOf("slot" to "1", "label" to "Tesla"))),
+                ),
+            )
+            val engine = engine(this, host, store)
+            engine.onEvent(TriggerEvent("floating_button", mapOf("slot" to "2", "press" to "tap")))
+            engine.onEvent(TriggerEvent("floating_button", mapOf("slot" to "1", "press" to "long")))
+            engine.onEvent(TriggerEvent("floating_button", mapOf("slot" to "1", "press" to "tap")))
+            advanceUntilIdle()
+            assertEquals(listOf(false), host.outside)
+            assertEquals(1, host.calls.count { it.first == "notify.post" })
+        }
+
+    @Test
+    fun `a home screen icon runs only the rule with its name`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(
+                    listOf(ActionStep("notify.post", mapOf("title" to "lights"))),
+                    triggers = listOf(TriggerSpec("shortcut", mapOf("name" to "Lights"))),
+                ),
+            )
+            val engine = engine(this, host, store)
+            engine.onEvent(TriggerEvent("shortcut", mapOf("name" to "Heat")))
+            engine.onEvent(TriggerEvent("shortcut", mapOf("name" to "Lights")))
+            advanceUntilIdle()
+            assertEquals(1, host.calls.count { it.first == "notify.post" })
+        }
+
+    @Test
     fun `pending proposals and disabled rules never run`() =
         runTest {
             val host = FakeHost()

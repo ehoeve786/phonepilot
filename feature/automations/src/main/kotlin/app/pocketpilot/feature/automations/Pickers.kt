@@ -1,8 +1,10 @@
 package app.pocketpilot.feature.automations
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -21,11 +24,14 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -37,12 +43,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.core.automation.Category
+import app.pocketpilot.core.automation.Choice
 import app.pocketpilot.core.automation.FieldDef
 import app.pocketpilot.core.automation.FieldKind
 import app.pocketpilot.core.automation.PickOption
@@ -365,6 +375,10 @@ private fun FieldEditor(
             }
         }
 
+        FieldKind.ICON -> {
+            IconField(label, value, field.choices, onChange)
+        }
+
         FieldKind.BOOLEAN -> {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
@@ -572,5 +586,51 @@ private fun AppField(
                 }
             }
         }
+    }
+}
+
+/** Tab for icon choices with no [Choice.tab]. */
+private const val STANDARD_TAB = "Standard"
+
+/** Icon choices as a grid under tabs, with the chosen one highlighted. */
+@Composable
+private fun IconField(
+    label: String,
+    value: String,
+    choices: List<Choice>,
+    onChange: (String) -> Unit,
+) {
+    val tabs = choices.map { it.tab ?: STANDARD_TAB }.distinct()
+    var tab by remember { mutableStateOf(choices.firstOrNull { it.value == value }?.tab ?: STANDARD_TAB) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        ScrollableTabRow(selectedTabIndex = tabs.indexOf(tab).coerceAtLeast(0), edgePadding = 0.dp) {
+            tabs.forEach { name ->
+                Tab(selected = name == tab, onClick = { tab = name }, text = { Text(name) })
+            }
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            choices.filter { (it.tab ?: STANDARD_TAB) == tab }.forEach { choice ->
+                val selected = value == choice.value
+                val iconRes = automationIconRes(choice.value)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier =
+                        Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                            ).clickable { onChange(choice.value) },
+                ) {
+                    if (iconRes != null) {
+                        Icon(painterResource(iconRes), contentDescription = choice.label, modifier = Modifier.size(28.dp))
+                    } else {
+                        Text(choice.label, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center)
+                    }
+                }
+            }
+        }
+        Text(choices.firstOrNull { it.value == value }?.label.orEmpty(), style = MaterialTheme.typography.bodySmall)
     }
 }
