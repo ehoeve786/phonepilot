@@ -131,6 +131,9 @@ fun HomeScreen(
     screenLockMissing: Boolean = false,
     secretsLost: Boolean = false,
     onBiometricChange: (Boolean) -> Unit = {},
+    /** Keeps Home and Settings, which show the token, out of screenshots. */
+    secretsLocked: Boolean = true,
+    onSecretsLockChange: (Boolean) -> Unit = {},
     /** WireGuard's state, for the status header's remote access chips. */
     wireGuardState: NetworkState = NetworkState.Stopped,
     /** Recent tool calls, newest first, from the audit sink. */
@@ -165,6 +168,7 @@ fun HomeScreen(
     /** The quick prompt on Home; the chat opens as well. */
     onAgentPrompt: (String) -> Unit = {},
 ) {
+    SecureWindow(secretsLocked)
     var destination by rememberSaveable { mutableStateOf(Destination.HOME) }
     LaunchedEffect(openAutomations) { if (openAutomations > 0) destination = Destination.AUTOMATIONS }
     LaunchedEffect(openChat) { if (openChat > 0) destination = Destination.CHAT }
@@ -195,6 +199,7 @@ fun HomeScreen(
                     capabilities = capabilities,
                     shizukuState = shizukuState,
                     setupSteps = setupSteps,
+                    secretsLocked = secretsLocked,
                 ),
             actions =
                 SettingsActions(
@@ -210,6 +215,7 @@ fun HomeScreen(
                     onOpenSetup = onOpenSetup,
                     onGrantShizuku = onGrantShizuku,
                     onAllowNotifications = onAllowNotifications,
+                    onSecretsLockChange = onSecretsLockChange,
                 ),
             onBack = { settingsOpen = false },
             modifier = modifier,

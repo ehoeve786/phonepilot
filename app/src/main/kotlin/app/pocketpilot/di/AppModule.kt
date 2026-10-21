@@ -105,6 +105,7 @@ import app.pocketpilot.network.wireguard.WireGuardProvider
 import app.pocketpilot.onboarding.OnboardingStore
 import app.pocketpilot.security.BiometricGate
 import app.pocketpilot.security.KeystoreSecretStore
+import app.pocketpilot.security.ScreenshotLock
 import app.pocketpilot.security.ShellSwitch
 import app.pocketpilot.security.ToolModeStore
 import app.pocketpilot.server.LocalTokenStore
@@ -288,6 +289,12 @@ object AppModule {
         @ApplicationContext context: Context,
         secrets: SecretStore,
     ): BiometricGate = BiometricGate(context, secrets)
+
+    @Provides
+    @Singleton
+    fun screenshotLock(
+        @ApplicationContext context: Context,
+    ): ScreenshotLock = ScreenshotLock(context)
 
     /**
      * Permissions, app ops, package state, intents and read-only adb commands through fixed Shizuku

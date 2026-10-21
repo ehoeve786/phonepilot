@@ -111,6 +111,8 @@
     <string name="approvals_biometric_title">Confirm it\'s you</string>
     <string name="biometric_title">Fingerprint to approve</string>
     <string name="biometric_explainer">Ask for your fingerprint, face or screen lock before you allow an app to connect or approve an action.</string>
+    <string name="secrets_lock_title">Hide token from screenshots</string>
+    <string name="secrets_lock_explainer">Home and Settings show your token and keys, so they stay out of screenshots and the recents preview. Turning this off asks for your fingerprint or screen lock.</string>
     <string name="biometric_setting_subtitle">To change a security setting</string>
     <string name="capability_read_notifications">Read and answer notifications</string>
     <string name="doctor_allow_notifications">Allow notification access</string>
