@@ -4,10 +4,8 @@ import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioAttributes
-import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -53,7 +51,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.coroutines.resume
@@ -268,75 +265,9 @@ class AndroidAutomationHost(
         audio.requestAudioFocus(focus)
         val id = ids.next()
         try {
-            val finished =
-                if (stream == "alarm") {
-                    speakOnSpeaker(engine, text, level, attributes, id)
-                } else {
-                    speakAndWait(engine, text, level, id)
-                }
-            if (!finished) throw AutomationFailure("The phone did not finish speaking the text")
+            if (!speakAndWait(engine, text, level, id)) throw AutomationFailure("The phone did not finish speaking the text")
         } finally {
             audio.abandonAudioFocusRequest(focus)
-        }
-    }
-
-    /**
-     * Alarm speech is rendered to a file and played back on the phone's own speaker. During a call the engine's
-     * own player follows the call to the car, so speaking straight through the engine is not heard on the phone.
-     */
-    private suspend fun speakOnSpeaker(
-        engine: TextToSpeech,
-        text: String,
-        level: Float,
-        attributes: AudioAttributes,
-        id: String,
-    ): Boolean {
-        val file = File(context.cacheDir, "speech-$id.wav")
-        try {
-            val rendered = awaitUtterance(engine, id) { engine.synthesizeToFile(text, Bundle(), file, id) }
-            return rendered && playOnSpeaker(file, level, attributes)
-        } finally {
-            file.delete()
-        }
-    }
-
-    /** True when the rendered [file] played to the end on the phone's built-in speaker; false on failure or timeout. */
-    private suspend fun playOnSpeaker(
-        file: File,
-        level: Float,
-        attributes: AudioAttributes,
-    ): Boolean {
-        val speaker =
-            context
-                .getSystemService(AudioManager::class.java)
-                .getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-                .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
-        return withContext(Dispatchers.Main) {
-            val player = MediaPlayer()
-            try {
-                withTimeoutOrNull(SPEAK_TIMEOUT_MS) {
-                    suspendCancellableCoroutine<Boolean> { done ->
-                        player.setOnCompletionListener { if (done.isActive) done.resume(true) }
-                        player.setOnErrorListener { _, _, _ ->
-                            if (done.isActive) done.resume(false)
-                            true
-                        }
-                        val started =
-                            runCatching {
-                                player.setAudioAttributes(attributes)
-                                player.setVolume(level, level)
-                                player.setDataSource(file.path)
-                                player.prepare()
-                                speaker?.let { player.setPreferredDevice(it) }
-                                player.start()
-                            }.isSuccess
-                        if (!started && done.isActive) done.resume(false)
-                        done.invokeOnCancellation { player.stop() }
-                    }
-                } ?: false
-            } finally {
-                player.release()
-            }
         }
     }
 
