@@ -2,6 +2,7 @@ package app.pocketpilot.capability.accessibility
 
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
@@ -116,7 +117,7 @@ object A11yOverlay {
     class FloatingButton(
         val text: String,
         /** A drawable to show instead of [text], or null for text. */
-        val icon: Int?,
+        val icon: Drawable?,
         val small: Boolean,
         val transparent: Boolean,
         /** From 0 (invisible) to 1 (solid). */
@@ -145,14 +146,7 @@ object A11yOverlay {
                     TextView(service).apply {
                         text = if (button.icon == null) button.text else ""
                         setTextColor(Color.WHITE)
-                        button.icon?.let { id ->
-                            setCompoundDrawablesWithIntrinsicBounds(
-                                service.getDrawable(id)?.mutate()?.apply { setTint(Color.WHITE) },
-                                null,
-                                null,
-                                null,
-                            )
-                        }
+                        setCompoundDrawablesWithIntrinsicBounds(button.icon, null, null, null)
                         setTextSize(TypedValue.COMPLEX_UNIT_SP, if (button.small) 11f else 13f)
                         val padding = if (button.small) 6 else 10
                         setPadding(dp(padding + 4), dp(padding), dp(padding + 4), dp(padding))

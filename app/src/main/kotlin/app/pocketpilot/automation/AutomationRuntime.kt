@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Environment
@@ -328,7 +329,7 @@ class AutomationRuntime(
             buttons.map { spec ->
                 A11yOverlay.FloatingButton(
                     text = spec.label,
-                    icon = spec.icon,
+                    icon = spec.icon(context),
                     small = spec.small,
                     transparent = spec.transparent,
                     opacity = spec.opacity,
@@ -559,7 +560,10 @@ private val FLOATING_ICONS =
 private data class FloatingSpec(
     val slot: String,
     val label: String,
-    val icon: Int?,
+    /** A drawable from this app's resources, tinted white. */
+    val iconRes: Int?,
+    /** The installed app whose icon is shown. */
+    val iconPackage: String?,
     val small: Boolean,
     val transparent: Boolean,
     val opacity: Float,
@@ -567,6 +571,11 @@ private data class FloatingSpec(
     val y: Int?,
     val vibrate: Boolean,
 ) {
+    /** The icon to draw: a tinted resource, else the app's icon, else none. */
+    fun icon(context: Context): Drawable? =
+        iconRes?.let { id -> context.getDrawable(id)?.mutate()?.apply { setTint(Color.WHITE) } }
+            ?: iconPackage?.let { pkg -> runCatching { context.packageManager.getApplicationIcon(pkg) }.getOrNull() }
+
     companion object {
         fun from(
             ruleName: String,
@@ -575,7 +584,8 @@ private data class FloatingSpec(
             FloatingSpec(
                 slot = params["slot"] ?: "1",
                 label = params["label"]?.takeIf { it.isNotBlank() } ?: ruleName,
-                icon = FLOATING_ICONS[params["icon"]],
+                iconRes = FLOATING_ICONS[params["icon"]],
+                iconPackage = if (params["icon"] == "app") params["app"]?.takeIf { it.isNotBlank() } else null,
                 small = params["size"] == "small",
                 transparent = params["background"] == "transparent",
                 opacity = ((params["opacity"]?.toIntOrNull() ?: 100).coerceIn(0, 100)) / 100f,
