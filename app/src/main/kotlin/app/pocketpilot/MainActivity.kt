@@ -38,6 +38,7 @@ import app.pocketpilot.approvals.ApprovalItem
 import app.pocketpilot.automation.AutomationRuntime
 import app.pocketpilot.automation.EventKey
 import app.pocketpilot.automation.HomeAssistant
+import app.pocketpilot.automation.requestHomeScreenIcon
 import app.pocketpilot.capability.accessibility.A11yBridge
 import app.pocketpilot.capability.accessibility.PocketPilotA11yService
 import app.pocketpilot.capability.api.DeviceInfoSource
@@ -384,6 +385,11 @@ class MainActivity : ComponentActivity() {
                 setEnabled = automations.store::setEnabled,
                 setPinned = automations.store::setPinned,
                 run = { rule -> automations.engine.start(rule, getString(R.string.automation_reason_run)) },
+                addIcon = { name ->
+                    if (!requestHomeScreenIcon(name)) {
+                        Toast.makeText(this, R.string.automation_icon_unsupported, Toast.LENGTH_LONG).show()
+                    }
+                },
                 test = { rule -> automations.engine.start(rule, getString(R.string.automation_reason_test), checkConstraints = false) },
                 stop = automations.engine::stop,
                 accept = { id ->

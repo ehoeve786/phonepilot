@@ -815,6 +815,16 @@ internal object Triggers {
                 match = { p, e, _ -> p.p("slot").ifBlank { "1" } == e["slot"] },
             ),
             TriggerDef(
+                type = "shortcut",
+                category = Category.MANUAL,
+                title = "Home screen icon",
+                description = "Adds an icon to the home screen. Tap it to run the rule.",
+                fields = listOf(textField("name", "Icon name", hint = "Shown under the icon on the home screen")),
+                source = Source.POCKETPILOT,
+                sentence = { p -> "Home screen icon \"${p.p("name")}\" tapped" },
+                match = { p, e, _ -> p.p("name").isNotBlank() && p.p("name") == e["name"] },
+            ),
+            TriggerDef(
                 type = "intent.received",
                 category = Category.MANUAL,
                 title = "Intent from another app",

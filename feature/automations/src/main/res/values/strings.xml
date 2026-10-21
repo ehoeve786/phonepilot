@@ -35,6 +35,7 @@
 
     <string name="feature_automations_pin">Pin to Home</string>
     <string name="feature_automations_share">Share rule</string>
+    <string name="feature_automations_add_icon">Add home screen icon</string>
     <string name="feature_automations_share_title">Share automation</string>
     <string name="feature_automations_unpin">Unpin from Home</string>
     <string name="feature_automations_last_run">Last run %1$s: %2$s</string>

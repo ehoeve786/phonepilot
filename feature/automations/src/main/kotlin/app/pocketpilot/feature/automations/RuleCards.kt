@@ -83,9 +83,16 @@ fun AutomationRuleCard(
     onRun: () -> Unit,
     onStop: () -> Unit,
     onPinnedChange: (Boolean) -> Unit,
+    onAddIcon: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val iconName =
+        rule.triggers
+            .firstOrNull { it.type == "shortcut" }
+            ?.params
+            ?.get("name")
+            ?.takeIf { it.isNotBlank() }
     LiquidGlassBentoCard(
         modifier = modifier.fillMaxWidth(),
         onClick = onOpen,
@@ -94,6 +101,15 @@ fun AutomationRuleCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(rule.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                if (iconName != null) {
+                    IconButton(onClick = { onAddIcon(iconName) }) {
+                        Icon(
+                            painterResource(R.drawable.feature_automations_ic_add),
+                            contentDescription = stringResource(R.string.feature_automations_add_icon),
+                            tint = MaterialTheme.colorScheme.outline,
+                        )
+                    }
+                }
                 IconButton(onClick = { context.shareRule(rule) }) {
                     Icon(
                         painterResource(R.drawable.feature_automations_ic_share),

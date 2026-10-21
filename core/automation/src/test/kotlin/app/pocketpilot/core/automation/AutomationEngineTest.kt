@@ -440,6 +440,24 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a home screen icon runs only the rule with its name`() =
+        runTest {
+            val host = FakeHost()
+            val store = RuleStore(MemoryPersistence(), clock)
+            store.upsert(
+                rule(
+                    listOf(ActionStep("notify.post", mapOf("title" to "lights"))),
+                    triggers = listOf(TriggerSpec("shortcut", mapOf("name" to "Lights"))),
+                ),
+            )
+            val engine = engine(this, host, store)
+            engine.onEvent(TriggerEvent("shortcut", mapOf("name" to "Heat")))
+            engine.onEvent(TriggerEvent("shortcut", mapOf("name" to "Lights")))
+            advanceUntilIdle()
+            assertEquals(1, host.calls.count { it.first == "notify.post" })
+        }
+
+    @Test
     fun `pending proposals and disabled rules never run`() =
         runTest {
             val host = FakeHost()
