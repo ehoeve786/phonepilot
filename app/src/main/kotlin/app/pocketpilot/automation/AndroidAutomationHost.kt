@@ -4,6 +4,7 @@ import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
@@ -247,14 +248,35 @@ class AndroidAutomationHost(
         val level = (volume?.toFloatOrNull() ?: SPEAK_FULL_VOLUME).coerceIn(0f, SPEAK_FULL_VOLUME) / SPEAK_FULL_VOLUME
         val engine = tts ?: startTts().also { tts = it }
         // The engine keeps its audio attributes, so each utterance sets the stream it should play through.
-        engine.setAudioAttributes(
+        val attributes =
             AudioAttributes
                 .Builder()
                 .setUsage(speechUsage(stream))
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build(),
-        )
+                .build()
+        engine.setAudioAttributes(attributes)
+        // Asking for focus lets the speech duck, rather than fight, whatever else is playing.
+        val audio = context.getSystemService(AudioManager::class.java)
+        val focus =
+            AudioFocusRequest
+                .Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                .setAudioAttributes(attributes)
+                .build()
+        audio.requestAudioFocus(focus)
         val id = ids.next()
+        try {
+            speakAndWait(engine, text, level, id)
+        } finally {
+            audio.abandonAudioFocusRequest(focus)
+        }
+    }
+
+    private suspend fun speakAndWait(
+        engine: TextToSpeech,
+        text: String,
+        level: Float,
+        id: String,
+    ) {
         withTimeoutOrNull(SPEAK_TIMEOUT_MS) {
             suspendCancellableCoroutine { done ->
                 engine.setOnUtteranceProgressListener(
