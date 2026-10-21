@@ -49,6 +49,8 @@ import java.time.LocalTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
+import app.pocketpilot.core.designsystem.R as DsR
+import app.pocketpilot.feature.automations.R as FeatureR
 
 /**
  * Runs the owner's automations: listens for triggers while any rule is on, sets alarms for timed
@@ -326,6 +328,7 @@ class AutomationRuntime(
             buttons.map { spec ->
                 A11yOverlay.FloatingButton(
                     text = spec.label,
+                    icon = spec.icon,
                     small = spec.small,
                     transparent = spec.transparent,
                     opacity = spec.opacity,
@@ -541,10 +544,22 @@ class AutomationRuntime(
     }
 }
 
+/** The icons a floating button can show, by the choice the rule made. */
+private val FLOATING_ICONS =
+    mapOf(
+        "bolt" to DsR.drawable.core_designsystem_ic_bolt,
+        "play" to FeatureR.drawable.feature_automations_ic_play,
+        "pin" to FeatureR.drawable.feature_automations_ic_pin,
+        "share" to FeatureR.drawable.feature_automations_ic_share,
+        "stop" to FeatureR.drawable.feature_automations_ic_stop,
+        "check" to FeatureR.drawable.feature_automations_ic_check,
+    )
+
 /** How one floating button looks and where it sits, from its trigger's settings. */
 private data class FloatingSpec(
     val slot: String,
     val label: String,
+    val icon: Int?,
     val small: Boolean,
     val transparent: Boolean,
     val opacity: Float,
@@ -560,6 +575,7 @@ private data class FloatingSpec(
             FloatingSpec(
                 slot = params["slot"] ?: "1",
                 label = params["label"]?.takeIf { it.isNotBlank() } ?: ruleName,
+                icon = FLOATING_ICONS[params["icon"]],
                 small = params["size"] == "small",
                 transparent = params["background"] == "transparent",
                 opacity = ((params["opacity"]?.toIntOrNull() ?: 100).coerceIn(0, 100)) / 100f,
