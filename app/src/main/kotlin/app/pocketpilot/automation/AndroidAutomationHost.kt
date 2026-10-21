@@ -265,40 +265,40 @@ class AndroidAutomationHost(
         audio.requestAudioFocus(focus)
         val id = ids.next()
         try {
-            speakAndWait(engine, text, level, id)
+            if (!speakAndWait(engine, text, level, id)) throw AutomationFailure("The phone did not finish speaking the text")
         } finally {
             audio.abandonAudioFocusRequest(focus)
         }
     }
 
+    /** True when the engine finished the utterance; false when it failed, could not start, or timed out. */
     private suspend fun speakAndWait(
         engine: TextToSpeech,
         text: String,
         level: Float,
         id: String,
-    ) {
+    ): Boolean =
         withTimeoutOrNull(SPEAK_TIMEOUT_MS) {
-            suspendCancellableCoroutine { done ->
+            suspendCancellableCoroutine<Boolean> { done ->
                 engine.setOnUtteranceProgressListener(
                     object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) = Unit
 
                         override fun onDone(utteranceId: String?) {
-                            if (utteranceId == id && done.isActive) done.resume(Unit)
+                            if (utteranceId == id && done.isActive) done.resume(true)
                         }
 
                         @Deprecated("Deprecated in Java")
                         override fun onError(utteranceId: String?) {
-                            if (utteranceId == id && done.isActive) done.resume(Unit)
+                            if (utteranceId == id && done.isActive) done.resume(false)
                         }
                     },
                 )
                 val options = Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, level) }
-                if (engine.speak(text, TextToSpeech.QUEUE_ADD, options, id) != TextToSpeech.SUCCESS && done.isActive) done.resume(Unit)
+                if (engine.speak(text, TextToSpeech.QUEUE_ADD, options, id) != TextToSpeech.SUCCESS && done.isActive) done.resume(false)
                 done.invokeOnCancellation { engine.stop() }
             }
-        }
-    }
+        } ?: false
 
     /** The audio usage that plays speech through the stream the rule's Play through setting names. */
     private fun speechUsage(stream: String): Int =
