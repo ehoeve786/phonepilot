@@ -822,7 +822,17 @@ class TriggerSources(
         /** How long a withheld call's ring waits for the number before it is reported without one. */
         const val WITHHELD_RING_WAIT_MS = 1_500L
 
-        val IGNORED = setOf("com.android.systemui")
+        /**
+         * Windows that cover an app without leaving it: the status bar, and the permission dialogs an app
+         * shows over itself. Treating them as a new front would send a close and an open for one visit.
+         */
+        val IGNORED =
+            setOf(
+                "com.android.systemui",
+                "com.google.android.permissioncontroller",
+                "com.android.permissioncontroller",
+                "com.android.packageinstaller",
+            )
         const val SETTLE_MS = 2_000L
         const val SCREEN_SETTLE_MS = 1_000L
         const val MAX_EXTRAS = 20
