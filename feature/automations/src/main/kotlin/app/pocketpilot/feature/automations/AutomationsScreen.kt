@@ -1,5 +1,6 @@
 package app.pocketpilot.feature.automations
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
@@ -22,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -40,8 +42,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -55,6 +60,7 @@ import app.pocketpilot.core.automation.RunOutcome
 import app.pocketpilot.core.automation.RunRecord
 import app.pocketpilot.core.automation.Templates
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
+import app.pocketpilot.core.designsystem.R as DsR
 
 /** An installed app, for the app picker. */
 data class AppOption(
@@ -408,9 +414,25 @@ private fun HistoryList(runs: List<RunRecord>) {
     }
 }
 
+/** A run as plain text for the clipboard: its rule, when and outcome, then one line per log line. */
+private fun runLogText(
+    run: RunRecord,
+    context: Context,
+    outcome: String,
+): String =
+    buildString {
+        appendLine("${run.ruleName} · ${run.reason}")
+        appendLine(DateUtils.formatDateTime(context, run.startedAtMillis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME))
+        appendLine(outcome)
+        run.lines.forEach { appendLine(it) }
+    }
+
 @Composable
 private fun RunCard(run: RunRecord) {
     var open by rememberSaveable(run.id) { mutableStateOf(false) }
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val outcome = outcomeLabel(run.outcome)
     val failed = run.outcome == RunOutcome.FAILED
     LiquidGlassBentoCard(
         onClick = { open = !open },
@@ -422,7 +444,7 @@ private fun RunCard(run: RunRecord) {
                 Text(run.ruleName, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 // A failed run is marked in the error colour, since the glass card has no tinted state.
                 Text(
-                    outcomeLabel(run.outcome),
+                    outcome,
                     style = MaterialTheme.typography.labelMedium,
                     color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                 )
@@ -435,6 +457,15 @@ private fun RunCard(run: RunRecord) {
             if (open) {
                 run.lines.forEach { line ->
                     Text(line, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    IconButton(onClick = { clipboard.setText(AnnotatedString(runLogText(run, context, outcome))) }) {
+                        Icon(
+                            painterResource(DsR.drawable.core_designsystem_ic_copy),
+                            contentDescription = stringResource(R.string.feature_automations_copy_log),
+                            tint = MaterialTheme.colorScheme.outline,
+                        )
+                    }
                 }
             }
         }

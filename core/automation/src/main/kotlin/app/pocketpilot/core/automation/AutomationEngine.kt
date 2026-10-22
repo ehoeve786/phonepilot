@@ -36,6 +36,9 @@ data class AgentOutcome(
 
 /** What the engine needs from the app: tools, phone state, native actions and Agent mode. */
 interface AutomationHost {
+    /** The name to show for an app's package, such as "Uber". The package itself when the host cannot tell. */
+    fun appName(packageName: String): String = packageName
+
     /** Calls a tool through the dispatcher, so policy, the deny list and audit apply. */
     suspend fun callTool(
         session: Session,
@@ -117,7 +120,7 @@ class AutomationEngine(
                 } ?: continue
             start(
                 rule,
-                Describe.trigger(trigger),
+                Describe.trigger(trigger, host::appName),
                 event.data,
                 fromOutside = event.fromOutside || event.type in OUTSIDE_EVENTS,
                 chain = event.chain,
@@ -173,6 +176,7 @@ class AutomationEngine(
         data.forEach { (key, value) -> vars["trigger.$key"] = value }
         val session = host.openSession(rule, toolsOf(rule), fromOutside)
         val context = RunContext(rule, session, vars, lines, fromOutside = fromOutside, chain = chain)
+        if (data.isNotEmpty()) lines += "Trigger: " + data.entries.joinToString { "${it.key} = ${logged(it.key, it.value)}" }
         val outcome =
             try {
                 if (checkConstraints && !holds(context, rule.constraints)) {
@@ -224,6 +228,20 @@ class AutomationEngine(
             )
         }
         return record
+    }
+
+    /**
+     * A value as the run log shows it: app packages by their names, kept short, and hidden when the setting
+     * looks like a secret.
+     */
+    private fun logged(
+        key: String,
+        value: String,
+        appKeys: Set<String> = emptySet(),
+    ): String {
+        if (SECRET_WORDS.any { key.contains(it, ignoreCase = true) }) return "(hidden)"
+        val shown = if (key == "package" || key in appKeys) value.split(',').joinToString(", ") { host.appName(it.trim()) } else value
+        return shown.take(MAX_VARIABLE_CHARS)
     }
 
     /** The variables a run set, kept short so the history stays small. */
@@ -281,18 +299,20 @@ class AutomationEngine(
             val label = "$prefix${index + 1}"
             val def = AutomationCatalog.action(step.type)
             val title = def?.let { Describe.action(step) } ?: step.type
+            // The step's summary goes above the details it logs while running, so the log reads top to bottom.
+            val summaryAt = context.lines.size
             try {
                 val note = step(context, step, label)
-                context.lines += "$label. $title: ${note ?: "ok"}"
+                context.lines.add(summaryAt, "$label. $title: ${note ?: "ok"}")
             } catch (e: StopRun) {
-                context.lines += "$label. $title"
+                context.lines.add(summaryAt, "$label. $title")
                 throw e
             } catch (e: StepFailed) {
                 throw e
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                context.lines += "$label. $title: failed, ${e.message ?: e::class.simpleName}"
+                context.lines.add(summaryAt, "$label. $title: failed, ${e.message ?: e::class.simpleName}")
                 if (step.onError == OnError.STOP) throw StepFailed()
             }
         }
@@ -321,6 +341,14 @@ class AutomationEngine(
         val params =
             RuleValidator.withDefaults(def.fields, step.params).mapValues { (_, value) -> Placeholders.fill(value) { lookup(context, it) } }
         val into = params.p("into")
+        val appKeys =
+            def.fields
+                .filter { it.kind == FieldKind.APP }
+                .map { it.key }
+                .toSet()
+        params.forEach { (key, value) ->
+            if (key != "into" && value.isNotEmpty()) context.lines += "    $key: ${logged(key, value, appKeys)}"
+        }
         return when (val kind = def.kind) {
             is ActionKind.Tool -> {
                 val text = callTool(context, kind.tool, kind.arguments(params))
@@ -797,8 +825,9 @@ class AutomationEngine(
 
         const val SETTING_PREFIX = "setting."
         const val MAX_RUN_MS = 30 * 60_000L
-        const val MAX_LINES = 100
+        const val MAX_LINES = 300
         const val MAX_VARIABLE_CHARS = 500
+        private val SECRET_WORDS = listOf("token", "password", "secret", "key", "header", "auth")
         const val MAX_LOOPS = 1000
         const val MAX_DEPTH = 5
         const val MAX_NOTE = 200
