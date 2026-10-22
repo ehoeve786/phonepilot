@@ -173,7 +173,7 @@ class RuleStore(
     private fun keptRuns(runs: List<RunRecord>): List<RunRecord> {
         var total = 0
         return runs.take(MAX_RUNS).takeWhile { run ->
-            total += run.lines.sumOf { it.length }
+            total += run.lines.sumOf { it.length } + run.variables.entries.sumOf { it.key.length + it.value.length }
             total <= MAX_HISTORY_CHARS
         }
     }

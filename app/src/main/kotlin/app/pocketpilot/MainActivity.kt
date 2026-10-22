@@ -397,6 +397,7 @@ class MainActivity : ComponentActivity() {
                 },
                 decline = automations.store::delete,
                 setSettings = automations.store::setSettings,
+                setVariable = automations.store::setVariable,
                 loadApps = automations::loadApps,
                 loadOptions = automations::loadOptions,
                 listDirectory = automations::listDirectory,
@@ -441,6 +442,7 @@ class MainActivity : ComponentActivity() {
                 AutomationsState(
                     rules = automationData.rules,
                     runs = automationData.runs,
+                    variables = automationData.variables,
                     running =
                         automations.engine.running
                             .collectAsStateWithLifecycle()

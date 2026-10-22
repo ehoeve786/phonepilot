@@ -67,6 +67,8 @@ data class AppOption(
 data class AutomationsState(
     val rules: List<Rule> = emptyList(),
     val runs: List<RunRecord> = emptyList(),
+    /** Global variables, by name. */
+    val variables: Map<String, String> = emptyMap(),
     val running: Set<String> = emptySet(),
     val settings: AutomationSettings = AutomationSettings(),
     val agentSpentThisMonthUsd: Double = 0.0,
@@ -97,6 +99,8 @@ class AutomationsActions(
     val accept: (String) -> Unit,
     val decline: (String) -> Unit,
     val setSettings: (AutomationSettings) -> Unit,
+    /** Sets a global variable, or removes it when the value is null. */
+    val setVariable: (String, String?) -> Unit = { _, _ -> },
     /** Loads [AutomationsState.apps] the first time a picker needs them. */
     val loadApps: () -> Unit,
     /** Loads the suggested values for one kind of text field the first time its list is needed. */
@@ -186,6 +190,7 @@ fun AutomationsScreen(
                     },
                 )
                 Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text(stringResource(R.string.feature_automations_tab_history)) })
+                Tab(selected = tab == 3, onClick = { tab = 3 }, text = { Text(stringResource(R.string.feature_automations_tab_variables)) })
             }
             when (tab) {
                 0 -> {
@@ -202,8 +207,12 @@ fun AutomationsScreen(
                     ProposalsList(proposals, state.rules, actions, onEdit = { editing = it })
                 }
 
-                else -> {
+                2 -> {
                     HistoryList(state.runs)
+                }
+
+                else -> {
+                    VariablesList(state.variables, actions.setVariable)
                 }
             }
         }

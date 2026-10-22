@@ -3,6 +3,17 @@
     <string name="feature_automations_tab_rules">Rules</string>
     <string name="feature_automations_tab_proposals">Proposals</string>
     <string name="feature_automations_tab_history">History</string>
+    <string name="feature_automations_tab_variables">Variables</string>
+    <string name="feature_automations_variables_hint">Global variables are kept between runs, and any rule can read or change them.</string>
+    <string name="feature_automations_no_global_variables">No global variables yet. Rules create them with Set variable, Global.</string>
+    <string name="feature_automations_add_variable">Add variable</string>
+    <string name="feature_automations_edit_variable">Edit variable</string>
+    <string name="feature_automations_delete_variable">Delete</string>
+    <string name="feature_automations_variable_name">Name</string>
+    <string name="feature_automations_variable_value">Value</string>
+    <string name="feature_automations_local_variables">Local variables</string>
+    <string name="feature_automations_local_variables_text">Set by this rule\'s last run. Each run starts with none, so these are for reading, not editing.</string>
+    <string name="feature_automations_no_local_variables">None. The last run set no variables.</string>
     <string name="feature_automations_new_rule">New rule</string>
     <string name="feature_automations_edit_rule">Edit rule</string>
     <string name="feature_automations_empty">No rules yet. Start from a template or tap New rule.</string>
