@@ -23,11 +23,16 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.pocketpilot.core.automation.ActionStep
 import app.pocketpilot.core.automation.AutomationCatalog
@@ -87,6 +92,7 @@ fun AutomationRuleCard(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    var expanded by rememberSaveable { mutableStateOf(false) }
     val iconName =
         rule.triggers
             .firstOrNull { it.type == "shortcut" }
@@ -100,16 +106,13 @@ fun AutomationRuleCard(
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(rule.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                if (iconName != null) {
-                    IconButton(onClick = { onAddIcon(iconName) }) {
-                        Icon(
-                            painterResource(R.drawable.feature_automations_ic_add),
-                            contentDescription = stringResource(R.string.feature_automations_add_icon),
-                            tint = MaterialTheme.colorScheme.outline,
-                        )
-                    }
-                }
+                Text(
+                    rule.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
                 IconButton(onClick = { context.shareRule(rule) }) {
                     Icon(
                         painterResource(R.drawable.feature_automations_ic_share),
@@ -143,30 +146,51 @@ fun AutomationRuleCard(
                             null
                         },
                 )
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        painterResource(if (expanded) R.drawable.feature_automations_ic_up else R.drawable.feature_automations_ic_down),
+                        contentDescription =
+                            stringResource(
+                                if (expanded) R.string.feature_automations_collapse else R.string.feature_automations_expand,
+                            ),
+                        tint = MaterialTheme.colorScheme.outline,
+                    )
+                }
             }
-            RuleSummary(rule)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    rule.lastRun?.let { last ->
-                        stringResource(
-                            R.string.feature_automations_last_run,
-                            DateUtils.getRelativeTimeSpanString(last.atMillis).toString(),
-                            outcomeLabel(last.outcome),
-                        )
-                    } ?: stringResource(R.string.feature_automations_never_ran),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                if (running) {
-                    OutlinedButton(onClick = onStop) {
-                        Icon(painterResource(R.drawable.feature_automations_ic_stop), contentDescription = null, Modifier.size(18.dp))
-                        Text(stringResource(R.string.feature_automations_stop), modifier = Modifier.padding(start = 4.dp))
+            if (expanded) {
+                RuleSummary(rule)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        rule.lastRun?.let { last ->
+                            stringResource(
+                                R.string.feature_automations_last_run,
+                                DateUtils.getRelativeTimeSpanString(last.atMillis).toString(),
+                                outcomeLabel(last.outcome),
+                            )
+                        } ?: stringResource(R.string.feature_automations_never_ran),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (iconName != null) {
+                        IconButton(onClick = { onAddIcon(iconName) }) {
+                            Icon(
+                                painterResource(R.drawable.feature_automations_ic_add),
+                                contentDescription = stringResource(R.string.feature_automations_add_icon),
+                                tint = MaterialTheme.colorScheme.outline,
+                            )
+                        }
                     }
-                } else {
-                    FilledTonalButton(onClick = onRun) {
-                        Icon(painterResource(R.drawable.feature_automations_ic_play), contentDescription = null, Modifier.size(18.dp))
-                        Text(stringResource(R.string.feature_automations_run), modifier = Modifier.padding(start = 4.dp))
+                    if (running) {
+                        OutlinedButton(onClick = onStop) {
+                            Icon(painterResource(R.drawable.feature_automations_ic_stop), contentDescription = null, Modifier.size(18.dp))
+                            Text(stringResource(R.string.feature_automations_stop), modifier = Modifier.padding(start = 4.dp))
+                        }
+                    } else {
+                        FilledTonalButton(onClick = onRun) {
+                            Icon(painterResource(R.drawable.feature_automations_ic_play), contentDescription = null, Modifier.size(18.dp))
+                            Text(stringResource(R.string.feature_automations_run), modifier = Modifier.padding(start = 4.dp))
+                        }
                     }
                 }
             }
