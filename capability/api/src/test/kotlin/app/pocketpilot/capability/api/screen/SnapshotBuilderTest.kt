@@ -92,7 +92,7 @@ class SnapshotBuilderTest {
                 ),
             )
         val texts = { options: SnapshotOptions -> build(nodes, options).snapshot.elements.mapNotNull(Element::text) }
-        assertEquals(listOf("Settings", "Wi-Fi", "Screenshot"), texts(SnapshotOptions()))
+        assertEquals(listOf("Settings", "Wi-Fi", "com.arlosoft.macrodroid", "Screenshot"), texts(SnapshotOptions()))
         assertEquals(listOf("Settings", "Wi-Fi"), texts(SnapshotOptions(appOnly = true)))
     }
 
