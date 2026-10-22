@@ -300,6 +300,24 @@ internal fun RuleEditor(
                 }
             }
 
+            val lastVariables =
+                state.runs
+                    .firstOrNull { it.ruleId == rule.id }
+                    ?.variables
+                    .orEmpty()
+            EditorSection(
+                stringResource(R.string.feature_automations_local_variables),
+                stringResource(R.string.feature_automations_local_variables_text),
+            ) {
+                if (lastVariables.isEmpty()) {
+                    Text(stringResource(R.string.feature_automations_no_local_variables), style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    lastVariables.toList().sortedBy { it.first }.forEach { (name, value) ->
+                        Text("$name = $value", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+
             SaveAndTestRow(
                 onTest = { onTest(rule) },
                 onSave = { onSave(if (problems.isEmpty()) rule else rule.copy(enabled = false)) },

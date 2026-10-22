@@ -233,6 +233,7 @@ class AutomationEngineTest {
             assertEquals(RunOutcome.OK, record.outcome)
             val titles = host.calls.filter { it.first == "notify.post" }.map { (it.second["title"] as JsonPrimitive).content }
             assertEquals(listOf("Low 8"), titles)
+            assertEquals(mapOf("n" to "8"), record.variables)
         }
 
     @Test

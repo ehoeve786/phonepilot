@@ -154,6 +154,8 @@ data class RunRecord(
     val outcome: RunOutcome,
     /** One line per action, as "1. Turn Wi-Fi off: ok". */
     val lines: List<String> = emptyList(),
+    /** The run's local variables when it ended, by name. Trigger data and loop counters are left out. */
+    val variables: Map<String, String> = emptyMap(),
 )
 
 /** Settings that apply to every rule. */

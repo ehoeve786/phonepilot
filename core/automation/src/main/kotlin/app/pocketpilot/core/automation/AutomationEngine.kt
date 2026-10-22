@@ -210,6 +210,7 @@ class AutomationEngine(
                 endedAtMillis = clock.nowMillis(),
                 outcome = outcome,
                 lines = lines.take(MAX_LINES),
+                variables = localVariables(vars),
             )
         store.addRun(record)
         if (outcome != RunOutcome.SKIPPED) {
@@ -224,6 +225,12 @@ class AutomationEngine(
         }
         return record
     }
+
+    /** The variables a run set, kept short so the history stays small. */
+    private fun localVariables(vars: Map<String, String>): Map<String, String> =
+        vars
+            .filterKeys { !it.startsWith("trigger.") && it != "loop.index" }
+            .mapValues { (_, value) -> value.take(MAX_VARIABLE_CHARS) }
 
     /** True when [group] holds for [rule] right now, for the builder's preview. */
     suspend fun check(
@@ -791,6 +798,7 @@ class AutomationEngine(
         const val SETTING_PREFIX = "setting."
         const val MAX_RUN_MS = 30 * 60_000L
         const val MAX_LINES = 100
+        const val MAX_VARIABLE_CHARS = 500
         const val MAX_LOOPS = 1000
         const val MAX_DEPTH = 5
         const val MAX_NOTE = 200
