@@ -9,10 +9,14 @@ import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import kotlin.math.hypot
+import kotlin.math.roundToInt
 
 /**
  * The "PocketPilot is controlling this phone" pill (spec section 8): a small banner at the top of the
@@ -146,7 +150,14 @@ object A11yOverlay {
                     TextView(service).apply {
                         text = if (button.icon == null) button.text else ""
                         setTextColor(Color.WHITE)
-                        setCompoundDrawablesWithIntrinsicBounds(button.icon, null, null, null)
+                        // A fixed size, not the icon's own: an app's icon is much larger than a button should be.
+                        button.icon?.setBounds(
+                            0,
+                            0,
+                            dp(if (button.small) ICON_SMALL_DP else ICON_DP),
+                            dp(if (button.small) ICON_SMALL_DP else ICON_DP),
+                        )
+                        setCompoundDrawables(button.icon, null, null, null)
                         setTextSize(TypedValue.COMPLEX_UNIT_SP, if (button.small) 11f else 13f)
                         val padding = if (button.small) 6 else 10
                         setPadding(dp(padding + 4), dp(padding), dp(padding + 4), dp(padding))
@@ -161,15 +172,6 @@ object A11yOverlay {
                                 }
                             }
                         alpha = button.opacity
-                        setOnClickListener {
-                            if (button.vibrate) performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                            button.onTap()
-                        }
-                        setOnLongClickListener {
-                            if (button.vibrate) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                            button.onLongPress()
-                            true
-                        }
                     }
                 val params =
                     WindowManager
@@ -190,10 +192,89 @@ object A11yOverlay {
                                 y = button.y
                             }
                         }
+                view.setOnTouchListener(touchListener(manager, view, params, button))
                 runCatching { manager.addView(view, params) }.onSuccess { buttonViews += view }
             }
         }
         return true
+    }
+
+    /**
+     * A tap runs [FloatingButton.onTap], a long press runs [FloatingButton.onLongPress], and a drag moves
+     * the button, which stays where it is dropped. A drag also moves the button to a fixed position from the
+     * top left, so it keeps its place after the move.
+     */
+    private fun touchListener(
+        manager: WindowManager,
+        view: View,
+        params: WindowManager.LayoutParams,
+        button: FloatingButton,
+    ): View.OnTouchListener {
+        val slop = ViewConfiguration.get(view.context).scaledTouchSlop
+        var longPressed = false
+        val longPress =
+            Runnable {
+                longPressed = true
+                if (button.vibrate) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                button.onLongPress()
+            }
+        var downX = 0f
+        var downY = 0f
+        var startX = 0
+        var startY = 0
+        var moved = false
+        return View.OnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    val location = IntArray(2)
+                    v.getLocationOnScreen(location)
+                    startX = location[0]
+                    startY = location[1]
+                    params.gravity = Gravity.TOP or Gravity.START
+                    params.x = startX
+                    params.y = startY
+                    downX = event.rawX
+                    downY = event.rawY
+                    moved = false
+                    longPressed = false
+                    v.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
+                    true
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - downX
+                    val dy = event.rawY - downY
+                    if (!moved && hypot(dx, dy) > slop) {
+                        moved = true
+                        v.removeCallbacks(longPress)
+                    }
+                    if (moved) {
+                        params.x = (startX + dx).roundToInt()
+                        params.y = (startY + dy).roundToInt()
+                        runCatching { manager.updateViewLayout(v, params) }
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    v.removeCallbacks(longPress)
+                    if (!moved && !longPressed) {
+                        if (button.vibrate) v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        button.onTap()
+                    }
+                    true
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    v.removeCallbacks(longPress)
+                    true
+                }
+
+                else -> {
+                    false
+                }
+            }
+        }
     }
 
     /** Removes the floating buttons if they are up. */
@@ -211,4 +292,6 @@ object A11yOverlay {
     private const val TOP_OFFSET_DP = 40
     private const val STACK_TOP_DP = 200
     private const val STACK_STEP_DP = 64
+    private const val ICON_DP = 24
+    private const val ICON_SMALL_DP = 16
 }
