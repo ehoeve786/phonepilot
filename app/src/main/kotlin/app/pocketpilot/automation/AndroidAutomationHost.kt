@@ -243,23 +243,29 @@ class AndroidAutomationHost(
     }
 
     /**
-     * The text of the app in front, one line per piece of text, as MacroDroid's screen read gives it. Only
-     * elements inside the app's own window count, so floating buttons and other overlays are left out.
+     * The text of the app in front, one line per piece of text, as MacroDroid's screen read gives it. The app
+     * in front is the largest window on screen; floating buttons and other overlays are small, so they are left out.
      */
     private suspend fun readScreen(): String {
         val snapshot = screen.snapshot()
-        val app = snapshot.packageName ?: throw AutomationFailure("No app is in front to read")
-        // A window's text is the app's label, such as "DoorDash", not its package name.
-        val label = appName(app)
         val byId = snapshot.elements.associateBy { it.id }
+        val appWindow =
+            snapshot.elements
+                .filter { it.role == Role.WINDOW && it.parent == null }
+                .maxByOrNull { it.bounds.width * it.bounds.height }
+                ?: throw AutomationFailure("No app is in front to read")
 
-        fun insideApp(element: Element): Boolean {
-            var current: Element? = element
-            while (current != null && current.parent != null) current = byId[current.parent]
-            return current != null && current.role == Role.WINDOW && current.text == label
+        fun windowOf(element: Element): String {
+            var current = element
+            var parent = current.parent?.let(byId::get)
+            while (parent != null) {
+                current = parent
+                parent = current.parent?.let(byId::get)
+            }
+            return current.id
         }
         return snapshot.elements
-            .filter { it.role != Role.WINDOW && insideApp(it) }
+            .filter { it.role != Role.WINDOW && windowOf(it) == appWindow.id }
             .mapNotNull { (it.text ?: it.description)?.takeIf(String::isNotBlank) }
             .joinToString("\n")
     }
