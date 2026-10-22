@@ -45,28 +45,41 @@ object Placeholders {
 
 /** Sentences for the builder's cards and the proposal sheet. */
 object Describe {
-    fun trigger(spec: TriggerSpec): String {
+    /** [appName] turns a package name in an app field into the name to show, such as "Uber". */
+    fun trigger(
+        spec: TriggerSpec,
+        appName: (String) -> String = { it },
+    ): String {
         val def = AutomationCatalog.trigger(spec.type) ?: return "Unknown trigger ${spec.type}"
-        return def.sentence(RuleValidator.withDefaults(def.fields, spec.params))
+        return def.sentence(named(def.fields, RuleValidator.withDefaults(def.fields, spec.params), appName))
     }
 
-    fun constraint(spec: ConstraintSpec): String {
+    fun constraint(
+        spec: ConstraintSpec,
+        appName: (String) -> String = { it },
+    ): String {
         val def = AutomationCatalog.constraint(spec.type) ?: return "Unknown condition ${spec.type}"
-        return def.sentence(RuleValidator.withDefaults(def.fields, spec.params))
+        return def.sentence(named(def.fields, RuleValidator.withDefaults(def.fields, spec.params), appName))
     }
 
-    fun action(step: ActionStep): String {
+    fun action(
+        step: ActionStep,
+        appName: (String) -> String = { it },
+    ): String {
         val def = AutomationCatalog.action(step.type) ?: return "Unknown action ${step.type}"
-        val base = def.sentence(RuleValidator.withDefaults(def.fields, step.params))
-        return if (def.conditional && !step.constraints.isEmpty) "$base ${group(step.constraints)}" else base
+        val base = def.sentence(named(def.fields, RuleValidator.withDefaults(def.fields, step.params), appName))
+        return if (def.conditional && !step.constraints.isEmpty) "$base ${group(step.constraints, appName)}" else base
     }
 
-    fun group(group: ConstraintGroup): String {
+    fun group(
+        group: ConstraintGroup,
+        appName: (String) -> String = { it },
+    ): String {
         val parts =
             group.items.map { node ->
                 when (node) {
-                    is ConstraintNode.Check -> constraint(node.spec)
-                    is ConstraintNode.Group -> "(${group(node.group)})"
+                    is ConstraintNode.Check -> constraint(node.spec, appName)
+                    is ConstraintNode.Group -> "(${group(node.group, appName)})"
                 }
             }
         return when (group.mode) {
@@ -74,6 +87,18 @@ object Describe {
             GroupMode.ANY -> parts.joinToString(" or ")
             GroupMode.NONE -> "not " + parts.joinToString(" or ")
             GroupMode.ONE -> "exactly one of " + parts.joinToString(", ")
+        }
+    }
+
+    /** The params with each package name in an app field (comma-separated) replaced by [appName]. */
+    private fun named(
+        fields: List<FieldDef>,
+        params: Map<String, String>,
+        appName: (String) -> String,
+    ): Map<String, String> {
+        val appKeys = fields.filter { it.kind == FieldKind.APP }.map { it.key }.toSet()
+        return params.mapValues { (key, value) ->
+            if (key in appKeys) value.split(',').map { appName(it.trim()) }.joinToString(", ") else value
         }
     }
 }

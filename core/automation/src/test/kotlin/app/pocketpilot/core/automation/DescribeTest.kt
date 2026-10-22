@@ -2,6 +2,8 @@ package app.pocketpilot.core.automation
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /** What the owner reads about each rule. Unknown types must say so rather than fail or print nothing. */
 class DescribeTest {
@@ -25,6 +27,16 @@ class DescribeTest {
         assertEquals("Unknown condition no.such.a or Unknown condition no.such.b", group(GroupMode.ANY))
         assertEquals("not Unknown condition no.such.a or Unknown condition no.such.b", group(GroupMode.NONE))
         assertEquals("exactly one of Unknown condition no.such.a, Unknown condition no.such.b", group(GroupMode.ONE))
+    }
+
+    @Test
+    fun `app fields show the name given for each package`() {
+        val spec = TriggerSpec("app.opened", mapOf("apps" to "com.ubercab.driver"))
+        val names = { pkg: String -> if (pkg == "com.ubercab.driver") "Uber" else pkg }
+
+        assertTrue(Describe.trigger(spec).contains("com.ubercab.driver"))
+        assertTrue(Describe.trigger(spec, names).contains("Uber"))
+        assertFalse(Describe.trigger(spec, names).contains("com.ubercab.driver"))
     }
 
     @Test
