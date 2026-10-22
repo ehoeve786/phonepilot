@@ -418,11 +418,12 @@ private fun HistoryList(runs: List<RunRecord>) {
 private fun runLogText(
     run: RunRecord,
     context: Context,
+    outcome: String,
 ): String =
     buildString {
         appendLine("${run.ruleName} · ${run.reason}")
         appendLine(DateUtils.formatDateTime(context, run.startedAtMillis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME))
-        appendLine(outcomeLabel(run.outcome))
+        appendLine(outcome)
         run.lines.forEach { appendLine(it) }
     }
 
@@ -431,6 +432,7 @@ private fun RunCard(run: RunRecord) {
     var open by rememberSaveable(run.id) { mutableStateOf(false) }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    val outcome = outcomeLabel(run.outcome)
     val failed = run.outcome == RunOutcome.FAILED
     LiquidGlassBentoCard(
         onClick = { open = !open },
@@ -442,7 +444,7 @@ private fun RunCard(run: RunRecord) {
                 Text(run.ruleName, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 // A failed run is marked in the error colour, since the glass card has no tinted state.
                 Text(
-                    outcomeLabel(run.outcome),
+                    outcome,
                     style = MaterialTheme.typography.labelMedium,
                     color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                 )
@@ -457,7 +459,7 @@ private fun RunCard(run: RunRecord) {
                     Text(line, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    IconButton(onClick = { clipboard.setText(AnnotatedString(runLogText(run, context))) }) {
+                    IconButton(onClick = { clipboard.setText(AnnotatedString(runLogText(run, context, outcome))) }) {
                         Icon(
                             painterResource(DsR.drawable.core_designsystem_ic_copy),
                             contentDescription = stringResource(R.string.feature_automations_copy_log),
