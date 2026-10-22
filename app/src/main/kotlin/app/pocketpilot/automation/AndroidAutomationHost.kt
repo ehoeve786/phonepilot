@@ -22,11 +22,11 @@ import android.widget.Toast
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.capability.api.files.FileStore
-import app.pocketpilot.capability.api.screen.Element
 import app.pocketpilot.capability.api.screen.ImageFormat
 import app.pocketpilot.capability.api.screen.Role
 import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.capability.api.screen.ScreenReader
+import app.pocketpilot.capability.api.screen.SnapshotOptions
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
 import app.pocketpilot.core.automation.AgentOutcome
@@ -243,29 +243,14 @@ class AndroidAutomationHost(
     }
 
     /**
-     * The text of the app in front, one line per piece of text, as MacroDroid's screen read gives it. The app
-     * in front is the largest window on screen; floating buttons and other overlays are small, so they are left out.
+     * The text of the app in front, one line per piece of text, as MacroDroid's screen read gives it. Only the
+     * app in front is read; floating buttons and other overlays drawn by other apps are left out.
      */
     private suspend fun readScreen(): String {
-        val snapshot = screen.snapshot()
-        val byId = snapshot.elements.associateBy { it.id }
-        val appWindow =
-            snapshot.elements
-                .filter { it.role == Role.WINDOW && it.parent == null }
-                .maxByOrNull { it.bounds.width * it.bounds.height }
-                ?: throw AutomationFailure("No app is in front to read")
-
-        fun windowOf(element: Element): String {
-            var current = element
-            var parent = current.parent?.let(byId::get)
-            while (parent != null) {
-                current = parent
-                parent = current.parent?.let(byId::get)
-            }
-            return current.id
-        }
+        val snapshot = screen.snapshot(SnapshotOptions(appOnly = true))
+        if (snapshot.packageName == null) throw AutomationFailure("No app is in front to read")
         return snapshot.elements
-            .filter { it.role != Role.WINDOW && windowOf(it) == appWindow.id }
+            .filter { it.role != Role.WINDOW }
             .mapNotNull { (it.text ?: it.description)?.takeIf(String::isNotBlank) }
             .joinToString("\n")
     }

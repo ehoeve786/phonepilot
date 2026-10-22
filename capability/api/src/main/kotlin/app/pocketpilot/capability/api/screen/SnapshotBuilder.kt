@@ -56,6 +56,7 @@ object SnapshotBuilder {
                 if (!node.bounds.isEmpty) hidden += node.bounds
                 return emptyList()
             }
+            if (options.appOnly && node.packageName != null && node.packageName != packageName) return emptyList()
             val isRoot = node.windowTitle != null || node.parent == null
             if (isRoot && !options.includeSystemBars && node.isSystemBar(screen, packageName)) return emptyList()
             if (!isRoot && !options.includeInvisible && (!node.visible || node.bounds.isEmpty)) return emptyList()
