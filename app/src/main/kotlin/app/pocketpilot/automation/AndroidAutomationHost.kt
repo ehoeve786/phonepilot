@@ -249,12 +249,14 @@ class AndroidAutomationHost(
     private suspend fun readScreen(): String {
         val snapshot = screen.snapshot()
         val app = snapshot.packageName ?: throw AutomationFailure("No app is in front to read")
+        // A window's text is the app's label, such as "DoorDash", not its package name.
+        val label = appName(app)
         val byId = snapshot.elements.associateBy { it.id }
 
         fun insideApp(element: Element): Boolean {
             var current: Element? = element
             while (current != null && current.parent != null) current = byId[current.parent]
-            return current != null && current.role == Role.WINDOW && current.text == app
+            return current != null && current.role == Role.WINDOW && current.text == label
         }
         return snapshot.elements
             .filter { it.role != Role.WINDOW && insideApp(it) }
