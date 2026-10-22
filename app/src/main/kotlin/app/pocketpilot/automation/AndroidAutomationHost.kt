@@ -22,7 +22,9 @@ import android.widget.Toast
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.capability.api.files.FileStore
+import app.pocketpilot.capability.api.screen.Element
 import app.pocketpilot.capability.api.screen.ImageFormat
+import app.pocketpilot.capability.api.screen.Role
 import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
@@ -194,6 +196,8 @@ class AndroidAutomationHost(
 
             "screen.screenshot" -> saveScreenshot()
 
+            "screen.read" -> return readScreen()
+
             "media.control" -> media(params["command"].orEmpty())
 
             "speak" -> speak(params["text"].orEmpty(), params["stream"].orEmpty(), params["volume"])
@@ -236,6 +240,26 @@ class AndroidAutomationHost(
                 .getSystemService(PowerManager::class.java)
                 .newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP, "PocketPilot:automation")
         lock.acquire(WAKE_MS)
+    }
+
+    /**
+     * The text of the app in front, one line per piece of text, as MacroDroid's screen read gives it. Only
+     * elements inside the app's own window count, so floating buttons and other overlays are left out.
+     */
+    private suspend fun readScreen(): String {
+        val snapshot = screen.snapshot()
+        val app = snapshot.packageName ?: throw AutomationFailure("No app is in front to read")
+        val byId = snapshot.elements.associateBy { it.id }
+
+        fun insideApp(element: Element): Boolean {
+            var current: Element? = element
+            while (current != null && current.parent != null) current = byId[current.parent]
+            return current != null && current.role == Role.WINDOW && current.text == app
+        }
+        return snapshot.elements
+            .filter { it.role != Role.WINDOW && insideApp(it) }
+            .mapNotNull { (it.text ?: it.description)?.takeIf(String::isNotBlank) }
+            .joinToString("\n")
     }
 
     /** Saves the screen as a PNG in Pictures/PocketPilot, with password fields blacked out as the screenshot tool does. */

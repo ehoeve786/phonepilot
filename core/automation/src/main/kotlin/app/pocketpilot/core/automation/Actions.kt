@@ -512,11 +512,12 @@ internal object Actions {
                     type = "screen.read",
                     category = ui,
                     title = "Read the screen",
-                    description = "Saves the screen's text in a variable.",
+                    description =
+                        "Saves the text of the app in front in a variable, one line per piece of text. " +
+                            "Floating buttons and other overlays are left out.",
                     fields = listOf(INTO.copy(required = true, default = "screen")),
                     tier = RiskTier.READ,
-                    kind = ActionKind.Engine,
-                    tools = setOf("screen.snapshot"),
+                    kind = ActionKind.Native,
                     sentence = { p -> "Read the screen into {${p.p("into")}}" },
                 ),
                 ActionDef(
