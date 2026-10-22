@@ -66,6 +66,37 @@ class SnapshotBuilderTest {
     }
 
     @Test
+    fun `app only keeps the app in front and leaves out overlays drawn by other apps`() {
+        val nodes =
+            listOf(
+                RawNode(parent = null, bounds = full, windowTitle = "Settings", packageName = "com.android.settings"),
+                RawNode(
+                    parent = 0,
+                    className = "android.widget.TextView",
+                    text = "Wi-Fi",
+                    bounds = full,
+                    packageName = "com.android.settings",
+                ),
+                RawNode(
+                    parent = null,
+                    bounds = Bounds(900, 1200, 1080, 1400),
+                    windowTitle = "com.arlosoft.macrodroid",
+                    packageName = "com.arlosoft.macrodroid",
+                ),
+                RawNode(
+                    parent = 2,
+                    className = "android.widget.TextView",
+                    text = "Screenshot",
+                    bounds = Bounds(900, 1200, 1080, 1400),
+                    packageName = "com.arlosoft.macrodroid",
+                ),
+            )
+        val texts = { options: SnapshotOptions -> build(nodes, options).snapshot.elements.mapNotNull(Element::text) }
+        assertEquals(listOf("Settings", "Wi-Fi", "com.arlosoft.macrodroid", "Screenshot"), texts(SnapshotOptions()))
+        assertEquals(listOf("Settings", "Wi-Fi"), texts(SnapshotOptions(appOnly = true)))
+    }
+
+    @Test
     fun `a settings row keeps its clickable container and texts and drops layout wrappers`() {
         val nodes =
             listOf(

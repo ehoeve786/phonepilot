@@ -122,6 +122,8 @@ data class SnapshotOptions(
      * tokens; the time, battery and notifications are also in device.info and notify.list.
      */
     val includeSystemBars: Boolean = false,
+    /** Keeps only what the app in front draws, leaving out floating buttons and other overlays. */
+    val appOnly: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_MAX_ELEMENTS = 300
