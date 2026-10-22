@@ -234,6 +234,9 @@ class AutomationEngineTest {
             val titles = host.calls.filter { it.first == "notify.post" }.map { (it.second["title"] as JsonPrimitive).content }
             assertEquals(listOf("Low 8"), titles)
             assertEquals(mapOf("n" to "8"), record.variables)
+            assertTrue(record.lines.contains("    title: Low 8"))
+            val summary = record.lines.indexOfFirst { it.startsWith("1. ") }
+            assertTrue(summary in 0 until record.lines.indexOf("    value: 1"))
         }
 
     @Test
