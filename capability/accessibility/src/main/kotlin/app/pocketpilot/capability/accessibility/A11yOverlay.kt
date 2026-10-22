@@ -146,7 +146,14 @@ object A11yOverlay {
                     TextView(service).apply {
                         text = if (button.icon == null) button.text else ""
                         setTextColor(Color.WHITE)
-                        setCompoundDrawablesWithIntrinsicBounds(button.icon, null, null, null)
+                        // A fixed size, not the icon's own: an app's icon is much larger than a button should be.
+                        button.icon?.setBounds(
+                            0,
+                            0,
+                            dp(if (button.small) ICON_SMALL_DP else ICON_DP),
+                            dp(if (button.small) ICON_SMALL_DP else ICON_DP),
+                        )
+                        setCompoundDrawables(button.icon, null, null, null)
                         setTextSize(TypedValue.COMPLEX_UNIT_SP, if (button.small) 11f else 13f)
                         val padding = if (button.small) 6 else 10
                         setPadding(dp(padding + 4), dp(padding), dp(padding + 4), dp(padding))
@@ -211,4 +218,6 @@ object A11yOverlay {
     private const val TOP_OFFSET_DP = 40
     private const val STACK_TOP_DP = 200
     private const val STACK_STEP_DP = 64
+    private const val ICON_DP = 24
+    private const val ICON_SMALL_DP = 16
 }
