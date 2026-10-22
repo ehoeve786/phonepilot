@@ -219,6 +219,16 @@ internal fun RuleEditor(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            CategoryField(
+                category = rule.category,
+                existing =
+                    state.rules
+                        .map { it.category.trim() }
+                        .filter { it.isNotEmpty() }
+                        .distinct()
+                        .sorted(),
+                onChange = { rule = rule.copy(category = it) },
+            )
 
             EditorSection(stringResource(R.string.feature_automations_when), stringResource(R.string.feature_automations_when_text)) {
                 rule.triggers.forEachIndexed { i, spec ->
@@ -347,6 +357,35 @@ internal fun RuleEditor(
         }
 
         null -> {}
+    }
+}
+
+/** The rule's category: type a new one, or tap one of the categories the other rules already use. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryField(
+    category: String,
+    existing: List<String>,
+    onChange: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = category,
+            onValueChange = onChange,
+            label = { Text(stringResource(R.string.feature_automations_category)) },
+            placeholder = { Text(stringResource(R.string.feature_automations_uncategorized)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            existing.forEach { name ->
+                FilterChip(
+                    selected = name == category.trim(),
+                    onClick = { onChange(name) },
+                    label = { Text(name) },
+                )
+            }
+        }
     }
 }
 

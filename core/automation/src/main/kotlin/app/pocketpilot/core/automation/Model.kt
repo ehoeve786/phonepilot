@@ -12,6 +12,8 @@ import kotlinx.serialization.Serializable
 data class Rule(
     val id: String,
     val name: String,
+    /** The group the rule is listed under; blank when it has none. */
+    val category: String = "",
     val enabled: Boolean = true,
     val triggers: List<TriggerSpec> = emptyList(),
     val constraints: ConstraintGroup = ConstraintGroup(),
@@ -30,6 +32,15 @@ data class Rule(
 ) {
     val pending: Boolean get() = proposedBy != null
 }
+
+/**
+ * The rules grouped by their category, each group in name order of its category. Rules with no category
+ * come last under "".
+ */
+fun List<Rule>.byCategory(): List<Pair<String, List<Rule>>> =
+    groupBy { it.category.trim() }
+        .toList()
+        .sortedWith(compareBy<Pair<String, List<Rule>>>({ it.first.isEmpty() }, { it.first.lowercase() }))
 
 /** One trigger of a rule: a [type] from the catalog and its settings. */
 @Serializable
