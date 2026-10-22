@@ -1,5 +1,6 @@
 package app.pocketpilot.feature.automations
 
+import android.content.pm.PackageManager
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -202,11 +203,13 @@ fun AutomationRuleCard(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun RuleSummary(rule: Rule) {
+    val packages = LocalContext.current.packageManager
+    val appName: (String) -> String = { packages.appLabel(it) }
     Section(stringResource(R.string.feature_automations_when)) {
-        rule.triggers.forEach { StepText(Describe.trigger(it)) }
+        rule.triggers.forEach { StepText(Describe.trigger(it, appName)) }
     }
     if (!rule.constraints.isEmpty) {
-        Section(stringResource(R.string.feature_automations_only_if)) { StepText(Describe.group(rule.constraints)) }
+        Section(stringResource(R.string.feature_automations_only_if)) { StepText(Describe.group(rule.constraints, appName)) }
     }
     Section(stringResource(R.string.feature_automations_then)) {
         if (rule.runAs == RunMode.AGENT) {
@@ -214,7 +217,7 @@ internal fun RuleSummary(rule: Rule) {
         } else {
             rule.actions.forEachIndexed { i, step ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    StepText("${i + 1}. ${Describe.action(step)}")
+                    StepText("${i + 1}. ${Describe.action(step, appName)}")
                     val tier = step.tier()
                     if (tier >= RiskTier.SENSITIVE) TierTag(tier)
                 }
@@ -224,6 +227,10 @@ internal fun RuleSummary(rule: Rule) {
 }
 
 private const val PROMPT_PREVIEW = 80
+
+/** The app's name for a package, or the package itself when the app is not installed. */
+private fun PackageManager.appLabel(pkg: String): String =
+    runCatching { getApplicationLabel(getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

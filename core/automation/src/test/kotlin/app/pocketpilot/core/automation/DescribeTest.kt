@@ -28,6 +28,19 @@ class DescribeTest {
     }
 
     @Test
+    fun `app fields ask for the name of each package`() {
+        val spec = TriggerSpec("app.opened", mapOf("apps" to "com.ubercab.driver,com.doordash.driverapp"))
+        val asked = mutableListOf<String>()
+
+        Describe.trigger(spec) { pkg ->
+            asked += pkg
+            pkg
+        }
+
+        assertEquals(listOf("com.ubercab.driver", "com.doordash.driverapp"), asked)
+    }
+
+    @Test
     fun `nested groups are wrapped in brackets`() {
         val inner = ConstraintGroup(GroupMode.ANY, listOf(check("no.such.a"), check("no.such.b")))
         val outer = ConstraintGroup(GroupMode.ALL, listOf(ConstraintNode.Group(inner), check("no.such.c")))
