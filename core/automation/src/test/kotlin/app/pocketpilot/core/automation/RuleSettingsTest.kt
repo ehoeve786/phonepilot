@@ -78,6 +78,12 @@ class RuleSettingsTest {
     }
 
     @Test
+    fun `the category comes back, and a rule without one has no category field`() {
+        assertEquals("Tesla", ruleSettings(rule.copy(category = "Tesla"))!!.text("category"))
+        assertFalse(ruleSettings(rule)!!.containsKey("category"))
+    }
+
+    @Test
     fun `a rule without conditions has no condition fields`() {
         val settings = ruleSettings(rule.copy(constraints = ConstraintGroup()))!!
 

@@ -156,6 +156,7 @@ class AutomationListTool(
                         buildJsonObject {
                             put("id", rule.id)
                             put("name", rule.name)
+                            if (rule.category.isNotBlank()) put("category", rule.category)
                             put("enabled", rule.enabled)
                             if (rule.pending) put("status", "waiting for the owner to accept")
                             put("when", JsonArray(rule.triggers.map { JsonPrimitive(Describe.trigger(it)) }))
@@ -180,6 +181,7 @@ internal fun ruleSettings(rule: Rule): JsonObject? {
     if (hasNestedGroup(rule.constraints) || rule.actions.any { hasNestedStep(it) }) return null
     return buildJsonObject {
         put("name", rule.name)
+        if (rule.category.isNotBlank()) put("category", rule.category)
         put("triggers", JsonArray(rule.triggers.map { settingsOf(it.type, it.params) }))
         conditionSettings(this, rule.constraints)
         put("actions", JsonArray(rule.actions.map { stepSettings(it) }))
@@ -230,6 +232,8 @@ private fun paramsOf(params: Map<String, String>): JsonObject = buildJsonObject 
 @Serializable
 data class ProposedRule(
     val name: String,
+    /** The group the owner lists the rule under; empty for none. */
+    val category: String = "",
     val triggers: List<TriggerSpec>,
     val conditions: List<ConstraintSpec> = emptyList(),
     /** all, any, none or one. */
@@ -385,6 +389,7 @@ private fun validRule(
         Rule(
             id = id,
             name = proposed.name.trim(),
+            category = proposed.category.trim(),
             enabled = false,
             triggers = proposed.triggers,
             constraints = conditions(proposed.conditions, proposed.conditionMode),
@@ -407,7 +412,7 @@ private const val TYPED_ITEM = """{"type":"object","properties":{"type":{"type":
 private const val CONDITION_MODE = """{"type":"string","enum":["all","any","none","one"]}"""
 
 /** The rule shape `automation.propose` and `automation.update` take. */
-private const val RULE_PROPERTIES = """"name":{"type":"string"},"triggers":{"type":"array","items":$TYPED_ITEM},
+private const val RULE_PROPERTIES = """"name":{"type":"string"},"category":{"type":"string"},"triggers":{"type":"array","items":$TYPED_ITEM},
     "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,
     "actions":{"type":"array","items":{"type":"object","properties":{"type":{"type":"string"},"params":$PARAMS,
     "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,
