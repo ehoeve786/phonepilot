@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -427,6 +428,30 @@ private fun runLogText(
         run.lines.forEach { appendLine(it) }
     }
 
+/** One log line: its time stamp alone in a left column, the text in the column beside it. */
+@Composable
+private fun RunLogLine(line: String) {
+    val parts = LOG_STAMP.find(line)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Text(
+            parts?.groupValues?.get(1).orEmpty(),
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.width(LOG_STAMP_WIDTH),
+        )
+        Text(
+            parts?.groupValues?.get(2) ?: line,
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/** A log line that starts with its HH:mm:ss:SSS time stamp. Older runs have none and show as they were. */
+private val LOG_STAMP = Regex("""^(\d{2}:\d{2}:\d{2}:\d{3}) (.*)$""")
+private val LOG_STAMP_WIDTH = 84.dp
+
 @Composable
 private fun RunCard(run: RunRecord) {
     var open by rememberSaveable(run.id) { mutableStateOf(false) }
@@ -455,9 +480,7 @@ private fun RunCard(run: RunRecord) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (open) {
-                run.lines.forEach { line ->
-                    Text(line, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
-                }
+                run.lines.forEach { RunLogLine(it) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     IconButton(onClick = { clipboard.setText(AnnotatedString(runLogText(run, context, outcome))) }) {
                         Icon(
