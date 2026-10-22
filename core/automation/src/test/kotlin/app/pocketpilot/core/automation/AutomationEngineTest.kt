@@ -159,7 +159,7 @@ class AutomationEngineTest {
             assertEquals(180, (extras["android.intent.extra.alarm.LENGTH"] as JsonPrimitive).content.toInt())
             assertEquals("Tea", (extras["android.intent.extra.alarm.MESSAGE"] as JsonPrimitive).content)
             assertEquals("Hi Test", (host.calls[1].second["title"] as JsonPrimitive).content)
-            assertEquals(2, record.lines.size)
+            assertEquals(2, record.lines.count { it.first().isDigit() })
             assertEquals(1, host.closed)
             assertTrue("app.start_activity" in host.opened.single())
         }
@@ -181,7 +181,7 @@ class AutomationEngineTest {
                 )
             assertEquals("off", host.settings["wifi"])
             assertEquals(RunOutcome.FAILED, record.outcome)
-            assertTrue(record.lines[1].contains("failed, Not allowed"))
+            assertTrue(record.lines.single { it.startsWith("2. ") }.contains("failed, Not allowed"))
             assertTrue(host.calls.none { it.first == "notify.post" })
         }
 
