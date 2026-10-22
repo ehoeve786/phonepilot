@@ -520,6 +520,14 @@ internal object Actions {
                     sentence = { p -> "Read the screen into {${p.p("into")}}" },
                 ),
                 ActionDef(
+                    type = "screen.screenshot",
+                    category = ui,
+                    title = "Take a screenshot",
+                    description = "Saves the screen as a PNG in Pictures/PocketPilot. Password fields are blacked out.",
+                    tier = RiskTier.READ,
+                    kind = ActionKind.Native,
+                ),
+                ActionDef(
                     type = "screen.wake",
                     category = ui,
                     title = "Turn the screen on",

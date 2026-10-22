@@ -1,5 +1,6 @@
 package app.pocketpilot.automation
 
+import android.content.ContentValues
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -13,6 +14,7 @@ import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.provider.MediaStore
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.view.KeyEvent
@@ -20,6 +22,8 @@ import android.widget.Toast
 import app.pocketpilot.agent.AgentCoordinator
 import app.pocketpilot.agent.runtime.RunStatus
 import app.pocketpilot.capability.api.files.FileStore
+import app.pocketpilot.capability.api.screen.ImageFormat
+import app.pocketpilot.capability.api.screen.ScreenCapturer
 import app.pocketpilot.capability.api.screen.ScreenReader
 import app.pocketpilot.capability.notifications.ListenerNotificationSource
 import app.pocketpilot.capability.shizuku.ShizukuShellRunner
@@ -33,6 +37,8 @@ import app.pocketpilot.core.automation.StateKeys
 import app.pocketpilot.core.automation.fixedShellCommands
 import app.pocketpilot.core.common.Clock
 import app.pocketpilot.core.common.UlidGenerator
+import app.pocketpilot.core.imaging.CaptureRequest
+import app.pocketpilot.core.imaging.ImagePipeline
 import app.pocketpilot.core.model.Scope
 import app.pocketpilot.core.model.Session
 import app.pocketpilot.core.model.SessionId
@@ -53,6 +59,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import kotlin.coroutines.resume
 
 /**
@@ -74,6 +82,8 @@ class AndroidAutomationHost(
     private val calendars: Calendars,
     private val places: PlaceWatcher,
     private val screen: ScreenReader,
+    private val screenCapturer: ScreenCapturer,
+    private val imagePipeline: ImagePipeline,
     override val sideload: Boolean,
 ) : AutomationHost {
     private val ids = UlidGenerator(Clock.System)
@@ -182,6 +192,8 @@ class AndroidAutomationHost(
         when (type) {
             "screen.wake" -> wake()
 
+            "screen.screenshot" -> saveScreenshot()
+
             "media.control" -> media(params["command"].orEmpty())
 
             "speak" -> speak(params["text"].orEmpty(), params["stream"].orEmpty(), params["volume"])
@@ -224,6 +236,41 @@ class AndroidAutomationHost(
                 .getSystemService(PowerManager::class.java)
                 .newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP, "PocketPilot:automation")
         lock.acquire(WAKE_MS)
+    }
+
+    /** Saves the screen as a PNG in Pictures/PocketPilot, with password fields blacked out as the screenshot tool does. */
+    private suspend fun saveScreenshot() {
+        val frame = screenCapturer.capture()
+        val passwords =
+            if (screen.available.value) {
+                screen
+                    .snapshot()
+                    .elements
+                    .filter { it.password }
+                    .map { it.bounds }
+            } else {
+                emptyList()
+            }
+        val image =
+            imagePipeline.process(
+                frame,
+                CaptureRequest(maxEdge = maxOf(frame.width, frame.height), format = ImageFormat.PNG, redact = passwords),
+            )
+        val name = "PocketPilot-${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))}.png"
+        val values =
+            ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, name)
+                put(MediaStore.Images.Media.MIME_TYPE, ImageFormat.PNG.mimeType)
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/PocketPilot")
+            }
+        withContext(Dispatchers.IO) {
+            val resolver = context.contentResolver
+            val uri =
+                resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                    ?: throw AutomationFailure("Could not create the screenshot file")
+            resolver.openOutputStream(uri)?.use { it.write(image.bytes) }
+                ?: throw AutomationFailure("Could not write the screenshot")
+        }
     }
 
     private fun media(command: String) {

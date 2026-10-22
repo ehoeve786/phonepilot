@@ -43,6 +43,12 @@ object Templates {
                 actions = listOf(ActionStep("speak", mapOf("text" to "{trigger.title} says {trigger.text}"))),
             ),
             Rule(
+                id = "template-screenshot-button",
+                name = "Screenshot from a button",
+                triggers = listOf(TriggerSpec("floating_button", mapOf("slot" to "1", "press" to "tap", "label" to "Screenshot"))),
+                actions = listOf(ActionStep("screen.screenshot")),
+            ),
+            Rule(
                 id = "template-stopwatch",
                 name = "Workout timer",
                 triggers = listOf(TriggerSpec("tile", mapOf("slot" to "1"))),
