@@ -36,6 +36,9 @@ data class AgentOutcome(
 
 /** What the engine needs from the app: tools, phone state, native actions and Agent mode. */
 interface AutomationHost {
+    /** The name to show for an app's package, such as "Uber". The package itself when the host cannot tell. */
+    fun appName(packageName: String): String = packageName
+
     /** Calls a tool through the dispatcher, so policy, the deny list and audit apply. */
     suspend fun callTool(
         session: Session,
@@ -117,7 +120,7 @@ class AutomationEngine(
                 } ?: continue
             start(
                 rule,
-                Describe.trigger(trigger),
+                Describe.trigger(trigger, host::appName),
                 event.data,
                 fromOutside = event.fromOutside || event.type in OUTSIDE_EVENTS,
                 chain = event.chain,

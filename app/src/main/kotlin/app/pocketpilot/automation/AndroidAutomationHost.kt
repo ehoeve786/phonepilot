@@ -115,6 +115,10 @@ class AndroidAutomationHost(
 
     override fun closeSession(session: Session) = policy.endSession(session.id)
 
+    override fun appName(packageName: String): String =
+        runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(packageName, 0)).toString() }
+            .getOrDefault(packageName)
+
     override suspend fun state(key: String): String? {
         StateKeys.homeAssistantEntity(key)?.let { return homeAssistant.stateOf(it) }
         StateKeys.screenTextOf(key)?.let { return screenShows(it) }
