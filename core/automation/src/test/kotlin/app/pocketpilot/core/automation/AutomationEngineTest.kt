@@ -24,6 +24,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+/** The run log without each line's time stamp, so tests can match what a step wrote. */
+internal fun RunRecord.plain(): List<String> = lines.map { it.substringAfter(' ') }
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class AutomationEngineTest {
     private class MemoryPersistence : Persistence {
@@ -159,7 +162,7 @@ class AutomationEngineTest {
             assertEquals(180, (extras["android.intent.extra.alarm.LENGTH"] as JsonPrimitive).content.toInt())
             assertEquals("Tea", (extras["android.intent.extra.alarm.MESSAGE"] as JsonPrimitive).content)
             assertEquals("Hi Test", (host.calls[1].second["title"] as JsonPrimitive).content)
-            assertEquals(2, record.lines.count { it.first().isDigit() })
+            assertEquals(2, record.plain().count { it.first().isDigit() })
             assertEquals(1, host.closed)
             assertTrue("app.start_activity" in host.opened.single())
         }
@@ -181,7 +184,7 @@ class AutomationEngineTest {
                 )
             assertEquals("off", host.settings["wifi"])
             assertEquals(RunOutcome.FAILED, record.outcome)
-            assertTrue(record.lines.single { it.startsWith("2. ") }.contains("failed, Not allowed"))
+            assertTrue(record.plain().single { it.startsWith("2. ") }.contains("failed, Not allowed"))
             assertTrue(host.calls.none { it.first == "notify.post" })
         }
 
@@ -234,9 +237,10 @@ class AutomationEngineTest {
             val titles = host.calls.filter { it.first == "notify.post" }.map { (it.second["title"] as JsonPrimitive).content }
             assertEquals(listOf("Low 8"), titles)
             assertEquals(mapOf("n" to "8"), record.variables)
-            assertTrue(record.lines.contains("    title: Low 8"))
-            val summary = record.lines.indexOfFirst { it.startsWith("1. ") }
-            assertTrue(summary in 0 until record.lines.indexOf("    value: 1"))
+            assertTrue(record.lines.all { Regex("""\d{2}:\d{2}:\d{2}:\d{3} .*""").matches(it) })
+            assertTrue(record.plain().contains("    title: Low 8"))
+            val summary = record.plain().indexOfFirst { it.startsWith("1. ") }
+            assertTrue(summary in 0 until record.plain().indexOf("    value: 1"))
         }
 
     @Test

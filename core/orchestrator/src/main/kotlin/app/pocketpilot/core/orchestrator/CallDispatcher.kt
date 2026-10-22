@@ -50,6 +50,7 @@ class CallDispatcher(
                 timestampMillis = started,
                 sessionId = session.id.value,
                 principal = session.principal,
+                sessionKind = session.kind,
                 tool = tool,
                 argumentsRedacted = redactor.redact(arguments),
                 decision = settled.decision,
