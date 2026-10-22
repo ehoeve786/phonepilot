@@ -113,4 +113,6 @@
     <string name="feature_automations_on_error_continue">Keep going</string>
     <string name="feature_automations_move_up">Move up</string>
     <string name="feature_automations_move_down">Move down</string>
+    <string name="feature_automations_category">Category</string>
+    <string name="feature_automations_uncategorized">Uncategorized</string>
 </resources>

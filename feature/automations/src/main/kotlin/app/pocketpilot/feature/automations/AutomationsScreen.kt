@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,10 +38,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -60,6 +65,7 @@ import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RunOutcome
 import app.pocketpilot.core.automation.RunRecord
 import app.pocketpilot.core.automation.Templates
+import app.pocketpilot.core.automation.byCategory
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.core.designsystem.R as DsR
 
@@ -242,6 +248,13 @@ private fun RulesList(
     onOpen: (Rule) -> Unit,
     onNewFrom: (Rule) -> Unit,
 ) {
+    // The categories the owner has folded shut; kept across rotation.
+    val collapsed =
+        rememberSaveable(
+            saver = listSaver<SnapshotStateList<String>, String>(save = { it.toList() }, restore = { it.toMutableStateList() }),
+        ) {
+            mutableStateListOf<String>()
+        }
     LazyColumn(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -266,17 +279,30 @@ private fun RulesList(
                 }
             }
         }
-        items(rules, key = { it.id }) { rule ->
-            AutomationRuleCard(
-                rule = rule,
-                running = rule.id in state.running,
-                onEnabledChange = { actions.setEnabled(rule.id, it) },
-                onOpen = { onOpen(rule) },
-                onRun = { actions.run(rule) },
-                onAddIcon = actions.addIcon,
-                onStop = { actions.stop(rule.id) },
-                onPinnedChange = { actions.setPinned(rule.id, it) },
-            )
+        rules.byCategory().forEach { (category, group) ->
+            val open = category !in collapsed
+            item(key = "category:$category") {
+                CategoryHeader(
+                    name = category,
+                    count = group.size,
+                    open = open,
+                    onToggle = { if (open) collapsed.add(category) else collapsed.remove(category) },
+                )
+            }
+            if (open) {
+                items(group, key = { it.id }) { rule ->
+                    AutomationRuleCard(
+                        rule = rule,
+                        running = rule.id in state.running,
+                        onEnabledChange = { actions.setEnabled(rule.id, it) },
+                        onOpen = { onOpen(rule) },
+                        onRun = { actions.run(rule) },
+                        onAddIcon = actions.addIcon,
+                        onStop = { actions.stop(rule.id) },
+                        onPinnedChange = { actions.setPinned(rule.id, it) },
+                    )
+                }
+            }
         }
         if (rules.isNotEmpty()) {
             item { Spacer(Modifier.height(8.dp)) }
@@ -290,6 +316,32 @@ private fun RulesList(
             }
         }
         item { SettingsCard(state, actions) }
+    }
+}
+
+/** A category's name, its rule count and a chevron that folds its rules away. */
+@Composable
+private fun CategoryHeader(
+    name: String,
+    count: Int,
+    open: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            name.ifEmpty { stringResource(R.string.feature_automations_uncategorized) },
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.weight(1f),
+        )
+        Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(
+            painterResource(if (open) R.drawable.feature_automations_ic_up else R.drawable.feature_automations_ic_down),
+            contentDescription = stringResource(if (open) R.string.feature_automations_collapse else R.string.feature_automations_expand),
+            tint = MaterialTheme.colorScheme.outline,
+        )
     }
 }
 
