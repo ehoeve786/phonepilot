@@ -229,7 +229,7 @@ internal fun RuleSummary(rule: Rule) {
 private const val PROMPT_PREVIEW = 80
 
 /** The app's name for a package, or the package itself when the app is not installed. */
-private fun PackageManager.appLabel(pkg: String): String =
+internal fun PackageManager.appLabel(pkg: String): String =
     runCatching { getApplicationLabel(getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
 
 @OptIn(ExperimentalLayoutApi::class)

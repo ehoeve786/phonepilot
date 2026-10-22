@@ -34,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -223,7 +224,7 @@ internal fun RuleEditor(
                 rule.triggers.forEachIndexed { i, spec ->
                     val def = AutomationCatalog.trigger(spec.type)
                     ItemRow(
-                        text = Describe.trigger(spec),
+                        text = Describe.trigger(spec, LocalContext.current.packageManager::appLabel),
                         onClick = {
                             if (def != null && def.fields.isNotEmpty()) {
                                 sheets.editFields(def.title, def.description, def.fields, spec.params) { params ->
@@ -421,7 +422,7 @@ private fun ConstraintGroupEditor(
                 is ConstraintNode.Check -> {
                     val def = AutomationCatalog.constraint(node.spec.type)
                     ItemRow(
-                        text = Describe.constraint(node.spec),
+                        text = Describe.constraint(node.spec, LocalContext.current.packageManager::appLabel),
                         onClick = {
                             if (def != null && def.fields.isNotEmpty()) {
                                 sheets.editFields(def.title, def.description, def.fields, node.spec.params) { params ->
@@ -544,7 +545,7 @@ private fun ActionStepCard(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            "${index + 1}. ${Describe.action(step)}",
+                            "${index + 1}. ${Describe.action(step, LocalContext.current.packageManager::appLabel)}",
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f, false),
                         )

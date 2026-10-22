@@ -230,13 +230,18 @@ class AutomationEngine(
         return record
     }
 
-    /** A value as the run log shows it: kept short, and hidden when the setting looks like a secret. */
+    /**
+     * A value as the run log shows it: app packages by their names, kept short, and hidden when the setting
+     * looks like a secret.
+     */
     private fun logged(
         key: String,
         value: String,
+        appKeys: Set<String> = emptySet(),
     ): String {
-        val secret = SECRET_WORDS.any { key.contains(it, ignoreCase = true) }
-        return if (secret) "(hidden)" else value.take(MAX_VARIABLE_CHARS)
+        if (SECRET_WORDS.any { key.contains(it, ignoreCase = true) }) return "(hidden)"
+        val shown = if (key == "package" || key in appKeys) value.split(',').joinToString(", ") { host.appName(it.trim()) } else value
+        return shown.take(MAX_VARIABLE_CHARS)
     }
 
     /** The variables a run set, kept short so the history stays small. */
@@ -336,8 +341,13 @@ class AutomationEngine(
         val params =
             RuleValidator.withDefaults(def.fields, step.params).mapValues { (_, value) -> Placeholders.fill(value) { lookup(context, it) } }
         val into = params.p("into")
+        val appKeys =
+            def.fields
+                .filter { it.kind == FieldKind.APP }
+                .map { it.key }
+                .toSet()
         params.forEach { (key, value) ->
-            if (key != "into" && value.isNotEmpty()) context.lines += "    $key: ${logged(key, value)}"
+            if (key != "into" && value.isNotEmpty()) context.lines += "    $key: ${logged(key, value, appKeys)}"
         }
         return when (val kind = def.kind) {
             is ActionKind.Tool -> {
