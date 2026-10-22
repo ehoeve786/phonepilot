@@ -157,7 +157,7 @@ class AutomationDispatchTest {
                 )
 
             assertEquals(RunOutcome.FAILED, record.outcome)
-            val stop = record.lines.single { it.startsWith("2. ") }
+            val stop = record.plain().single { it.startsWith("2. ") }
             assertTrue(stop.contains("lacks the scope apps:control"), stop)
             val events = audit.recent.value
             // The audit log is newest first; the step after the refused one never reached the dispatcher.

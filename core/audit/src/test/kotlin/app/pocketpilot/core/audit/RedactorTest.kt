@@ -1,5 +1,6 @@
 package app.pocketpilot.core.audit
 
+import app.pocketpilot.core.model.SessionKind
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -48,6 +49,7 @@ class RedactorTest {
             timestampMillis = 0,
             sessionId = "s",
             principal = "local",
+            sessionKind = SessionKind.LOCAL_UI,
             tool = "device.info",
             argumentsRedacted = buildJsonObject {},
             decision = AuditDecision.ALLOW,

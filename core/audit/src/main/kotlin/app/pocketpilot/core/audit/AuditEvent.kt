@@ -1,5 +1,6 @@
 package app.pocketpilot.core.audit
 
+import app.pocketpilot.core.model.SessionKind
 import kotlinx.serialization.json.JsonObject
 
 enum class AuditDecision {
@@ -22,6 +23,8 @@ data class AuditEvent(
     val timestampMillis: Long,
     val sessionId: String,
     val principal: String,
+    /** Who made the call: Claude or an agent, the owner's own rule, or the app itself. */
+    val sessionKind: SessionKind,
     val tool: String,
     /** Sensitive fields replaced by their length and hash; see [Redactor]. */
     val argumentsRedacted: JsonObject,

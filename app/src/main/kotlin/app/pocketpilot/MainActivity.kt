@@ -56,6 +56,7 @@ import app.pocketpilot.core.automation.parseSharedRule
 import app.pocketpilot.core.automation.usesShell
 import app.pocketpilot.core.capabilities.CapabilityGraph
 import app.pocketpilot.core.model.PolicyProfile
+import app.pocketpilot.core.model.SessionKind
 import app.pocketpilot.core.model.ToolSpec
 import app.pocketpilot.core.orchestrator.ToolRegistry
 import app.pocketpilot.core.policy.AppPolicy
@@ -431,7 +432,12 @@ class MainActivity : ComponentActivity() {
             val accessibilityOn = A11yBridge.connected.collectAsStateWithLifecycle().value
             val tailscaleState = tailscale.state.collectAsStateWithLifecycle().value
             val wireGuardState = wireGuard.state.collectAsStateWithLifecycle().value
-            val auditEvents = audit.recent.collectAsStateWithLifecycle().value
+            // The Activity log is what Claude and agents did; automation steps show in their rule's history instead.
+            val auditEvents =
+                audit.recent
+                    .collectAsStateWithLifecycle()
+                    .value
+                    .filter { it.sessionKind == SessionKind.MCP_CLIENT || it.sessionKind == SessionKind.AGENT_RUN }
             val approvalItems = approvals.items.collectAsStateWithLifecycle().value
             val tools = remember { registry.specs }
             val automationData =
