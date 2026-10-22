@@ -84,6 +84,14 @@ class RuleSettingsTest {
     }
 
     @Test
+    fun `starting variables come back by name, and a rule without any has no variables field`() {
+        val settings = ruleSettings(rule.copy(variables = mapOf("count" to "0")))!!
+
+        assertEquals("0", settings.getValue("variables").jsonObject.text("count"))
+        assertFalse(ruleSettings(rule)!!.containsKey("variables"))
+    }
+
+    @Test
     fun `a rule without conditions has no condition fields`() {
         val settings = ruleSettings(rule.copy(constraints = ConstraintGroup()))!!
 

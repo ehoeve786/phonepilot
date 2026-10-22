@@ -63,6 +63,8 @@
     <string name="feature_automations_only_if">Only if</string>
     <string name="feature_automations_only_if_text">Checked when the rule starts. Leave empty to always run.</string>
     <string name="feature_automations_then">Then</string>
+    <string name="feature_automations_rule_variables">Variables</string>
+    <string name="feature_automations_rule_variables_text">Starting values for this rule\'s local variables. Each run begins with them, and its steps can change them.</string>
     <string name="feature_automations_else">Else</string>
     <string name="feature_automations_agent_summary">Agent mode: %1$s</string>
     <string name="feature_automations_proposed_by">Proposed by %1$s</string>

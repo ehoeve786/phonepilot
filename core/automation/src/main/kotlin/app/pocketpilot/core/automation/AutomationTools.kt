@@ -187,6 +187,7 @@ internal fun ruleSettings(rule: Rule): JsonObject? {
         put("actions", JsonArray(rule.actions.map { stepSettings(it) }))
         put("runAs", if (rule.runAs == RunMode.AGENT) "agent" else "direct")
         if (rule.agentPrompt.isNotEmpty()) put("agentPrompt", rule.agentPrompt)
+        if (rule.variables.isNotEmpty()) put("variables", JsonObject(rule.variables.mapValues { JsonPrimitive(it.value) }))
     }
 }
 
@@ -242,6 +243,8 @@ data class ProposedRule(
     /** direct, or agent with agentPrompt. */
     val runAs: String = "direct",
     val agentPrompt: String = "",
+    /** Starting values for the rule's local variables, by name. */
+    val variables: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -396,6 +399,7 @@ private fun validRule(
             actions = proposed.actions.map { it.toStep() },
             runAs = if (proposed.runAs.equals("agent", ignoreCase = true)) RunMode.AGENT else RunMode.DIRECT,
             agentPrompt = proposed.agentPrompt,
+            variables = proposed.variables,
             proposedBy = principal,
         )
     val problems = RuleValidator.problems(rule, sideload)
@@ -412,7 +416,7 @@ private const val TYPED_ITEM = """{"type":"object","properties":{"type":{"type":
 private const val CONDITION_MODE = """{"type":"string","enum":["all","any","none","one"]}"""
 
 /** The rule shape `automation.propose` and `automation.update` take. */
-private const val RULE_PROPERTIES = """"name":{"type":"string"},"category":{"type":"string"},"triggers":{"type":"array","items":$TYPED_ITEM},
+private const val RULE_PROPERTIES = """"name":{"type":"string"},"category":{"type":"string"},"variables":$PARAMS,"triggers":{"type":"array","items":$TYPED_ITEM},
     "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,
     "actions":{"type":"array","items":{"type":"object","properties":{"type":{"type":"string"},"params":$PARAMS,
     "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,

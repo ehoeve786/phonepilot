@@ -173,7 +173,7 @@ class AutomationEngine(
     ): RunRecord {
         val started = clock.nowMillis()
         val lines = mutableListOf<String>()
-        val vars = HashMap<String, String>()
+        val vars = HashMap(rule.variables)
         data.forEach { (key, value) -> vars["trigger.$key"] = value }
         val session = host.openSession(rule, toolsOf(rule), fromOutside)
         val context = RunContext(rule, session, vars, lines, fromOutside = fromOutside, chain = chain)
