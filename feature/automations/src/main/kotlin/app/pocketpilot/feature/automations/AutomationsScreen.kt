@@ -247,8 +247,8 @@ private fun RulesList(
     onOpen: (Rule) -> Unit,
     onNewFrom: (Rule) -> Unit,
 ) {
-    // The categories the owner has folded shut; kept across rotation.
-    val collapsed =
+    // The categories the owner has opened; every category starts collapsed. Kept across rotation.
+    val expanded =
         rememberSaveable(
             saver = listSaver<SnapshotStateList<String>, String>(save = { it.toList() }, restore = { it.toMutableStateList() }),
         ) {
@@ -279,13 +279,13 @@ private fun RulesList(
             }
         }
         rules.byCategory().forEach { (category, group) ->
-            val open = category !in collapsed
+            val open = category in expanded
             item(key = "category:$category") {
                 CategoryHeader(
                     name = category,
                     count = group.size,
                     open = open,
-                    onToggle = { if (open) collapsed.add(category) else collapsed.remove(category) },
+                    onToggle = { if (open) expanded.remove(category) else expanded.add(category) },
                 )
             }
             if (open) {
