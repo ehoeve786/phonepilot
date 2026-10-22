@@ -4,6 +4,7 @@
     <string name="feature_automations_tab_proposals">Proposals</string>
     <string name="feature_automations_tab_history">History</string>
     <string name="feature_automations_tab_variables">Variables</string>
+    <string name="feature_automations_copy_log">Copy log</string>
     <string name="feature_automations_variables_hint">Global variables are kept between runs, and any rule can read or change them.</string>
     <string name="feature_automations_no_global_variables">No global variables yet. Rules create them with Set variable, Global.</string>
     <string name="feature_automations_add_variable">Add variable</string>
