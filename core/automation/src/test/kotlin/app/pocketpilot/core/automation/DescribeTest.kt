@@ -2,8 +2,6 @@ package app.pocketpilot.core.automation
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 /** What the owner reads about each rule. Unknown types must say so rather than fail or print nothing. */
 class DescribeTest {
@@ -30,13 +28,16 @@ class DescribeTest {
     }
 
     @Test
-    fun `app fields show the name given for each package`() {
-        val spec = TriggerSpec("app.opened", mapOf("apps" to "com.ubercab.driver"))
-        val names = { pkg: String -> if (pkg == "com.ubercab.driver") "Uber" else pkg }
+    fun `app fields ask for the name of each package`() {
+        val spec = TriggerSpec("app.opened", mapOf("apps" to "com.ubercab.driver,com.doordash.driverapp"))
+        val asked = mutableListOf<String>()
 
-        assertTrue(Describe.trigger(spec).contains("com.ubercab.driver"))
-        assertTrue(Describe.trigger(spec, names).contains("Uber"))
-        assertFalse(Describe.trigger(spec, names).contains("com.ubercab.driver"))
+        Describe.trigger(spec) { pkg ->
+            asked += pkg
+            pkg
+        }
+
+        assertEquals(listOf("com.ubercab.driver", "com.doordash.driverapp"), asked)
     }
 
     @Test
