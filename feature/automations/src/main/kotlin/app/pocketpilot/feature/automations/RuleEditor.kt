@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -180,6 +181,12 @@ internal fun RuleEditor(
     var rule by remember(initial.id) { mutableStateOf(initial) }
     val sheets = remember(state.sideload) { Sheets(state.sideload) }
     val problems = RuleValidator.problems(rule, state.sideload)
+    val lastVariables =
+        state.runs
+            .firstOrNull { it.ruleId == rule.id }
+            ?.variables
+            .orEmpty()
+    var showVariables by rememberSaveable(initial.id) { mutableStateOf(false) }
     val context = FieldContext(state.apps, state.options, state.rules, state.tools, rule.id, onLoadApps, onLoadOptions, onListDirectory)
 
     Column(modifier.fillMaxSize()) {
@@ -194,6 +201,21 @@ internal fun RuleEditor(
                 }
             },
             actions = {
+                TextButton(onClick = { showVariables = true }) {
+                    Text(stringResource(R.string.feature_automations_variables_button))
+                }
+                IconButton(onClick = { onTest(rule) }) {
+                    Icon(
+                        painterResource(R.drawable.feature_automations_ic_play),
+                        contentDescription = stringResource(R.string.feature_automations_test_run),
+                    )
+                }
+                IconButton(onClick = { onSave(if (problems.isEmpty()) rule else rule.copy(enabled = false)) }) {
+                    Icon(
+                        painterResource(R.drawable.feature_automations_ic_save),
+                        contentDescription = stringResource(R.string.feature_automations_save),
+                    )
+                }
                 if (onDelete != null) {
                     IconButton(onClick = onDelete) {
                         Icon(
@@ -310,30 +332,32 @@ internal fun RuleEditor(
                     }
                 }
             }
+        }
+    }
 
-            val lastVariables =
-                state.runs
-                    .firstOrNull { it.ruleId == rule.id }
-                    ?.variables
-                    .orEmpty()
-            EditorSection(
-                stringResource(R.string.feature_automations_local_variables),
-                stringResource(R.string.feature_automations_local_variables_text),
-            ) {
-                if (lastVariables.isEmpty()) {
-                    Text(stringResource(R.string.feature_automations_no_local_variables), style = MaterialTheme.typography.bodyMedium)
-                } else {
-                    lastVariables.toList().sortedBy { it.first }.forEach { (name, value) ->
-                        Text("$name = $value", style = MaterialTheme.typography.bodyMedium)
+    if (showVariables) {
+        AlertDialog(
+            onDismissRequest = { showVariables = false },
+            title = { Text(stringResource(R.string.feature_automations_local_variables)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.feature_automations_local_variables_text),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (lastVariables.isEmpty()) {
+                        Text(stringResource(R.string.feature_automations_no_local_variables), style = MaterialTheme.typography.bodyMedium)
+                    } else {
+                        lastVariables.toList().sortedBy { it.first }.forEach { (name, value) ->
+                            Text("$name = $value", style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
-            }
-
-            SaveAndTestRow(
-                onTest = { onTest(rule) },
-                onSave = { onSave(if (problems.isEmpty()) rule else rule.copy(enabled = false)) },
-            )
-        }
+            },
+            confirmButton = {
+                TextButton(onClick = { showVariables = false }) { Text(stringResource(R.string.feature_automations_done)) }
+            },
+        )
     }
 
     when (val sheet = sheets.open) {

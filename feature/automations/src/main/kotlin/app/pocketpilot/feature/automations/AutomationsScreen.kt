@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -557,17 +556,3 @@ internal fun outcomeLabel(outcome: RunOutcome): String =
             RunOutcome.SKIPPED -> R.string.feature_automations_outcome_skipped
         },
     )
-
-@Composable
-internal fun SaveAndTestRow(
-    onTest: () -> Unit,
-    onSave: () -> Unit,
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = onTest) {
-            Icon(painterResource(R.drawable.feature_automations_ic_play), contentDescription = null)
-            Text(stringResource(R.string.feature_automations_test_run), modifier = Modifier.padding(start = 4.dp))
-        }
-        Button(onClick = onSave) { Text(stringResource(R.string.feature_automations_save)) }
-    }
-}
