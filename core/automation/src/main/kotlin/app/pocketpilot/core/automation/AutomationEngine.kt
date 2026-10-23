@@ -547,8 +547,11 @@ class AutomationEngine(
 
             "var.set" -> {
                 val name = params.p("name").ifBlank { throw AutomationFailure("Give the variable a name") }
-                val value = params["value"].orEmpty()
-                if (params.p("scope") == "global") setGlobal(name, value, context) else context.vars[name] = value
+                val type = VariableType.named(params["type"])
+                val value = type.normalize(params["value"].orEmpty())
+                val key = params.p("key")
+                val target = if (type.holdsEntries && key.isNotBlank()) "$name.$key" else name
+                if (params.p("scope") == "global") setGlobal(target, value, context, type) else context.vars[target] = value
             }
 
             "var.math" -> {
@@ -652,9 +655,10 @@ class AutomationEngine(
         name: String,
         value: String,
         context: RunContext,
+        type: VariableType? = null,
     ) {
         val old = store.data.value.variables[name]
-        store.setVariable(name, value)
+        store.setVariable(name, value, type)
         if (old != value) {
             val event =
                 TriggerEvent(

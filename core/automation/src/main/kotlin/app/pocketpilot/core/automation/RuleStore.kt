@@ -118,10 +118,22 @@ class RuleStore(
         changed: Rule,
     ) = edit(id) { it.changedTo(changed) }
 
+    /** Sets a global variable, or removes it when [value] is null. [type] is kept when null. */
     fun setVariable(
         name: String,
         value: String?,
-    ) = update { data -> data.copy(variables = if (value == null) data.variables - name else data.variables + (name to value)) }
+        type: VariableType? = null,
+    ) = update { data ->
+        data.copy(
+            variables = if (value == null) data.variables - name else data.variables + (name to value),
+            variableTypes =
+                when {
+                    value == null -> data.variableTypes - name
+                    type != null -> data.variableTypes + (name to type)
+                    else -> data.variableTypes
+                },
+        )
+    }
 
     fun setSettings(settings: AutomationSettings) = update { it.copy(settings = settings) }
 

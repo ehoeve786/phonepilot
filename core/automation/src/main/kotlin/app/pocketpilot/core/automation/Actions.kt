@@ -952,6 +952,8 @@ internal object Actions {
                     fields =
                         listOf(
                             textField("name", "Name"),
+                            choiceField("type", "Type", VariableType.entries.map { Choice(it.label, it.label) }),
+                            textField("key", "Key, for a dictionary or array", required = false),
                             FieldDef("value", "Value", FieldKind.MULTILINE, required = false),
                             choiceField("scope", "Kind", listOf(Choice("local", "Local"), Choice("global", "Global"))),
                         ),

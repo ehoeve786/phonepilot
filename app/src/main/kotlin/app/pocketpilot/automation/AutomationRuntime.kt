@@ -33,6 +33,7 @@ import app.pocketpilot.core.automation.RuleStore
 import app.pocketpilot.core.automation.RunOutcome
 import app.pocketpilot.core.automation.Schedule
 import app.pocketpilot.core.automation.TriggerEvent
+import app.pocketpilot.core.automation.VariableType
 import app.pocketpilot.feature.automations.AppOption
 import app.pocketpilot.feature.automations.automationIconRes
 import kotlinx.coroutines.CoroutineScope
@@ -162,9 +163,10 @@ class AutomationRuntime(
             val list =
                 when (source) {
                     PickSource.VARIABLE -> {
+                        val types = store.data.value.variableTypes
                         store.data.value.variables.keys
                             .sorted()
-                            .map { PickOption(it, it) }
+                            .map { PickOption(it, it, "${(types[it] ?: VariableType.STRING).label} (global)") }
                     }
 
                     PickSource.BLUETOOTH_DEVICE -> {
