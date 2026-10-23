@@ -513,8 +513,9 @@ internal object Actions {
                     category = ui,
                     title = "Read the screen",
                     description =
-                        "Saves the text of the app in front in a variable, one line per piece of text. " +
-                            "Floating buttons and other overlays are left out.",
+                        "Saves the app in front as a dictionary: the text of each view, keyed by its resource id, or by its " +
+                            "position as index:N when it has none. Read one as {screen.<key>}. Floating buttons and " +
+                            "other overlays are left out.",
                     fields = listOf(INTO.copy(required = true, default = "screen")),
                     tier = RiskTier.READ,
                     kind = ActionKind.Native,
