@@ -188,6 +188,8 @@ data class AutomationData(
     val rules: List<Rule> = emptyList(),
     /** Global variables, by name. */
     val variables: Map<String, String> = emptyMap(),
+    /** The type of each global variable that has one other than text. */
+    val variableTypes: Map<String, VariableType> = emptyMap(),
     val settings: AutomationSettings = AutomationSettings(),
     /** Newest first. */
     val runs: List<RunRecord> = emptyList(),
