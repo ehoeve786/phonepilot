@@ -69,6 +69,15 @@ interface AutomationHost {
         params: Map<String, String>,
     ): String?
 
+    /**
+     * Runs an [ActionKind.Native] action that saves a dictionary: each entry is saved as `into.key`. Null
+     * for the actions that save one value through [native].
+     */
+    suspend fun nativeDictionary(
+        type: String,
+        params: Map<String, String>,
+    ): Map<String, String>? = null
+
     /** Runs [prompt] in Agent mode and waits for it to end. */
     suspend fun askAgent(prompt: String): AgentOutcome
 
@@ -361,8 +370,13 @@ class AutomationEngine(
             }
 
             ActionKind.Native -> {
-                val value = host.native(step.type, params)
-                if (into.isNotEmpty() && value != null) context.vars[into] = value
+                val dictionary = host.nativeDictionary(step.type, params)
+                if (dictionary != null) {
+                    if (into.isNotEmpty()) dictionary.forEach { (key, value) -> context.vars["$into.$key"] = value }
+                } else {
+                    val value = host.native(step.type, params)
+                    if (into.isNotEmpty() && value != null) context.vars[into] = value
+                }
                 null
             }
 

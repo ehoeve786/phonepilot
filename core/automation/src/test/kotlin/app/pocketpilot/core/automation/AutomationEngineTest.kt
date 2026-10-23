@@ -111,6 +111,11 @@ class AutomationEngineTest {
             return null
         }
 
+        override suspend fun nativeDictionary(
+            type: String,
+            params: Map<String, String>,
+        ): Map<String, String>? = if (type == "screen.read") mapOf("index:20" to "Side Menu") else null
+
         override suspend fun askAgent(prompt: String): AgentOutcome {
             prompts += prompt
             return AgentOutcome("Did it", 0.01)
@@ -137,6 +142,26 @@ class AutomationEngineTest {
         constraints: ConstraintGroup = ConstraintGroup(),
         triggers: List<TriggerSpec> = listOf(TriggerSpec("manual")),
     ) = Rule(id = "r1", name = "Test", triggers = triggers, constraints = constraints, actions = actions)
+
+    @Test
+    fun `a screen read saves a dictionary, one variable per key`() =
+        runTest {
+            val host = FakeHost()
+            val engine = engine(this, host)
+            val record =
+                engine.run(
+                    rule(
+                        listOf(
+                            ActionStep("screen.read", mapOf("into" to "screen")),
+                            ActionStep("notify.post", mapOf("title" to "{screen.index:20}")),
+                        ),
+                    ),
+                    "Test run",
+                    emptyMap(),
+                )
+            assertEquals(RunOutcome.OK, record.outcome)
+            assertEquals("Side Menu", (host.calls.last().second["title"] as JsonPrimitive).content)
+        }
 
     @Test
     fun `runs tool actions with defaults and placeholders`() =

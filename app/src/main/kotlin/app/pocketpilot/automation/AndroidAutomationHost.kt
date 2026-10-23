@@ -196,8 +196,6 @@ class AndroidAutomationHost(
 
             "screen.screenshot" -> saveScreenshot()
 
-            "screen.read" -> return readScreen()
-
             "media.control" -> media(params["command"].orEmpty())
 
             "speak" -> speak(params["text"].orEmpty(), params["stream"].orEmpty(), params["volume"])
@@ -242,17 +240,26 @@ class AndroidAutomationHost(
         lock.acquire(WAKE_MS)
     }
 
+    override suspend fun nativeDictionary(
+        type: String,
+        params: Map<String, String>,
+    ): Map<String, String>? = if (type == "screen.read") readScreen() else null
+
     /**
-     * The text of the app in front, one line per piece of text, as MacroDroid's screen read gives it. Only the
-     * app in front is read; floating buttons and other overlays drawn by other apps are left out.
+     * The app in front, saved as MacroDroid saves a screen read: one entry per view, keyed by its resource id, or by
+     * its position when it has none, so a rule reads `{screen.<key>}`. Only the app in front is read; floating buttons
+     * and other overlays drawn by other apps are left out.
      */
-    private suspend fun readScreen(): String {
+    private suspend fun readScreen(): Map<String, String> {
         val snapshot = screen.snapshot(SnapshotOptions(appOnly = true))
         if (snapshot.packageName == null) throw AutomationFailure("No app is in front to read")
-        return snapshot.elements
-            .filter { it.role != Role.WINDOW }
-            .mapNotNull { (it.text ?: it.description)?.takeIf(String::isNotBlank) }
-            .joinToString("\n")
+        val values = LinkedHashMap<String, String>()
+        snapshot.elements.forEachIndexed { index, element ->
+            if (element.role == Role.WINDOW) return@forEachIndexed
+            val key = element.resourceId?.takeIf { it.isNotBlank() && it !in values } ?: "index:$index"
+            values[key] = element.text ?: element.description.orEmpty()
+        }
+        return values
     }
 
     /** Saves the screen as a PNG in Pictures/PocketPilot, with password fields blacked out as the screenshot tool does. */

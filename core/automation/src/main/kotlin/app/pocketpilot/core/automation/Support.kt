@@ -32,7 +32,7 @@ class AutomationFailure(
 
 /** Fills `{name}` placeholders from [lookup]; unknown names stay as written so mistakes show. */
 object Placeholders {
-    private val PATTERN = Regex("\\{([A-Za-z_][A-Za-z0-9_.]*)\\}")
+    private val PATTERN = Regex("\\{([A-Za-z_][A-Za-z0-9_.:/]*)\\}")
 
     fun fill(
         text: String,
