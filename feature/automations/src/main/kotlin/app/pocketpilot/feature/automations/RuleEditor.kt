@@ -305,11 +305,13 @@ internal fun RuleEditor(
                         name = name,
                         value = value,
                         typeLabel = null,
-                        onClick = { ruleVariableEdit = VariableEdit(name, name, value) },
+                        onClick = { ruleVariableEdit = VariableEdit(name, name, value, VariableType.STRING) },
                         onDelete = { rule = rule.copy(variables = rule.variables - name) },
                     )
                 }
-                AddButton(stringResource(R.string.feature_automations_add_variable)) { ruleVariableEdit = VariableEdit(null, "", "") }
+                AddButton(stringResource(R.string.feature_automations_add_variable)) {
+                    ruleVariableEdit = VariableEdit(null, "", "", VariableType.STRING)
+                }
             }
 
             EditorSection(stringResource(R.string.feature_automations_then), null) {
@@ -368,7 +370,7 @@ internal fun RuleEditor(
         VariableDialog(
             edit = edit,
             onDismiss = { ruleVariableEdit = null },
-            onSave = { oldName, name, value ->
+            onSave = { oldName, name, value, _ ->
                 // A renamed variable replaces the old name, so the old one is removed.
                 val kept = if (oldName != null) rule.variables - oldName else rule.variables
                 rule = rule.copy(variables = kept + (name to value))
@@ -378,6 +380,7 @@ internal fun RuleEditor(
                 rule = rule.copy(variables = rule.variables - name)
                 ruleVariableEdit = null
             },
+            showTypes = false,
         )
     }
 
