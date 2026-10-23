@@ -21,6 +21,8 @@ data class Rule(
     val runAs: RunMode = RunMode.DIRECT,
     /** For [RunMode.AGENT]: the task Agent mode gets, with the trigger's variables filled in. */
     val agentPrompt: String = "",
+    /** Starting values for the rule's local variables. Each run begins with them, and its steps can change them. */
+    val variables: Map<String, String> = emptyMap(),
     /** Shown on Home with a switch. */
     val pinned: Boolean = false,
     /** Set while the rule is an AI proposal waiting for the owner; cleared when it is accepted. */

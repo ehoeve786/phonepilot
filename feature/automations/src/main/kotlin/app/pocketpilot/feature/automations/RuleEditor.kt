@@ -187,6 +187,7 @@ internal fun RuleEditor(
             ?.variables
             .orEmpty()
     var showVariables by rememberSaveable(initial.id) { mutableStateOf(false) }
+    var ruleVariableEdit by remember { mutableStateOf<VariableEdit?>(null) }
     val context = FieldContext(state.apps, state.options, state.rules, state.tools, rule.id, onLoadApps, onLoadOptions, onListDirectory)
 
     Column(modifier.fillMaxSize()) {
@@ -283,6 +284,21 @@ internal fun RuleEditor(
                 ConstraintGroupEditor(rule.constraints, sheets, depth = 0) { rule = rule.copy(constraints = it) }
             }
 
+            EditorSection(
+                stringResource(R.string.feature_automations_rule_variables),
+                stringResource(R.string.feature_automations_rule_variables_text),
+            ) {
+                rule.variables.toList().sortedBy { it.first }.forEach { (name, value) ->
+                    VariableRow(
+                        name = name,
+                        value = value,
+                        onClick = { ruleVariableEdit = VariableEdit(name, name, value) },
+                        onDelete = { rule = rule.copy(variables = rule.variables - name) },
+                    )
+                }
+                AddButton(stringResource(R.string.feature_automations_add_variable)) { ruleVariableEdit = VariableEdit(null, "", "") }
+            }
+
             EditorSection(stringResource(R.string.feature_automations_then), null) {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     RunMode.entries.forEachIndexed { i, mode ->
@@ -333,6 +349,23 @@ internal fun RuleEditor(
                 }
             }
         }
+    }
+
+    ruleVariableEdit?.let { edit ->
+        VariableDialog(
+            edit = edit,
+            onDismiss = { ruleVariableEdit = null },
+            onSave = { oldName, name, value ->
+                // A renamed variable replaces the old name, so the old one is removed.
+                val kept = if (oldName != null) rule.variables - oldName else rule.variables
+                rule = rule.copy(variables = kept + (name to value))
+                ruleVariableEdit = null
+            },
+            onDelete = { name ->
+                rule = rule.copy(variables = rule.variables - name)
+                ruleVariableEdit = null
+            },
+        )
     }
 
     if (showVariables) {
