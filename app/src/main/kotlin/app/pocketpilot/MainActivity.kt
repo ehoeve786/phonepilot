@@ -449,6 +449,7 @@ class MainActivity : ComponentActivity() {
                     rules = automationData.rules,
                     runs = automationData.runs,
                     variables = automationData.variables,
+                    variableTypes = automationData.variableTypes,
                     running =
                         automations.engine.running
                             .collectAsStateWithLifecycle()

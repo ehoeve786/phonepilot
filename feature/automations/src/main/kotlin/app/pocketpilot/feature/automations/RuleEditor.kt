@@ -55,6 +55,7 @@ import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RuleValidator
 import app.pocketpilot.core.automation.RunMode
 import app.pocketpilot.core.automation.TriggerSpec
+import app.pocketpilot.core.automation.VariableType
 import app.pocketpilot.core.model.RiskTier
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
 
@@ -188,7 +189,18 @@ internal fun RuleEditor(
             .orEmpty()
     var showVariables by rememberSaveable(initial.id) { mutableStateOf(false) }
     var ruleVariableEdit by remember { mutableStateOf<VariableEdit?>(null) }
-    val context = FieldContext(state.apps, state.options, state.rules, state.tools, rule.id, onLoadApps, onLoadOptions, onListDirectory)
+    val variablePicks = variableOptions(rule.variables.keys + lastVariables.keys, state.variables, state.variableTypes)
+    val context =
+        FieldContext(
+            state.apps,
+            state.options + (PickSource.VARIABLE to variablePicks),
+            state.rules,
+            state.tools,
+            rule.id,
+            onLoadApps,
+            onLoadOptions,
+            onListDirectory,
+        )
 
     Column(modifier.fillMaxSize()) {
         TopAppBar(
@@ -292,6 +304,7 @@ internal fun RuleEditor(
                     VariableRow(
                         name = name,
                         value = value,
+                        typeLabel = null,
                         onClick = { ruleVariableEdit = VariableEdit(name, name, value) },
                         onDelete = { rule = rule.copy(variables = rule.variables - name) },
                     )
@@ -415,6 +428,28 @@ internal fun RuleEditor(
 
         null -> {}
     }
+}
+
+/**
+ * What a variable field offers: [New Variable] first, then the rule's own variables, then the global ones with their
+ * types. Dotted names are entries of a dictionary or array, so they are left out of the list.
+ */
+private fun variableOptions(
+    locals: Set<String>,
+    globals: Map<String, String>,
+    types: Map<String, VariableType>,
+): List<PickOption> {
+    val localOptions =
+        locals
+            .filter { it !in globals && !it.contains('.') && !it.startsWith("loop") }
+            .sorted()
+            .map { PickOption(it, it, "Local") }
+    val globalOptions =
+        globals.keys
+            .filter { !it.contains('.') }
+            .sorted()
+            .map { PickOption(it, it, "${(types[it] ?: VariableType.STRING).label} (global)") }
+    return listOf(PickOption("", "[New Variable]")) + localOptions + globalOptions
 }
 
 /** The rule's category: type a new one, or tap one of the categories the other rules already use. */

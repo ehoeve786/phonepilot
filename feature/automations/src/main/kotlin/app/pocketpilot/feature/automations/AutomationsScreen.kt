@@ -64,6 +64,7 @@ import app.pocketpilot.core.automation.Rule
 import app.pocketpilot.core.automation.RunOutcome
 import app.pocketpilot.core.automation.RunRecord
 import app.pocketpilot.core.automation.Templates
+import app.pocketpilot.core.automation.VariableType
 import app.pocketpilot.core.automation.byCategory
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
 import app.pocketpilot.core.designsystem.R as DsR
@@ -81,6 +82,8 @@ data class AutomationsState(
     val runs: List<RunRecord> = emptyList(),
     /** Global variables, by name. */
     val variables: Map<String, String> = emptyMap(),
+    /** The type of each global variable that has one other than text. */
+    val variableTypes: Map<String, VariableType> = emptyMap(),
     val running: Set<String> = emptySet(),
     val settings: AutomationSettings = AutomationSettings(),
     val agentSpentThisMonthUsd: Double = 0.0,
@@ -112,7 +115,7 @@ class AutomationsActions(
     val decline: (String) -> Unit,
     val setSettings: (AutomationSettings) -> Unit,
     /** Sets a global variable, or removes it when the value is null. */
-    val setVariable: (String, String?) -> Unit = { _, _ -> },
+    val setVariable: (String, String?, VariableType?) -> Unit = { _, _, _ -> },
     /** Loads [AutomationsState.apps] the first time a picker needs them. */
     val loadApps: () -> Unit,
     /** Loads the suggested values for one kind of text field the first time its list is needed. */
@@ -224,7 +227,7 @@ fun AutomationsScreen(
                 }
 
                 else -> {
-                    VariablesList(state.variables, actions.setVariable)
+                    VariablesList(state.variables, state.variableTypes, actions.setVariable)
                 }
             }
         }
