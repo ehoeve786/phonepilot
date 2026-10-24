@@ -188,6 +188,8 @@ internal fun ruleSettings(rule: Rule): JsonObject? {
         put("runAs", if (rule.runAs == RunMode.AGENT) "agent" else "direct")
         if (rule.agentPrompt.isNotEmpty()) put("agentPrompt", rule.agentPrompt)
         if (rule.variables.isNotEmpty()) put("variables", JsonObject(rule.variables.mapValues { JsonPrimitive(it.value) }))
+        val types = rule.variableTypes.filter { it.key in rule.variables && it.value != VariableType.STRING }
+        if (types.isNotEmpty()) put("variableTypes", JsonObject(types.mapValues { JsonPrimitive(it.value.label) }))
     }
 }
 
@@ -245,6 +247,8 @@ data class ProposedRule(
     val agentPrompt: String = "",
     /** Starting values for the rule's local variables, by name. */
     val variables: Map<String, String> = emptyMap(),
+    /** The type of each starting value by name (Boolean, Integer, String, Decimal, Dictionary, Array, Colour). */
+    val variableTypes: Map<String, String> = emptyMap(),
 )
 
 @Serializable
@@ -388,6 +392,18 @@ private fun validRule(
     val proposed =
         runCatching { AutomationJson.json.decodeFromJsonElement(ProposedRule.serializer(), arguments) }
             .getOrElse { invalid("The rule does not have the expected shape: ${it.message?.lineSequence()?.firstOrNull()}") }
+    val types =
+        proposed.variableTypes
+            .filterKeys { it in proposed.variables }
+            .mapValues { (name, label) ->
+                VariableType.entries.firstOrNull { it.label.equals(label.trim(), ignoreCase = true) }
+                    ?: invalid("Variable $name has an unknown type: $label")
+            }.filterValues { it != VariableType.STRING }
+    val values =
+        proposed.variables.mapValues { (name, value) ->
+            val type = types[name] ?: VariableType.STRING
+            runCatching { type.normalize(value) }.getOrElse { invalid("Variable $name: ${it.message}") }
+        }
     val rule =
         Rule(
             id = id,
@@ -399,7 +415,8 @@ private fun validRule(
             actions = proposed.actions.map { it.toStep() },
             runAs = if (proposed.runAs.equals("agent", ignoreCase = true)) RunMode.AGENT else RunMode.DIRECT,
             agentPrompt = proposed.agentPrompt,
-            variables = proposed.variables,
+            variables = values,
+            variableTypes = types,
             proposedBy = principal,
         )
     val problems = RuleValidator.problems(rule, sideload)
@@ -416,7 +433,8 @@ private const val TYPED_ITEM = """{"type":"object","properties":{"type":{"type":
 private const val CONDITION_MODE = """{"type":"string","enum":["all","any","none","one"]}"""
 
 /** The rule shape `automation.propose` and `automation.update` take. */
-private const val RULE_PROPERTIES = """"name":{"type":"string"},"category":{"type":"string"},"variables":$PARAMS,"triggers":{"type":"array","items":$TYPED_ITEM},
+private const val RULE_PROPERTIES = """"name":{"type":"string"},"category":{"type":"string"},"variables":$PARAMS,
+    "variableTypes":{"type":"object","additionalProperties":{"type":"string","enum":["Boolean","Integer","String","Decimal","Dictionary","Array","Colour"]}},"triggers":{"type":"array","items":$TYPED_ITEM},
     "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,
     "actions":{"type":"array","items":{"type":"object","properties":{"type":{"type":"string"},"params":$PARAMS,
     "conditions":{"type":"array","items":$TYPED_ITEM},"conditionMode":$CONDITION_MODE,

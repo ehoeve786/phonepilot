@@ -92,6 +92,19 @@ class RuleSettingsTest {
     }
 
     @Test
+    fun `starting variable types come back by label, leaving out Strings`() {
+        val typed =
+            rule.copy(
+                variables = mapOf("count" to "0", "label" to "x"),
+                variableTypes = mapOf("count" to VariableType.INTEGER, "label" to VariableType.STRING),
+            )
+        val types = ruleSettings(typed)!!.getValue("variableTypes").jsonObject
+        assertEquals("Integer", types.text("count"))
+        assertFalse(types.containsKey("label"))
+        assertFalse(ruleSettings(rule)!!.containsKey("variableTypes"))
+    }
+
+    @Test
     fun `a rule without conditions has no condition fields`() {
         val settings = ruleSettings(rule.copy(constraints = ConstraintGroup()))!!
 

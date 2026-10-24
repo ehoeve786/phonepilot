@@ -609,6 +609,33 @@ class AutomationEngineTest {
         }
 
     @Test
+    fun `a proposal's starting values keep their types, and a value its type cannot hold is refused`() =
+        runTest {
+            val store = RuleStore(MemoryPersistence(), clock)
+            val tool = AutomationProposeTool(store, sideload = true) {}
+            val session = Session(SessionId(ULID), SessionKind.MCP_CLIENT, "Claude", Scope.KNOWN, 0)
+
+            fun args(count: String) =
+                buildJsonObject {
+                    put("name", "Count runs")
+                    put("triggers", AutomationJson.json.parseToJsonElement("""[{"type":"wifi.connected"}]"""))
+                    put("actions", AutomationJson.json.parseToJsonElement("""[{"type":"setting.dnd","params":{"value":"on"}}]"""))
+                    put("variables", AutomationJson.json.parseToJsonElement("""{"count":"$count","busy":"yes","label":"x"}"""))
+                    put(
+                        "variableTypes",
+                        AutomationJson.json.parseToJsonElement("""{"count":"integer","busy":"Boolean","label":"String"}"""),
+                    )
+                }
+            assertFalse(tool.execute(ToolCall("1", SessionId(ULID), "automation.propose", args(" 3 ")), session).isError)
+            val saved = store.rules.single()
+            assertEquals(mapOf("count" to "3", "busy" to "true", "label" to "x"), saved.variables)
+            assertEquals(mapOf("count" to VariableType.INTEGER, "busy" to VariableType.BOOLEAN), saved.variableTypes)
+
+            val refused = runCatching { tool.execute(ToolCall("2", SessionId(ULID), "automation.propose", args("lots")), session) }
+            assertTrue(refused.exceptionOrNull()?.message?.contains("Variable count") == true)
+        }
+
+    @Test
     fun `an update changes the rule in place and keeps its switch, pin and id`() =
         runTest {
             val store = RuleStore(MemoryPersistence(), clock)

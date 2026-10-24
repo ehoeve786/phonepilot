@@ -138,7 +138,6 @@ internal fun VariableRow(
 /**
  * Adds or changes one variable and its type. [onSave] gets the old name (null for a new one), the new name, the value
  * and the type; the value is saved only when the type accepts it. [onDelete] is offered only for an existing variable.
- * [showTypes] hides the type choice where the type is not kept, such as a rule's starting values.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -147,7 +146,6 @@ internal fun VariableDialog(
     onDismiss: () -> Unit,
     onSave: (oldName: String?, name: String, value: String, type: VariableType) -> Unit,
     onDelete: (String) -> Unit,
-    showTypes: Boolean = true,
 ) {
     var current by remember(edit) { mutableStateOf(edit) }
     val problem = runCatching { current.type.normalize(current.value) }.exceptionOrNull()?.message
@@ -168,16 +166,14 @@ internal fun VariableDialog(
                     label = { Text(stringResource(R.string.feature_automations_variable_name)) },
                     singleLine = true,
                 )
-                if (showTypes) {
-                    Text(stringResource(R.string.feature_automations_variable_type), style = MaterialTheme.typography.labelLarge)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        VariableType.entries.forEach { type ->
-                            FilterChip(
-                                selected = current.type == type,
-                                onClick = { current = current.copy(type = type) },
-                                label = { Text(type.label) },
-                            )
-                        }
+                Text(stringResource(R.string.feature_automations_variable_type), style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    VariableType.entries.forEach { type ->
+                        FilterChip(
+                            selected = current.type == type,
+                            onClick = { current = current.copy(type = type) },
+                            label = { Text(type.label) },
+                        )
                     }
                 }
                 OutlinedTextField(
