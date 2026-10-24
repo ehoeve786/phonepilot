@@ -2,6 +2,9 @@
 <resources>
     <string name="feature_approvals_consent_title">Let %1$s control this phone?</string>
     <string name="feature_approvals_consent_from">Request from %1$s</string>
+    <string name="feature_approvals_pairing_code">Type this code in the browser: %1$s</string>
+    <string name="feature_approvals_pairing_wait">Allow turns on after the browser sends this code.</string>
+    <string name="feature_approvals_pairing_done">The browser sent the right code. Choose what it may do, then tap Allow.</string>
     <string name="feature_approvals_consent_explainer">Choose what it may do. You can remove access at any time from PocketPilot\'s home screen.</string>
     <string name="feature_approvals_consent_warning">Only allow this if you just started connecting an app you trust. Banking, payment and password apps stay off limits either way.</string>
     <string name="feature_approvals_allow">Allow</string>

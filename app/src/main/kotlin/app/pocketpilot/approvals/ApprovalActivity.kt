@@ -89,6 +89,8 @@ class ApprovalActivity : ComponentActivity() {
         return ConsentUi(
             clientName = request.clientName,
             redirectHost = request.redirectHost,
+            pairingCode = request.pairingCode,
+            paired = request.paired,
             options =
                 AuthorizationServer.GRANTABLE
                     .map { it.value }

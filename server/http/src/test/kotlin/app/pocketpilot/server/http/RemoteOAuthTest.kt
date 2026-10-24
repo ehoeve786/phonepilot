@@ -119,6 +119,33 @@ class RemoteOAuthTest {
         assertEquals("Claude", pending.clientName)
         assertEquals("claude.ai", pending.redirectHost)
         assertEquals(setOf(Scope.DEVICE_READ), pending.requestedScopes)
+
+        // The phone cannot approve until the browser sends the code the phone shows.
+        assertTrue("Enter the code" in authorize.body, authorize.body)
+        oauth.approve(pending.id, setOf(Scope.DEVICE_READ))
+        assertEquals(200, request("GET", "/authorize/wait?request=${pending.id}").status)
+        val wrong = if (pending.pairingCode == "AAAAAA") "BBBBBB" else "AAAAAA"
+        val badPair =
+            request(
+                "POST",
+                "/authorize/pair",
+                body = "request=${pending.id}&code=$wrong",
+                contentType = "application/x-www-form-urlencoded",
+            )
+        assertTrue("not right" in badPair.body, badPair.body)
+        val paired =
+            request(
+                "POST",
+                "/authorize/pair",
+                body = "request=${pending.id}&code=${pending.pairingCode}",
+                contentType = "application/x-www-form-urlencoded",
+            )
+        assertEquals(302, paired.status, paired.body)
+        assertTrue(
+            oauth.pending.value
+                .single()
+                .paired,
+        )
         oauth.approve(pending.id, setOf(Scope.DEVICE_READ))
 
         val back = request("GET", "/authorize/wait?request=${pending.id}")

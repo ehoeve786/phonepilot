@@ -19,7 +19,10 @@ class OAuthException(
     val status: Int = 400,
 ) : Exception("$code: $description")
 
-/** A request waiting for the owner's answer on the phone. */
+/**
+ * A request waiting for the owner's answer on the phone. The phone shows [pairingCode]; the browser must send it back
+ * before the phone can approve, so only the browser that started the sign-in can finish it. [paired] is true after that.
+ */
 data class ConsentRequest(
     val id: String,
     val clientId: String,
@@ -29,6 +32,8 @@ data class ConsentRequest(
     /** Scopes the client asked for; empty means it left the choice to the owner. */
     val requestedScopes: Set<Scope>,
     val createdAtMillis: Long,
+    val pairingCode: String = "",
+    val paired: Boolean = false,
 )
 
 /** Where a browser waiting on `/authorize` stands. */
@@ -98,11 +103,12 @@ class AuthorizationServer(
     )
 
     private class PendingAuthorization(
-        val request: ConsentRequest,
+        var request: ConsentRequest,
         val redirectUri: String,
         val state: String?,
         val codeChallenge: String,
         var result: AuthorizationStatus = AuthorizationStatus.Waiting,
+        var failedPairings: Int = 0,
     )
 
     // Registration (RFC 7591)
@@ -152,6 +158,8 @@ class AuthorizationServer(
         if (redirectUri !in client.redirectUris) {
             throw OAuthException("invalid_request", "redirect_uri does not match a registered URI")
         }
+        // Clients registered before the redirect rule tightened are held to it too.
+        if (!isAllowedRedirect(redirectUri)) throw OAuthException("invalid_request", "redirect_uri is not allowed")
 
         val id = "par_" + randomToken(REQUEST_ID_BYTES)
         val oauthState = params["state"]
@@ -185,6 +193,7 @@ class AuthorizationServer(
                 redirectHost = hostOf(redirectUri),
                 requestedScopes = requested,
                 createdAtMillis = clock.nowMillis(),
+                pairingCode = pairingCode(),
             )
         expireStale()
         // One prompt per client: a newer request replaces the older one, so retrying never stacks prompts.
@@ -197,6 +206,31 @@ class AuthorizationServer(
         return id
     }
 
+    /**
+     * The browser sent the code shown on the phone. A right code lets the owner approve; too many wrong ones deny
+     * the request. Returns whether the code matched.
+     */
+    @Synchronized
+    fun pair(
+        requestId: String,
+        code: String,
+    ): Boolean {
+        val pendingAuth = waiting[requestId] ?: return false
+        if (pendingAuth.result != AuthorizationStatus.Waiting || pendingAuth.request.paired) return false
+        val matches = MessageDigest.isEqual(code.trim().uppercase().toByteArray(), pendingAuth.request.pairingCode.toByteArray())
+        if (!matches) {
+            if (++pendingAuth.failedPairings >= MAX_PAIRING_TRIES) deny(requestId)
+            return false
+        }
+        pendingAuth.request = pendingAuth.request.copy(paired = true)
+        mutablePending.update { list -> list.map { if (it.id == requestId) it.copy(paired = true) else it } }
+        return true
+    }
+
+    /** Whether the browser has sent the right code for [requestId], so the phone may approve it. */
+    @Synchronized
+    fun isPaired(requestId: String): Boolean = waiting[requestId]?.request?.paired == true
+
     /** The owner approved [requestId] with [scopes]. */
     @Synchronized
     fun approve(
@@ -206,7 +240,8 @@ class AuthorizationServer(
         // A prompt the owner has left too long is gone, even if nothing else has cleared it yet.
         expireStale()
         val pendingAuth = waiting[requestId] ?: return
-        if (pendingAuth.result != AuthorizationStatus.Waiting) return
+        // The owner can approve only after the browser sent the code shown on the phone.
+        if (pendingAuth.result != AuthorizationStatus.Waiting || !pendingAuth.request.paired) return
         val now = clock.nowMillis()
         val grant =
             Grant(
@@ -410,6 +445,9 @@ class AuthorizationServer(
         return Base64.getUrlEncoder().withoutPadding().encodeToString(buffer)
     }
 
+    /** A short code the owner reads off the phone and types into the browser. No look-alike characters. */
+    private fun pairingCode() = (1..PAIRING_CODE_LENGTH).map { PAIRING_ALPHABET[random.nextInt(PAIRING_ALPHABET.length)] }.joinToString("")
+
     companion object {
         /** Scopes a remote client can be granted; shell and Termux stay behind their own toggles. */
         val GRANTABLE: Set<Scope> = Scope.KNOWN - setOf(Scope.SHELL_EXEC, Scope.TERMUX_RUN)
@@ -429,6 +467,11 @@ class AuthorizationServer(
 
         /** Sign-ins that may wait for the owner at once, across all clients. */
         private const val MAX_PENDING = 3
+        private const val MAX_PAIRING_TRIES = 5
+        private const val PAIRING_CODE_LENGTH = 6
+        private const val PAIRING_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+        private val CLAUDE_HOSTS = setOf("claude.ai", "claude.com")
+        private const val CLAUDE_CALLBACK_PATH = "/api/mcp/auth_callback"
 
         /** A client's name on one line, without control characters, or null when nothing is left. */
         fun cleanName(name: String?): String? =
@@ -468,11 +511,12 @@ class AuthorizationServer(
             return MessageDigest.isEqual(computed.toByteArray(), challenge.toByteArray())
         }
 
+        /** Claude's own OAuth callback, or a loopback address for tools on this phone. Nothing else may receive a code. */
         fun isAllowedRedirect(uri: String): Boolean {
             val parsed = runCatching { URI(uri) }.getOrNull() ?: return false
             if (parsed.fragment != null || parsed.host.isNullOrEmpty()) return false
             return when (parsed.scheme) {
-                "https" -> true
+                "https" -> parsed.host.lowercase() in CLAUDE_HOSTS && parsed.path == CLAUDE_CALLBACK_PATH
                 "http" -> parsed.host in setOf("localhost", "127.0.0.1", "[::1]", "::1")
                 else -> false
             }
