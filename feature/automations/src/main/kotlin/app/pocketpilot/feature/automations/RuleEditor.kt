@@ -56,6 +56,7 @@ import app.pocketpilot.core.automation.RuleValidator
 import app.pocketpilot.core.automation.RunMode
 import app.pocketpilot.core.automation.TriggerSpec
 import app.pocketpilot.core.automation.VariableType
+import app.pocketpilot.core.automation.localVariableTypes
 import app.pocketpilot.core.model.RiskTier
 import app.pocketpilot.designsystem.LiquidGlassBentoCard
 
@@ -189,7 +190,8 @@ internal fun RuleEditor(
             .orEmpty()
     var showVariables by rememberSaveable(initial.id) { mutableStateOf(false) }
     var ruleVariableEdit by remember { mutableStateOf<VariableEdit?>(null) }
-    val variablePicks = variableOptions(rule.variables.keys + lastVariables.keys, state.variables, state.variableTypes)
+    val localTypes = rule.localVariableTypes()
+    val variablePicks = variableOptions(localTypes.keys + lastVariables.keys, localTypes, state.variables, state.variableTypes)
     val context =
         FieldContext(
             state.apps,
@@ -301,12 +303,13 @@ internal fun RuleEditor(
                 stringResource(R.string.feature_automations_rule_variables_text),
             ) {
                 rule.variables.toList().sortedBy { it.first }.forEach { (name, value) ->
+                    val type = rule.variableTypes[name] ?: VariableType.STRING
                     VariableRow(
                         name = name,
                         value = value,
-                        typeLabel = null,
-                        onClick = { ruleVariableEdit = VariableEdit(name, name, value, VariableType.STRING) },
-                        onDelete = { rule = rule.copy(variables = rule.variables - name) },
+                        typeLabel = type.label,
+                        onClick = { ruleVariableEdit = VariableEdit(name, name, value, type) },
+                        onDelete = { rule = rule.copy(variables = rule.variables - name, variableTypes = rule.variableTypes - name) },
                     )
                 }
                 AddButton(stringResource(R.string.feature_automations_add_variable)) {
@@ -370,17 +373,21 @@ internal fun RuleEditor(
         VariableDialog(
             edit = edit,
             onDismiss = { ruleVariableEdit = null },
-            onSave = { oldName, name, value, _ ->
-                // A renamed variable replaces the old name, so the old one is removed.
-                val kept = if (oldName != null) rule.variables - oldName else rule.variables
-                rule = rule.copy(variables = kept + (name to value))
+            onSave = { oldName, name, value, type ->
+                // A renamed variable replaces the old name, so the old one is removed. A String needs no stored type.
+                val keptValues = if (oldName != null) rule.variables - oldName else rule.variables
+                val keptTypes = (if (oldName != null) rule.variableTypes - oldName else rule.variableTypes) - name
+                rule =
+                    rule.copy(
+                        variables = keptValues + (name to value),
+                        variableTypes = if (type == VariableType.STRING) keptTypes else keptTypes + (name to type),
+                    )
                 ruleVariableEdit = null
             },
             onDelete = { name ->
-                rule = rule.copy(variables = rule.variables - name)
+                rule = rule.copy(variables = rule.variables - name, variableTypes = rule.variableTypes - name)
                 ruleVariableEdit = null
             },
-            showTypes = false,
         )
     }
 
@@ -398,7 +405,8 @@ internal fun RuleEditor(
                         Text(stringResource(R.string.feature_automations_no_local_variables), style = MaterialTheme.typography.bodyMedium)
                     } else {
                         lastVariables.toList().sortedBy { it.first }.forEach { (name, value) ->
-                            Text("$name = $value", style = MaterialTheme.typography.bodyMedium)
+                            val type = localTypes[name] ?: VariableType.STRING
+                            Text("$name (${type.label}) = $value", style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }
@@ -434,11 +442,12 @@ internal fun RuleEditor(
 }
 
 /**
- * What a variable field offers: [New Variable] first, then the rule's own variables, then the global ones with their
- * types. Dotted names are entries of a dictionary or array, so they are left out of the list.
+ * What a variable field offers: [New Variable] first, then the rule's own variables, then the global ones, each with
+ * its type. Dotted names are entries of a dictionary or array, so they are left out of the list.
  */
 private fun variableOptions(
     locals: Set<String>,
+    localTypes: Map<String, VariableType>,
     globals: Map<String, String>,
     types: Map<String, VariableType>,
 ): List<PickOption> {
@@ -446,7 +455,7 @@ private fun variableOptions(
         locals
             .filter { it !in globals && !it.contains('.') && !it.startsWith("loop") }
             .sorted()
-            .map { PickOption(it, it, "Local") }
+            .map { PickOption(it, it, "${(localTypes[it] ?: VariableType.STRING).label} (local)") }
     val globalOptions =
         globals.keys
             .filter { !it.contains('.') }

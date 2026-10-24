@@ -14,7 +14,7 @@
     <string name="feature_automations_variable_value">Value</string>
     <string name="feature_automations_local_variables">Local variables</string>
     <string name="feature_automations_variables_button">Variables</string>
-    <string name="feature_automations_local_variables_text">Set by this rule\'s last run. Each run starts with none, so these are for reading, not editing.</string>
+    <string name="feature_automations_local_variables_text">Set by this rule\'s last run, for reading only. To give the rule starting values, add them under Rule variables.</string>
     <string name="feature_automations_no_local_variables">None. The last run set no variables.</string>
     <string name="feature_automations_new_rule">New rule</string>
     <string name="feature_automations_edit_rule">Edit rule</string>

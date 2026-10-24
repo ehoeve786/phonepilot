@@ -23,6 +23,8 @@ data class Rule(
     val agentPrompt: String = "",
     /** Starting values for the rule's local variables. Each run begins with them, and its steps can change them. */
     val variables: Map<String, String> = emptyMap(),
+    /** The types of [variables], by name; a name missing here is a String. */
+    val variableTypes: Map<String, VariableType> = emptyMap(),
     /** Shown on Home with a switch. */
     val pinned: Boolean = false,
     /** Set while the rule is an AI proposal waiting for the owner; cleared when it is accepted. */

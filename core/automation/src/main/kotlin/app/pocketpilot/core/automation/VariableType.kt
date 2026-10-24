@@ -55,3 +55,24 @@ enum class VariableType(
         fun named(label: String?): VariableType = entries.firstOrNull { it.label.equals(label, ignoreCase = true) } ?: STRING
     }
 }
+
+/**
+ * The types of the rule's local variables: the types of its starting values, then the types its Set variable steps
+ * give names that have no starting value. Global Set variable steps are left out.
+ */
+fun Rule.localVariableTypes(): Map<String, VariableType> {
+    val types = LinkedHashMap<String, VariableType>()
+
+    fun walk(steps: List<ActionStep>) {
+        steps.forEach { step ->
+            if (step.type == "var.set" && step.params["scope"]?.trim() != "global") {
+                val name = step.params["name"]?.trim().orEmpty()
+                if (name.isNotEmpty()) types.putIfAbsent(name, VariableType.named(step.params["type"]))
+            }
+            walk(step.children)
+            walk(step.elseChildren)
+        }
+    }
+    walk(actions)
+    return variables.keys.associateWith { variableTypes[it] ?: VariableType.STRING } + types.filterKeys { it !in variables }
+}

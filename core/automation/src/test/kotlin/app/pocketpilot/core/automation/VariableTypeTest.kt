@@ -32,4 +32,34 @@ class VariableTypeTest {
         assertEquals(VariableType.COLOUR, VariableType.named("colour"))
         assertEquals(VariableType.STRING, VariableType.named(null))
     }
+
+    @Test
+    fun `a rule's local variables take their starting value's type, then the type a local Set variable step gives`() {
+        val rule =
+            Rule(
+                id = "r1",
+                name = "Typed",
+                variables = mapOf("count" to "0", "label" to "x"),
+                variableTypes = mapOf("count" to VariableType.INTEGER),
+                actions =
+                    listOf(
+                        ActionStep("var.set", mapOf("name" to "count", "type" to "Decimal", "value" to "1")),
+                        ActionStep(
+                            type = "flow.if",
+                            children = listOf(ActionStep("var.set", mapOf("name" to "on", "type" to "Boolean", "value" to "true"))),
+                            elseChildren = listOf(ActionStep("var.set", mapOf("name" to "tint", "type" to "Colour", "value" to "#FFFFFF"))),
+                        ),
+                        ActionStep("var.set", mapOf("name" to "shared", "type" to "Integer", "scope" to "global", "value" to "1")),
+                    ),
+            )
+        assertEquals(
+            mapOf(
+                "count" to VariableType.INTEGER,
+                "label" to VariableType.STRING,
+                "on" to VariableType.BOOLEAN,
+                "tint" to VariableType.COLOUR,
+            ),
+            rule.localVariableTypes(),
+        )
+    }
 }
