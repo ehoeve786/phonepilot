@@ -119,6 +119,17 @@ fun Route.oauthRoutes(
         call.respondWaitingOrRedirect(server, call.request.queryParameters["request"].orEmpty())
     }
 
+    // The browser sends the code the phone shows. Only then can the owner approve on the phone.
+    post("/authorize/pair") {
+        val form = call.receiveParameters()
+        val requestId = form["request"].orEmpty()
+        if (server.pair(requestId, form["code"].orEmpty())) {
+            call.respondRedirect("/authorize/wait?request=$requestId", permanent = false)
+        } else {
+            call.respondWaitingOrRedirect(server, requestId, wrongCode = true)
+        }
+    }
+
     post("/token") {
         val params = call.receiveParameters().entries().associate { it.key to it.value.first() }
         // Remote callers share one address, so a failing client is locked by its own client_id instead.
@@ -190,6 +201,7 @@ private fun scopesJson() =
 private suspend fun ApplicationCall.respondWaitingOrRedirect(
     server: AuthorizationServer,
     requestId: String,
+    wrongCode: Boolean = false,
 ) {
     when (val status = server.authorizationStatus(requestId)) {
         is AuthorizationStatus.Redirect -> {
@@ -198,7 +210,7 @@ private suspend fun ApplicationCall.respondWaitingOrRedirect(
 
         AuthorizationStatus.Waiting -> {
             response.header(HttpHeaders.CacheControl, "no-store")
-            respondHtml(waitingPage(requestId))
+            respondHtml(waitingPage(requestId, server.isPaired(requestId), wrongCode))
         }
 
         AuthorizationStatus.Unknown -> {
@@ -241,15 +253,37 @@ private fun page(
     </style></head><body>$body</body></html>
     """.trimIndent()
 
-private fun waitingPage(requestId: String) =
-    page(
+private fun waitingPage(
+    requestId: String,
+    paired: Boolean,
+    wrongCode: Boolean,
+): String {
+    val id = requestId.htmlEscape()
+    if (!paired) {
+        // No refresh here: it would clear the code being typed.
+        return page(
+            title = "Enter the code",
+            body =
+                "<h1>Enter the code from your phone</h1>" +
+                    "<p>PocketPilot shows a code in its approval notification. Type it here to continue.</p>" +
+                    (if (wrongCode) "<p><strong>That code is not right. Check the phone and try again.</strong></p>" else "") +
+                    "<form method=\"post\" action=\"/authorize/pair\">" +
+                    "<input type=\"hidden\" name=\"request\" value=\"$id\">" +
+                    "<label for=\"code\">Code</label> " +
+                    "<input id=\"code\" name=\"code\" autocomplete=\"one-time-code\" autocapitalize=\"characters\" " +
+                    "maxlength=\"6\" required autofocus> " +
+                    "<button type=\"submit\">Continue</button></form>",
+        )
+    }
+    return page(
         title = "Approve on your phone",
-        head = """<meta http-equiv="refresh" content="2;url=/authorize/wait?request=${requestId.htmlEscape()}">""",
+        head = """<meta http-equiv="refresh" content="2;url=/authorize/wait?request=$id">""",
         body =
             "<h1>Approve on your phone</h1>" +
                 "<p>PocketPilot is asking the phone's owner to approve this connection. Open the notification on the phone, " +
                 "check the app and permissions, and tap Allow.</p><p>This page continues by itself.</p>",
     )
+}
 
 private fun errorPage(message: String) =
     page(title = "Cannot connect", body = "<h1>Cannot connect to PocketPilot</h1><p>${message.htmlEscape()}</p>")
