@@ -55,7 +55,8 @@ fun ConsentScreen(
     onDeny: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var chosen by remember(ui) {
+    // Keyed on the request, not the whole ui, so pairing does not undo the owner's choices.
+    var chosen by remember(ui.pairingCode, ui.options) {
         mutableStateOf(
             ui.options
                 .filter { it.preselected }
@@ -76,13 +77,14 @@ fun ConsentScreen(
             Text(stringResource(R.string.feature_approvals_consent_from, ui.redirectHost), style = MaterialTheme.typography.bodyMedium)
             Text(stringResource(R.string.feature_approvals_consent_explainer), style = MaterialTheme.typography.bodySmall)
             if (ui.paired) {
-                Text(stringResource(R.string.feature_approvals_pairing_wait), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.feature_approvals_pairing_done), style = MaterialTheme.typography.bodyMedium)
             } else {
                 Text(
                     stringResource(R.string.feature_approvals_pairing_code, ui.pairingCode),
                     style = MaterialTheme.typography.titleMedium,
                     fontFamily = FontFamily.Monospace,
                 )
+                Text(stringResource(R.string.feature_approvals_pairing_wait), style = MaterialTheme.typography.bodySmall)
             }
             ui.options.forEach { option ->
                 Row(verticalAlignment = Alignment.CenterVertically) {

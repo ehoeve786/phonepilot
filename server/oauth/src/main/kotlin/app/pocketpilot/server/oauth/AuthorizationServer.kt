@@ -158,6 +158,8 @@ class AuthorizationServer(
         if (redirectUri !in client.redirectUris) {
             throw OAuthException("invalid_request", "redirect_uri does not match a registered URI")
         }
+        // Clients registered before the redirect rule tightened are held to it too.
+        if (!isAllowedRedirect(redirectUri)) throw OAuthException("invalid_request", "redirect_uri is not allowed")
 
         val id = "par_" + randomToken(REQUEST_ID_BYTES)
         val oauthState = params["state"]

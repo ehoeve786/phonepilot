@@ -265,7 +265,7 @@ private fun waitingPage(
             title = "Enter the code",
             body =
                 "<h1>Enter the code from your phone</h1>" +
-                    "<p>PocketPilot shows a code in its approval notification. Type it here to continue.</p>" +
+                    "<p>Tap PocketPilot's approval notification on the phone to see the code, then type it here.</p>" +
                     (if (wrongCode) "<p><strong>That code is not right. Check the phone and try again.</strong></p>" else "") +
                     "<form method=\"post\" action=\"/authorize/pair\">" +
                     "<input type=\"hidden\" name=\"request\" value=\"$id\">" +
